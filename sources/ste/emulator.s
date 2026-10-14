@@ -62,6 +62,7 @@
 
 	xref joystick_now
 	xref input_tick
+	xref input_frame_end
 	xref keyboard_matrix
 	xref audio_play
 	xref audio_status
@@ -359,23 +360,6 @@ frame_wait_begin:
 	move	frame_sprite_count,last_sprite_count
 	clr		frame_sprite_count
 
-	; Measurement runs: a screenshot every SCREENSHOT_INTERVAL frames, of
-	; this frame (rendered even if late).
-
-	tst.l	frame_limit
-	beq		.no_screenshot
-
-	move.l	frame_count,d0
-	beq		.no_screenshot
-
-	move.l	#SCREENSHOT_INTERVAL,d1
-	jsr		divide_unsigned
-	tst.l	d1
-	bne		.no_screenshot
-
-	move.l	frame_count,screenshot_due
-
-.no_screenshot:
 	rts
 
 frame_wait_end:
@@ -387,6 +371,20 @@ frame_wait_end:
 
 	addq.l	#1,frame_count
 
+	; Measurement runs: a screenshot every SCREENSHOT_INTERVAL frames, of
+	; the next frame (rendered even if late).
+
+	tst.l	frame_limit
+	beq		.no_screenshot
+
+	subq	#1,screenshot_countdown
+	bne		.no_screenshot
+
+	move	#SCREENSHOT_INTERVAL,screenshot_countdown
+	move.l	frame_count,screenshot_due
+
+.no_screenshot:
+	jsr		input_frame_end
 	jsr		record_checkpoint
 
 	move.l	frame_limit,d0
@@ -1124,6 +1122,9 @@ iocs_joyget:
 ; ------------------------------------------------------------------------------
 	data
 ; ------------------------------------------------------------------------------
+
+screenshot_countdown:
+	dc.w	SCREENSHOT_INTERVAL
 
 ; IOCS calls the game makes that need nothing here (zero-terminated):
 ; _CRTMOD, _B_PUTC, _B_COLOR, _B_LOCATE, _SKEY_MOD, _B_WPOKE, _G_CLR_ON,

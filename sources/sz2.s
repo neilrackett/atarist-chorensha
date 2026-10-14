@@ -19294,6 +19294,12 @@ JOYSTICK_DIRECTIONS_HANDLER:
 
 	endif
 
+	ifd __STE__
+
+	st		st_stage_frame ; This frame is in a stage: auto fire (input.s).
+
+	endif
+
 	movem.l D3-D4/A3-A4,-(A7)                       ; 0002A90E 48E7 1818
 
 	clr.w   D3                                      ; 0002A912 4243

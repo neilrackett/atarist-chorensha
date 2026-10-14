@@ -25,6 +25,9 @@
 #   MEMSIZE   RAM in MB (default 4)
 #   TIMEOUT   seconds before Hatari is stopped (default 900)
 #   BOOT_WAIT seconds from launch to the first command (default 10)
+#   LOCKSTEP  1: start in lockstep mode (every frame rendered; LOCKSTEP.TXT)
+#   INPUT     an input script (text, as tests/amiga/input/*.txt; only its
+#             joystick lines are used), staged as INPUT.BIN
 #   EXTRA     extra Hatari options
 #
 # Commands (after the program has started):
@@ -88,6 +91,12 @@ cp -R binaries/amiga/BGM_DAT binaries/amiga/ETC_DAT binaries/amiga/XSP_DAT "$STA
 cp -R binaries/atari/PCM_DAT "$STAGE/"
 if [ -n "$FRAMES" ]; then
 	echo "$FRAMES" > "$STAGE/FRAMES.TXT"
+fi
+if [ "${LOCKSTEP:-0}" = "1" ]; then
+	echo "lockstep" > "$STAGE/LOCKSTEP.TXT"
+fi
+if [ -n "${INPUT:-}" ]; then
+	python3 tests/amiga/make_input_script.py "$INPUT" "$STAGE/INPUT.BIN" || exit 2
 fi
 
 if [ "$WINDOW" != "1" ]; then

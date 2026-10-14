@@ -137,11 +137,10 @@ measure_picture:
 record_checkpoint:
 	movem.l	d0-d1/a0-a1,-(sp)
 
-	move.l	frame_count,d0
-	moveq	#CHECKPOINT_INTERVAL,d1
-	bsr		divide_unsigned
-	tst.l	d1
+	subq	#1,checkpoint_countdown ; Every CHECKPOINT_INTERVAL frames.
 	bne		.done
+
+	move	#CHECKPOINT_INTERVAL,checkpoint_countdown
 
 	move.l	checkpoint_count,d0
 	cmp.l	#MAXIMUM_CHECKPOINTS,d0
@@ -488,6 +487,9 @@ hex_digits:
 ; ------------------------------------------------------------------------------
 	data
 ; ------------------------------------------------------------------------------
+
+checkpoint_countdown:
+	dc.w	CHECKPOINT_INTERVAL
 
 checkpoints_file_name:
 	dc.b	'CHECKPTS.BIN',0

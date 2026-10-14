@@ -11,6 +11,9 @@
 ; FRAMES.TXT (optional, next to the program): a number of frames; the game
 ; then exits after that many frames (the attract demo, for measurements) and
 ; writes CHECKPTS.BIN.
+;
+; LOCKSTEP.TXT (optional): start in lockstep mode (every frame shown, the
+; game slowed down to the rendering speed; F1 switches).
 
 	xdef start
 
@@ -24,6 +27,7 @@
 	xref release_renderer
 	xref arena_size
 	xref reset_input
+	xref load_input_script
 	xref start_emulator
 	xref heap_address
 	xref heap_size
@@ -45,6 +49,7 @@
 	xref print_measurements
 	xref write_checkpoints
 	xref divide_unsigned
+	xref lockstep_mode
 
 HEAP_SIZE=$100000 ; The game's process area: PSP, game stack (64 KB), heap.
 
@@ -142,10 +147,12 @@ start:
 	jsr		print_text
 
 	bsr		read_frame_limit
+	bsr		read_lockstep
 
 	jsr		initialize_display
 	jsr		initialize_renderer
 	jsr		reset_input
+	jsr		load_input_script
 
 	bsr		print_memory
 
@@ -277,6 +284,30 @@ read_frame_limit:
 	jsr		print_text
 	jsr		print_number
 	lea		line_end_text,a0
+	jsr		print_text
+
+.done:
+	rts
+
+; LOCKSTEP.TXT present: lockstep mode from the start.
+
+read_lockstep:
+	clr		-(sp)
+	pea		lockstep_file_name
+	move	#61,-(sp) ; Fopen
+	trap	#1
+	addq.l	#8,sp
+	tst.l	d0
+	bmi		.done
+
+	move	d0,-(sp)
+	move	#62,-(sp) ; Fclose
+	trap	#1
+	addq.l	#4,sp
+
+	st		lockstep_mode
+
+	lea		lockstep_text,a0
 	jsr		print_text
 
 .done:
@@ -540,6 +571,10 @@ frames_file_name:
 	dc.b	'FRAMES.TXT',0
 frame_limit_text:
 	dc.b	'Frame limit: ',0
+lockstep_file_name:
+	dc.b	'LOCKSTEP.TXT',0
+lockstep_text:
+	dc.b	'Lockstep: every frame shown (F1 switches).',13,10,0
 starting_text:
 	dc.b	'Starting (the background takes a few seconds to build)...',13,10,0
 press_key_text:

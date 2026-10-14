@@ -1,0 +1,8 @@
+# Auto fire: trigger A held in a stage keeps firing. Main menu: START
+# (trigger A); trigger A held from frame 600 to 1600. Run with FRAMES=1600:
+# the score has risen by frame 1000 (without auto fire the game fires once,
+# at the press).
+300 a
+310 -
+600 a
+1600 -

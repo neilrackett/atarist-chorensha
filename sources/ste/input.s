@@ -15,12 +15,25 @@
 ;   P, ESC               the X68000's ESC (START: pause)
 ;   F1                   lockstep on / off (every frame shown, game slowed)
 ;   F2                   squash / crop the 256 lines into 200
+;
+; INPUT.BIN (optional, next to the program; tests): joystick states from
+; given frames on, in the Amiga port's input script format (made by
+; tests/amiga/make_input_script.py; only its joystick records are used).
+;
+; Auto fire (as in the Amiga port; the original game fires once per press):
+; in a stage (the game ran its ship control this frame), a held trigger A
+; reads released every other AUTOFIRE_FRAMES frames.
 
 	xdef ikbd_handler
 	xdef input_tick
 	xdef joystick_now
 	xdef keyboard_matrix
 	xdef reset_input
+	xdef input_frame_end
+	xdef st_stage_frame
+	xdef load_input_script
+
+	xref frame_count
 
 	xref machine_is_ste
 	xref lockstep_mode
@@ -38,6 +51,12 @@ NO_KEY=$ff
 NO_BIT=$ff
 SPECIAL_LOCKSTEP=$80
 SPECIAL_CROP=$81
+
+MAXIMUM_SCRIPT_RECORDS=1024
+SCRIPT_JOYSTICK=0
+
+AUTOFIRE_SHIFT=1
+AUTOFIRE_FRAMES=1<<AUTOFIRE_SHIFT ; Pressed for 2 frames, released for 2.
 
 ; ------------------------------------------------------------------------------
 	text
@@ -308,9 +327,134 @@ joystick_now:
 	move.b	stick_joystick_state,d0
 	and.b	stick_joystick_state+1,d0
 	and.b	pad_joystick_state,d0
+	and.b	script_joystick_state,d0
 	and.b	d1,d0
+	move.b	d0,last_joystick_state ; For the auto fire at the frame end.
 
+	tst.b	in_stage
+	beq		.done
+
+	tst.b	autofire_released
+	beq		.done
+
+	bset	#X68_TRIGGER_A,d0
+
+.done:
 	move.l	(sp)+,d1
+
+	rts
+
+; At each frame end (the game's frame wait): the auto fire's phase.
+; Preserves all registers.
+
+input_frame_end:
+	movem.l	d0/a0,-(sp)
+
+	; The input script's joystick records due by this frame.
+
+	move.l	script_next,a0
+
+.script_loop:
+	cmp.l	script_end,a0
+	bcc		.script_done
+
+	move.l	frame_count,d0
+	cmp.l	(a0),d0
+	bcs		.script_done
+
+	cmp.b	#SCRIPT_JOYSTICK,4(a0)
+	bne		.script_next_record
+
+	move.b	5(a0),script_joystick_state
+
+.script_next_record:
+	addq.l	#8,a0
+
+	bra		.script_loop
+
+.script_done:
+	move.l	a0,script_next
+
+	movem.l	(sp)+,d0/a0
+
+	move.b	st_stage_frame,in_stage
+	sf		st_stage_frame
+	beq		.no_autofire
+
+	btst	#X68_TRIGGER_A,last_joystick_state
+	bne		.no_autofire ; Released.
+
+	addq.l	#1,autofire_frames
+	btst	#AUTOFIRE_SHIFT,autofire_frames+3 ; Odd periods: released.
+	sne		autofire_released
+
+	rts
+
+.no_autofire:
+	clr.l	autofire_frames
+	sf		autofire_released
+
+	rts
+
+; INPUT.BIN: 'CRSI', number of records, 8-byte records (frame, kind, value,
+; extra, padding). GEMDOS, before the machine is taken over.
+
+load_input_script:
+	movem.l	d0-d3/a0-a2,-(sp)
+
+	lea		script_records,a0
+	move.l	a0,script_next
+	move.l	a0,script_end
+
+	clr		-(sp)
+	pea		input_file_name
+	move	#61,-(sp) ; Fopen
+	trap	#1
+	addq.l	#8,sp
+	tst.l	d0
+	bmi		.done
+
+	move	d0,d3
+
+	pea		script_header
+	move.l	#8,-(sp)
+	move	d3,-(sp)
+	move	#63,-(sp) ; Fread
+	trap	#1
+	lea		12(sp),sp
+
+	cmp.l	#'CRSI',script_header
+	bne		.close
+
+	move.l	script_header+4,d0
+	cmp.l	#MAXIMUM_SCRIPT_RECORDS,d0
+	bls		.count_ok
+
+	move.l	#MAXIMUM_SCRIPT_RECORDS,d0
+
+.count_ok:
+	lsl.l	#3,d0
+
+	pea		script_records
+	move.l	d0,-(sp)
+	move	d3,-(sp)
+	move	#63,-(sp)
+	trap	#1
+	lea		12(sp),sp
+	tst.l	d0
+	bmi		.close
+
+	and.b	#$f8,d0 ; Whole records.
+	add.l	d0,script_end
+
+.close:
+	move	d3,-(sp)
+	move	#62,-(sp) ; Fclose
+	trap	#1
+	addq.l	#4,sp
+
+.done:
+	movem.l	(sp)+,d0-d3/a0-a2
 
 	rts
 
@@ -322,6 +466,12 @@ reset_input:
 	st		stick_joystick_state
 	st		stick_joystick_state+1
 	st		pad_joystick_state
+	st		script_joystick_state
+	st		last_joystick_state
+	sf		in_stage
+	sf		st_stage_frame
+	sf		autofire_released
+	clr.l	autofire_frames
 
 	lea		keyboard_matrix,a0
 	moveq	#(16+128+8)/4-1,d0 ; keyboard_matrix ... joystick_bit_counts
@@ -335,6 +485,11 @@ reset_input:
 ; ------------------------------------------------------------------------------
 	data
 ; ------------------------------------------------------------------------------
+
+input_file_name:
+	dc.b	'INPUT.BIN',0
+
+	even
 
 ikbd_state:
 	dc.l	ikbd_idle
@@ -407,6 +562,30 @@ latest_vertical:
 ikbd_joystick_port:
 	ds.b	1
 ikbd_skip:
+	ds.b	1
+last_joystick_state:
+	ds.b	1
+st_stage_frame: ; Set by the game's ship control (sz2.s).
+	ds.b	1
+in_stage: ; The last frame was in a stage.
+	ds.b	1
+autofire_released:
+	ds.b	1
+
+	even
+
+autofire_frames:
+	ds.l	1
+
+script_next:
+	ds.l	1
+script_end:
+	ds.l	1
+script_header:
+	ds.l	2
+script_records:
+	ds.b	MAXIMUM_SCRIPT_RECORDS*8
+script_joystick_state:
 	ds.b	1
 
 	even
