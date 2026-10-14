@@ -12,3 +12,6 @@
 /binaries/amiga/hardware_test.zip
 /binaries/amiga/release/
 /tools/music/deps/
+/binaries/ste/*.o
+/binaries/ste/*.TOS
+/tmp/

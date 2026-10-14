@@ -5,10 +5,21 @@
 
 	ifd __ATARI__
 __PORT__ equ 1
+__PORT_CREDITS__ equ 1
 	endif
 
 	ifd __AMIGA__
 __PORT__ equ 1
+__CHUNKY__ equ 1
+	endif
+
+	; __CHUNKY__: the Amiga's chunky renderer and frame scheduler, shared by the
+	; Atari STE / Mega STE port (sources/ste: the Falcon's TOS layer with it).
+
+	ifd __STE__
+__PORT__ equ 1
+__CHUNKY__ equ 1
+__PORT_CREDITS__ equ 1
 	endif
 
 	ifd __PORT__
@@ -34,6 +45,16 @@ __PORT__ equ 1
 	xdef WORD_000A8EFC ; Ship states: respawn countdown,
 	xdef WORD_0008D8FA ; held still,
 	xdef WORD_000A8EFE ; slowed.
+
+	endif
+
+	ifd __STE__
+
+	xdef VBL_VWAIT_COUNTER
+	xdef NEW_STACK
+	xdef PLAYER_SCORE
+	xdef PLAYER_INFO_STRUCT
+	xdef WORD_00088E6C ; Random table index.
 
 	endif
 
@@ -388,7 +409,7 @@ XSP_VSYNC:
 	bra.s   L_0002021A                              ; 00020208 6010
 
 L_0002020A:
-	ifd __AMIGA__
+	ifd __CHUNKY__
 
 	jsr		amiga_xsp_vsync ; Sleeps instead of polling the counter.
 
@@ -4493,6 +4514,7 @@ SET_TEXT_GRAPHICS:
 
 DRAW_CHARACTER:
 	ifd __PORT__
+	ifnd __STE__ ; Falcon text bookkeeping.
 
 	lea		text_bitmaps,a0
 	move	8+2(sp),d0
@@ -4519,8 +4541,9 @@ DRAW_CHARACTER:
 	move.b	12+3(sp),(a0,d0.w)
 
 	endif
+	endif
 
-	ifd __AMIGA__
+	ifd __CHUNKY__
 
 	move	8+2(sp),d0 ; Text row (0-127): the renderer reconverts it.
 	jsr		amiga_text_row_written
@@ -4728,6 +4751,7 @@ L_000225E0:
 
 CLEAR_TEXT_PLANE:
 	ifd __PORT__
+	ifnd __STE__ ; Falcon text bookkeeping.
 
 	lea		text_bitmaps,a0
 
@@ -4740,8 +4764,9 @@ CLEAR_TEXT_PLANE:
 	dbf		d0,.loop
 
 	endif
+	endif
 
-	ifd __AMIGA__
+	ifd __CHUNKY__
 
 	; The X68000 clears all four text planes in one pass through the CRTC's
 	; simultaneous access mode (R21 = $1F0), which the shadow memory does
@@ -4895,7 +4920,7 @@ L_000226F0:
 
 	endif
 
-	ifd __AMIGA__
+	ifd __CHUNKY__
 
 	bra		skip_raster_sync1
 
@@ -5856,7 +5881,7 @@ WAIT_VBL:
 
 	endif
 
-	ifd __AMIGA__
+	ifd __CHUNKY__
 
 	move.w  6(sp),d1
 	jsr		amiga_wait_vbl
@@ -9870,6 +9895,16 @@ menu_port_text2:
 
 	endif
 
+	ifd __STE__
+
+menu_port_text1:
+	dc.b	'atari ste PORT',0
+
+menu_port_text2:
+	dc.b	'PROOF OF CONCEPT',0
+
+	endif
+
 MENU_VERSION_TEXT:
 	dc.b    'version  1.01',0
 
@@ -9970,7 +10005,7 @@ L_00024DDC:
 	pea     $D.w                                    ; 00024E34 4878 000D
 	jsr     (A3)                                    ; 00024E38 4E93
 
-	ifd __ATARI__
+	ifd __PORT_CREDITS__
 
 	pea     MENU_COPYRIGHT_TEXT(pc)
 	pea     $1a.w
@@ -10808,6 +10843,12 @@ L_000255D8:
 	move.w  WORD_0008DAFC,D0                        ; 000255EA 3039 0008 DAFC
 	addq.w  #$1,D0                                  ; 000255F0 5240
 	and.w   #%0000000000000001,D0                   ; 000255F2 C07C 0001
+	ifd __STE__
+
+	moveq	#0,D0 ; No rotated screen: its builder writes GVRAM's right halves, which hold the layers.
+
+	endif
+
 	move.w  D0,WORD_0008DAFC                        ; 000255F6 33C0 0008 DAFC
 	ext.l   D0                                      ; 000255FC 48C0
 	move.l  D0,-(A7)                                ; 000255FE 2F00
@@ -13309,6 +13350,12 @@ L_00026C04:
 
     endif
 
+	ifd __STE__
+
+	jmp		st_exit_game
+
+	endif
+
 	ifd __AMIGA__
 
 	jmp		amiga_exit_game
@@ -13414,7 +13461,7 @@ L_00026D08:
 
 	jsr     INITIALIZE_SPRITES_AND_GRAPHICS                              ; 00026D1C 4EB9 0002 9560
 
-	ifd __AMIGA__
+	ifd __CHUNKY__
 
 	jsr		amiga_graphics_changed ; GVRAM rebuilt: convert the layers.
 
@@ -14621,7 +14668,7 @@ CALCULATE_CPU_POWER:
 
 	endif
 
-	ifd __AMIGA__
+	ifd __CHUNKY__
 
 	move.l	#1000,d0
 
@@ -18007,7 +18054,7 @@ L_0002981E:
 	ext.l   D0                                      ; 00029820 48C0
 	move.l  D0,D1                                   ; 00029822 2200
 	asl.l   #$2,D1                                  ; 00029824 E581
-	ifd __AMIGA__
+	ifd __CHUNKY__
 	sub.l	#L_00EB8000+$1C,D1 ; -$EB801C was the X68000 PCG address (row $1C of the pattern, read upwards).
 	else
 	add.l   #$FF147FE4,D1                           ; 00029826 D2BC FF14 7FE4
@@ -18093,7 +18140,7 @@ L_000298C8:
 	ext.l   D0                                      ; 000298CA 48C0
 	move.l  D0,D1                                   ; 000298CC 2200
 	asl.l   #$2,D1                                  ; 000298CE E581
-	ifd __AMIGA__
+	ifd __CHUNKY__
 	sub.l	#L_00EB8000+$1C,D1 ; -$EB801C was the X68000 PCG address (row $1C of the pattern, read upwards).
 	else
 	add.l   #$FF147FE4,D1                           ; 000298D0 D2BC FF14 7FE4
@@ -18417,7 +18464,7 @@ L_00029B82:
 	ext.l   D1                                      ; 00029B84 48C1
 	move.l  D1,D0                                   ; 00029B86 2001
 	asl.l   #$2,D0                                  ; 00029B88 E580
-	ifd __AMIGA__
+	ifd __CHUNKY__
 	sub.l	#L_00EB8000+$1C,D0 ; -$EB801C was the X68000 PCG address (row $1C of the pattern, read upwards).
 	else
 	add.l   #$FF147FE4,D0                           ; 00029B8A D0BC FF14 7FE4
@@ -18502,7 +18549,7 @@ L_00029C32:
 	ext.l   D1                                      ; 00029C34 48C1
 	move.l  D1,D0                                   ; 00029C36 2001
 	asl.l   #$2,D0                                  ; 00029C38 E580
-	ifd __AMIGA__
+	ifd __CHUNKY__
 	sub.l	#L_00EB8000+$1C,D0 ; -$EB801C was the X68000 PCG address (row $1C of the pattern, read upwards).
 	else
 	add.l   #$FF147FE4,D0                           ; 00029C3A D0BC FF14 7FE4
@@ -89743,6 +89790,12 @@ BYTE_00059E10:
 	dc.b    $04                                    ;  ; 00059F15
 
 PRINTF:
+	ifd __STE__
+
+	rts
+
+	endif
+
 	ifd __ATARI__
 
 	rts
