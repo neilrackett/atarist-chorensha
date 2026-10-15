@@ -19,8 +19,10 @@
 ; the shifted pixels all fall into one of the two groups (narrow shapes:
 ; bullets, particles), only that group is kept and drawn (142 cycles). The
 ; masters and shifted copies live in an arena (the memory left free: about
-; 900 KB with 4 MB), found through a table per pattern of its 32 variants;
-; when the arena is full it is emptied and refilled with what is drawn next.
+; 900 KB with 4 MB), found through a table per pattern of its 32 variants.
+; The arena is used in two halves: when the active half is full, the other
+; one is emptied (everything kept there forgotten) and used, so what was
+; made most recently stays.
 ;
 ; Order: the X68000's priority (the attribute's low 6 bits; larger is in
 ; front, $00-$0F not shown), in 64 buckets drawn upwards; within a bucket the
@@ -225,15 +227,19 @@ release_renderer:
 
 	rts
 
-; Empties the arena and the hash table. Preserves all registers.
+; Empties the arena and the variant tables. Preserves all registers.
 
 reset_cache:
 	movem.l	d0-d1/a0,-(sp)
 
 	sf		cache_reset_pending
+	clr		active_half
 	move.l	arena,arena_next
-	move.l	arena,d0
-	add.l	arena_size,d0
+	move.l	arena_size,d0
+	lsr.l	#1,d0
+	and.b	#$fc,d0
+	move.l	d0,half_size
+	add.l	arena,d0
 	move.l	d0,arena_end
 	lea		pattern_tables,a0
 	moveq	#0,d0
@@ -250,13 +256,14 @@ reset_cache:
 
 	rts
 
-; d0.l = size (even) -> a0 = memory from the arena, or Z set if it is full.
+; d0.l = size (even) -> a0 = memory from the arena's active half, or Z set if
+; it is full (draw_sprites then switches halves and draws the sprite again).
 
 allocate:
 	move.l	arena_next,a0
 	move.l	a0,-(sp)
 	add.l	d0,a0
-	cmp.l	arena_end,a0
+	cmp.l	arena_end,a0 ; (The active half's end.)
 	bhi		.full
 
 	move.l	a0,arena_next
@@ -268,6 +275,95 @@ allocate:
 .full:
 	addq.l	#4,sp
 	moveq	#0,d0 ; Z set.
+
+	rts
+
+; The active half is full: the other half becomes the active one, and
+; everything kept in it is forgotten (pointers to it cleared: variant
+; tables, records, shifted copies). What was made most recently, in the
+; half just filled, stays. Preserves all registers.
+
+switch_half:
+	movem.l	d0-d7/a0-a3,-(sp)
+
+	not		active_half
+	move.l	arena,d6 ; The new half: d6 <= address < d7.
+	tst		active_half
+	beq		.first_half
+
+	add.l	half_size,d6
+
+.first_half:
+	move.l	d6,d7
+	add.l	half_size,d7
+	move.l	d6,arena_next
+	move.l	d7,arena_end
+
+	lea		pattern_tables,a0
+	move	#PCG_PATTERNS-1,d5
+
+.pattern_loop:
+	move.l	(a0)+,d0
+	beq		.next_pattern
+
+	cmp.l	d6,d0
+	bcs		.table_kept
+
+	cmp.l	d7,d0
+	bcc		.table_kept
+
+	clr.l	-4(a0) ; The table goes (its records in the other half too).
+
+	bra		.next_pattern
+
+.table_kept:
+	move.l	d0,a1
+	moveq	#32-1,d4
+
+.variant_loop:
+	move.l	(a1)+,d0
+	beq		.next_variant
+
+	cmp.l	d6,d0
+	bcs		.record_kept
+
+	cmp.l	d7,d0
+	bcc		.record_kept
+
+	clr.l	-4(a1)
+
+	bra		.next_variant
+
+.record_kept:
+	move.l	d0,a2
+	lea		RECORD_SHIFTS(a2),a2
+	moveq	#16-1,d3
+
+.shift_loop:
+	move.l	(a2)+,d0
+	beq		.next_shift
+
+	cmp.l	d6,d0
+	bcs		.next_shift
+
+	cmp.l	d7,d0
+	bcc		.next_shift
+
+	clr.l	-4(a2)
+
+.next_shift:
+	dbf		d3,.shift_loop
+
+.next_variant:
+	dbf		d4,.variant_loop
+
+.next_pattern:
+	dbf		d5,.pattern_loop
+
+	move	#EMPTY_KEY,last_key
+	addq.l	#1,half_switches
+
+	movem.l	(sp)+,d0-d7/a0-a3
 
 	rts
 
@@ -314,13 +410,13 @@ draw_sprites:
 	bsr		draw_one_sprite
 	bpl		.next_sprite ; Drawn (or nothing to draw).
 
-	; The arena was full: empty it and try once more.
+	; The arena's half was full: switch halves and try once more.
 
 	tst.b	retried
 	bne		.next_sprite
 
 	st		retried
-	bsr		reset_cache
+	bsr		switch_half
 
 	bra		.retry
 
@@ -1057,6 +1153,8 @@ margin_bottom:
 	ds.w	1
 row_bytes:
 	ds.w	1
+active_half:
+	ds.w	1
 last_key: ; The variant of the sprite before (EMPTY_KEY: none).
 	ds.w	1
 cache_reset_pending:
@@ -1078,8 +1176,13 @@ arena_end:
 	ds.l	1
 cache_resets:
 	ds.l	1
+half_switches:
+	ds.l	1
+half_size:
+	ds.l	1
 
 	xdef cache_resets
+	xdef half_switches
 
 colour_bits: ; make_master: per colour, the plane bits to OR in.
 	ds.l	16*2
