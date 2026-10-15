@@ -6,7 +6,7 @@
 ; of text planes:
 ;
 ; - Row 0 is the HUD (score, high score): it is drawn at once into the top 8
-;   lines of both screens, the HUD band, which the playfield never touches,
+;   lines of all three screens, the HUD band, which the playfield never touches,
 ;   so it costs nothing per picture.
 ; - The other rows ("STAGE n", pause, game over, menus) are drawn over every
 ;   picture, through the playfield window, masked (colour 0 transparent).
@@ -99,12 +99,14 @@ st_draw_character:
 	tst		d1
 	bne		.done
 
-	; The HUD: both screens' band, opaque on colour 0.
+	; The HUD: the band of all three screens, opaque on colour 0.
 
 	bsr		character_lines ; a0 = its lines.
 	move.l	screen_buffers,a1
 	bsr		.band_character
 	move.l	screen_buffers+4,a1
+	bsr		.band_character
+	move.l	screen_buffers+8,a1
 	bsr		.band_character
 
 .done:
@@ -305,6 +307,8 @@ amiga_clear_text_planes:
 	move.l	screen_buffers,a0
 	bsr		.clear_band
 	move.l	screen_buffers+4,a0
+	bsr		.clear_band
+	move.l	screen_buffers+8,a0
 	bsr		.clear_band
 
 	movem.l	(sp)+,d0-d7/a0-a1

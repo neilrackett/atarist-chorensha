@@ -3,7 +3,7 @@
 ; double-buffered, drawn in bitplanes:
 ;
 ;   lines 0-7     the HUD band: the X68000 text layer's row 0 (score, high
-;                 score), drawn into both screens by text.s when the game
+;                 score), drawn into all three screens by text.s when the game
 ;                 writes it, never touched here;
 ;   lines 8-199   the playfield: 192 of the X68000's 256 lines, 1:1, 32
 ;                 pixels from the left edge. The window follows the ship in
@@ -16,10 +16,14 @@
 ; sprites reached into them cleared; the 16 colours (palette.s). The VBL
 ; shows it: the screen address at the next VBL (the shifter takes it a frame
 ; later), the colours one VBL after that, together with the new screen.
+; Three screens: the one shown, the one presented (shown after those VBLs)
+; and the one drawn into, so drawing never waits for the VBLs; presenting
+; waits only if the picture before is not on screen yet (wait_for_flip).
 
 	xdef initialize_display
 	xdef render_frame
 	xdef present_frame
+	xdef wait_for_flip
 	xdef display_vbl
 	xdef display_screen_address
 	xdef screen_buffers
@@ -62,6 +66,7 @@ SHIP_LINE=130 ; The ship's line in the playfield window.
 WINDOW_STEP=2 ; Lines per frame.
 
 VC_PRIORITY=$500
+SCREENS=3
 
 ; ------------------------------------------------------------------------------
 	text
@@ -77,6 +82,9 @@ initialize_display:
 	add.l	#SCREEN_SIZE,d0
 	move.l	d0,work_screen_address
 	move.l	d0,screen_buffers+4
+	add.l	#SCREEN_SIZE,d0
+	move.l	d0,spare_screen_address
+	move.l	d0,screen_buffers+8
 
 	move	#DEFAULT_WINDOW,window_offset
 
@@ -325,32 +333,42 @@ zero_registers:
 ; Shows the picture drawn by render_frame.
 
 present_frame:
+	bsr		wait_for_flip ; The picture before on screen (usually long since).
+
 	movem.l	d0-d7/a0,-(sp)
 
-	; The previous picture must be on screen: its buffer becomes the hidden
-	; one only then.
+	movem.l	picture_palette,d0-d7
+	movem.l	d0-d7,flip_palette
 
-.wait_flip:
+	; The picture drawn is presented; the next one goes into the spare
+	; screen; the one shown until now becomes the spare (once the VBLs
+	; have shown the new one, before the next presentation).
+
+	move.l	display_screen_address,d0
+	move.l	work_screen_address,display_screen_address
+	move.l	spare_screen_address,work_screen_address
+	move.l	d0,spare_screen_address
+	move.b	#2,flip_pending
+
+	movem.l	(sp)+,d0-d7/a0
+
+	rts
+
+; Waits until the picture last presented is on screen (its address and
+; colours taken at the VBLs): only then has the shifter left the screen
+; shown before it. Preserves all registers.
+
+wait_for_flip:
 	tst.b	flip_pending
-	beq		.flip_done
+	beq		.done
 
 	move	sr,-(sp)
 	stop	#$2300
 	move	(sp)+,sr
 
-	bra		.wait_flip
+	bra		wait_for_flip
 
-.flip_done:
-	movem.l	picture_palette,d0-d7
-	movem.l	d0-d7,flip_palette
-
-	move.l	work_screen_address,d0
-	move.l	display_screen_address,work_screen_address
-	move.l	d0,display_screen_address
-	move.b	#2,flip_pending
-
-	movem.l	(sp)+,d0-d7/a0
-
+.done:
 	rts
 
 ; ------------------------------------------------------------------------------
@@ -512,8 +530,10 @@ display_screen_address: ; Shown (or about to be).
 	ds.l	1
 work_screen_address: ; Hidden: the next picture is drawn here.
 	ds.l	1
-screen_buffers: ; Both screens (the HUD band is drawn into both).
-	ds.l	2
+spare_screen_address: ; Shown before the last presentation; drawn into next.
+	ds.l	1
+screen_buffers: ; The three screens (the HUD band is drawn into all of them).
+	ds.l	SCREENS
 window_frame:
 	ds.l	1
 picture_palette: ; The colours of the picture being drawn.
@@ -536,7 +556,7 @@ display_mode_changed:
 	even
 
 screen_memory:
-	ds.b	SCREEN_SIZE*2+256
+	ds.b	SCREEN_SIZE*3+256
 
 ; ------------------------------------------------------------------------------
 	end
