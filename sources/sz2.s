@@ -56,6 +56,7 @@ __PORT_CREDITS__ equ 1
 	xdef PLAYER_INFO_STRUCT
 	xdef WORD_00088E6C ; Random table index.
 	xdef WORD_00098864 ; The player's ship: x, y (the display window follows it).
+	xdef BUFF_END_ADR
 
 	endif
 
@@ -139,7 +140,11 @@ L_0002007C:
 	movea.l LONG_000221EC(pc),A1                    ; 0002007E 227A 216C
 	adda.w  D1,A1                                   ; 00020082 D2C1
 	movea.l CURRENT_SPRITE_DATA_ENTRY(pc),A0                    ; 00020084 207A 2140
+	ifd __STE__
+	move.l	st_sprite_buffer_end,D0 ; Two sprite tables in turn (sprites.s).
+	else
 	move.l  #BUFF_END_ADR,D0                       ; 00020088 203C 0005 F522
+	endif
 	sub.l   A0,D0                                   ; 0002008E 9088
 	asr.w   #$3,D0                                  ; 00020090 E640
 	cmp.w   (A1)+,D0                                ; 00020092 B059
@@ -2931,6 +2936,23 @@ L_00021602:
 	rts                                             ; 00021620 4E75
 
 VBL_INTERRUPT_HANDLER:
+	ifd __STE__
+
+	; The STE port needs only the frame counters and the game's vsync
+	; function (scroll registers, palette copies, colour cycling, the bomb
+	; flash); the rest drives X68000 sprite registers and raster
+	; interrupts, which the port does not use.
+
+	movem.l	D0-D7/A0-A6,-(A7)
+	addq.w	#$1,VBL_VWAIT_COUNTER
+	addq.w	#$1,VBL_COUNTER
+	movea.l	XSP_VSYNCINT_FUNCTION_ADDRESS(pc),A0
+	jsr		(A0)
+	movem.l	(A7)+,D0-D7/A0-A6
+	rte
+
+	endif
+
 	movem.l D0-D7/A0-A6,-(A7)                       ; 00021622 48E7 FFFE
 
 	move.w  #$3FF,L_00E80000+$12                    ; 00021626 33FC 03FF 00E8 0012      ; [CRTC + $12]  
@@ -4111,6 +4133,10 @@ L_000220D8:
 
 	move.l  #$FFFFFFFF,(A0)+                        ; 000220DE 20FC FFFF FFFF
 	move.l  #$FFFFFFFF,(A0)+                        ; 000220E4 20FC FFFF FFFF
+
+	ifd __STE__
+	jsr		st_sprite_tables_reset ; The game fills the first table again (sprites.s).
+	endif
 
 	lea     LONG_00060636,A0                        ; 000220EA 41F9 0006 0636
 	moveq   #0,D0                                   ; 000220F0 7000

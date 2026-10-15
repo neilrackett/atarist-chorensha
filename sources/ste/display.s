@@ -427,7 +427,7 @@ write_frame_dump:
 	lea		character_map,a0
 	move.l	#32*32,d1
 	bsr		.write
-	lea		sprite_list,a0
+	move.l	sprite_list,a0
 	moveq	#0,d1
 	move	render_sprite_count,d1
 	lsl.l	#3,d1

@@ -42,11 +42,14 @@
 	xdef margin_top
 	xdef margin_bottom
 	xdef sprite_list
+	xdef st_sprite_buffer_end
+	xdef st_sprite_tables_reset
 	xdef render_sprite_count
 
 	xref SPRITE_DATA_TABLE
 	xref CURRENT_SPRITE_DATA_ENTRY
 	xref SPRITE_DATA_ADDRESS
+	xref BUFF_END_ADR
 	xref sprite_colour_map
 
 	ifd __USAGE__
@@ -95,12 +98,15 @@ LAST_PICTURE_GROUP=17
 ; ------------------------------------------------------------------------------
 
 ; Called from XSP_OUT once the game has built its sprite list (8 bytes per
-; sprite: x, y, pattern, attributes). Takes a copy for the renderer and
-; returns d0 = 0 like the Falcon version.
+; sprite: x, y, pattern, attributes): that table becomes the renderer's, and
+; the game fills the other one of two next (each ends in the $FFFF the XSP
+; routines stop at; XOBJ_SET's room check reads st_sprite_buffer_end, sz2.s).
+; Returns d0 = 0 like the Falcon version.
 
 prepare_sprite_infos:
 	move.l	CURRENT_SPRITE_DATA_ENTRY,d0
-	sub.l	#SPRITE_DATA_TABLE,d0
+	move.l	game_sprite_table,a0
+	sub.l	a0,d0
 	lsr.l	#3,d0
 	cmp		#MAXIMUM_SPRITES,d0
 	bls		.count_ok
@@ -110,30 +116,40 @@ prepare_sprite_infos:
 .count_ok:
 	move	d0,frame_sprite_count
 	move	d0,render_sprite_count
+	move.l	a0,sprite_list
 
 	ifd __USAGE__
 	jsr		count_sprite_usage ; Colour statistics (dump.s).
 	endif
 
-	movem.l	a0/a2,-(sp)
+	; The other table for the game's next frame.
 
+	cmp.l	#SPRITE_DATA_TABLE,a0
+	bne		.back_to_first
+
+	lea		second_sprite_table,a0
+	move.l	#second_sprite_table_end,st_sprite_buffer_end
+
+	bra		.swapped
+
+.back_to_first:
 	lea		SPRITE_DATA_TABLE,a0
-	lea		sprite_list,a2
-	subq	#1,d0
-	bmi		.copy_done
+	move.l	#BUFF_END_ADR,st_sprite_buffer_end
 
-.copy_loop:
-	move.l	(a0)+,(a2)+
-	move.l	(a0)+,(a2)+
-
-	dbf		d0,.copy_loop
-
-.copy_done:
-	movem.l	(sp)+,a0/a2
-
-	move.l	#SPRITE_DATA_TABLE,CURRENT_SPRITE_DATA_ENTRY
+.swapped:
+	move.l	a0,game_sprite_table
+	move.l	a0,CURRENT_SPRITE_DATA_ENTRY
 
 	moveq	#0,d0
+
+	rts
+
+; XSP_BUFF_INIT (sz2.s) has set the game's table back to SPRITE_DATA_TABLE.
+; Preserves all registers.
+
+st_sprite_tables_reset:
+	move.l	#SPRITE_DATA_TABLE,game_sprite_table
+	move.l	#BUFF_END_ADR,st_sprite_buffer_end
 
 	rts
 
@@ -151,6 +167,10 @@ compile_sprite:
 
 initialize_renderer:
 	movem.l	d0-d2/a0-a2,-(sp)
+
+	move.l	#SPRITE_DATA_TABLE,sprite_list
+	moveq	#-1,d0
+	move.l	d0,second_sprite_table_end ; Where the XSP routines stop.
 
 	clr.l	arena
 	clr.l	arena_size
@@ -288,7 +308,7 @@ draw_sprites:
 .sprite_loop:
 	move	(a6)+,d0
 	lsl		#3,d0
-	lea		sprite_list,a5
+	move.l	sprite_list,a5
 	add		d0,a5 ; x, y, pattern, attributes.
 
 	movem.l	d7/a6,-(sp)
@@ -948,7 +968,7 @@ order_sprites:
 	clr.l	(a0)+
 	dbf		d0,.clear_counts
 
-	lea		sprite_list,a0
+	move.l	sprite_list,a0
 	lea		bucket_counts,a1
 	move	d6,d0
 	subq	#1,d0
@@ -983,7 +1003,7 @@ order_sprites:
 
 	move	d1,d7 ; Shown sprites.
 
-	lea		sprite_list,a0
+	move.l	sprite_list,a0
 	lea		bucket_ends,a2
 	lea		sprite_order,a3
 	moveq	#0,d2 ; List index.
@@ -1013,6 +1033,15 @@ order_sprites:
 	tst		d7
 
 	rts
+
+; ------------------------------------------------------------------------------
+	data
+; ------------------------------------------------------------------------------
+
+game_sprite_table: ; The table the game fills now.
+	dc.l	SPRITE_DATA_TABLE
+st_sprite_buffer_end:
+	dc.l	BUFF_END_ADR
 
 ; ------------------------------------------------------------------------------
 	bss
@@ -1058,8 +1087,12 @@ cache_resets:
 
 colour_bits: ; make_master: per colour, the plane bits to OR in.
 	ds.l	16*2
-sprite_list:
+sprite_list: ; The renderer's sprite table (the game's last complete one).
+	ds.l	1
+second_sprite_table: ; The game fills this and SPRITE_DATA_TABLE in turn.
 	ds.l	MAXIMUM_SPRITES*2
+second_sprite_table_end:
+	ds.l	1 ; $FFFFFFFF
 sprite_order:
 	ds.w	MAXIMUM_SPRITES
 bucket_counts:

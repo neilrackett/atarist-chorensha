@@ -25,7 +25,7 @@
 	xref L_00C00000
 	endif
 
-	xref SPRITE_DATA_TABLE
+	xref sprite_list
 	xref SPRITE_DATA_ADDRESS
 	xref L_00E82000
 	xref PLAYER_SCORE
@@ -48,7 +48,7 @@ count_sprite_usage:
 	move.l	SPRITE_DATA_ADDRESS,d1
 	beq		.done
 
-	lea		SPRITE_DATA_TABLE,a0
+	move.l	sprite_list,a0 ; The table just completed.
 	subq	#1,d0
 	bmi		.done
 
