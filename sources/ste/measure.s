@@ -39,7 +39,7 @@
 CHECKPOINT_INTERVAL=60
 CHECKPOINT_SIZE=32
 MAXIMUM_CHECKPOINTS=2048 ; 122,880 frames.
-RENDER_PARTS=3
+RENDER_PARTS=4
 
 HISTOGRAM_BUCKETS=256
 BUCKET_UNITS=19 ; 0.495 ms.
@@ -570,7 +570,8 @@ parts_text:
 	dc.b	'Render parts (ms):',0
 part_names: ; RENDER_PARTS
 	dc.b	' background ',0
-	dc.b	', sprites and text ',0
+	dc.b	', sprites ',0
+	dc.b	', text ',0
 	dc.b	', borders and colours ',0
 close_line_text:
 	dc.b	')'

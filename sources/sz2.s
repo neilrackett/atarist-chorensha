@@ -20362,6 +20362,168 @@ L_0002B3FE:
 	clr.w   (A0)                                    ; 0002B40E 4250
 
 L_0002B410:
+	ifd __STE__
+
+	; The shot slots, in registers: the same work as below, with
+	; L_00022D56 (the collision grid) and XSP_SET_ST inlined instruction
+	; for instruction (D0 too: XSP_SET_ST leaves it when the sprite table
+	; is full).
+
+	lea     WORD_000978E4+$E80,A3                   ; Slot 29.
+	moveq   #29,D3
+	lea     WORD_0008D8A4,A5
+	moveq   #0,D4                                   ; Free slots.
+
+.st_slot:
+	tst.w   2(A3)
+	beq.w   .st_free
+
+	move.w  60(A3),D2
+	add.w   D2,(A3)
+	move.w  62(A3),D2
+	add.w   D2,2(A3)
+
+	movea.l A3,A0                                   ; L_00022D56
+	lea     WORD_00023238,A2
+	move.w  12(A0),D0
+	andi.w  #%0000000000011111,D0
+	lsl.w   #$3,D0
+	adda.w  D0,A2
+	move.w  (A0),D0
+	asr.w   #$6,D0
+	move.w  8(A0),D1
+	move.w  D0,D2
+	sub.w   D1,D0
+	move.w  D0,(A2)+
+	bpl.s   .st_x_low
+
+	moveq   #0,D0
+
+.st_x_low:
+	add.w   D1,D2
+	move.w  D2,(A2)+
+	cmpi.w  #$11F,D2
+	ble.s   .st_x_high
+
+	move.w  #$11F,D2
+
+.st_x_high:
+	cmp.w   D0,D2
+	blt.w   .st_marked
+
+	asr.w   #$4,D0
+	asr.w   #$4,D2
+	sub.w   D0,D2
+	add.w   D2,D2
+	neg.w   D2
+	add.w   D0,D0
+	add.w   D0,D0
+	lea     LONG_000231A8,A1
+	adda.w  D0,A1
+	move.w  12(A0),D1
+	moveq   #0,D0
+	bset    D1,D0
+	jmp     .st_x_end(pc,D2.w)
+
+	rept 17
+	or.l    D0,(A1)+
+	endr
+.st_x_end:
+	or.l    D0,(A1)+
+
+	move.l  D0,D5
+	move.w  2(A0),D0
+	asr.w   #$6,D0
+	move.w  10(A0),D1
+	move.w  D0,D2
+	sub.w   D1,D0
+	move.w  D0,(A2)+
+	bpl.s   .st_y_low
+
+	moveq   #0,D0
+
+.st_y_low:
+	add.w   D1,D2
+	move.w  D2,(A2)+
+	cmpi.w  #$11F,D2
+	ble.s   .st_y_high
+
+	move.w  #$11F,D2
+
+.st_y_high:
+	cmp.w   D0,D2
+	blt.w   .st_marked
+
+	asr.w   #$4,D0
+	asr.w   #$4,D2
+	sub.w   D0,D2
+	add.w   D2,D2
+	neg.w   D2
+	add.w   D0,D0
+	add.w   D0,D0
+	lea     LONG_000231F0,A1
+	adda.w  D0,A1
+	move.l  D5,D0
+	jmp     .st_y_end(pc,D2.w)
+
+	rept 17
+	or.l    D0,(A1)+
+	endr
+.st_y_end:
+	or.l    D0,(A1)+
+
+.st_marked:
+	movea.l CURRENT_SPRITE_DATA_ENTRY,A0            ; XSP_SET_ST
+	tst.w   (A0)
+	bmi.s   .st_set
+
+	move.w  (A3),D0
+	move.w  2(A3),D1
+	cmpi.w  #$4400,D0
+	bcc.s   .st_outside
+
+	cmpi.w  #$4400,D1
+	bcc.s   .st_outside
+
+	asr.w   #$6,D0
+	asr.w   #$6,D1
+	move.w  D0,(A0)+
+	move.w  D1,(A0)+
+	move.l  4(A3),(A0)+
+	move.l  A0,CURRENT_SPRITE_DATA_ENTRY
+
+	bra.s   .st_set
+
+.st_outside:
+	moveq   #0,D0
+
+.st_set:
+	tst.w   D0
+	bne.s   .st_next
+
+	clr.w   2(A3)
+
+.st_free:
+	move.w  D4,D0
+	add.w   D0,D0
+	move.w  D3,0(A5,D0.w)
+	addq.w  #$1,D4
+
+.st_next:
+	lea     -128(A3),A3
+
+	dbf     D3,.st_slot
+
+	move.w  D4,WORD_0008D8E0
+
+	movem.l -164(A6),D3-D5/A3-A5
+
+	unlk    A6
+
+	rts
+
+	endif
+
 	clr.w   WORD_0008D8E0                           ; 0002B410 4279 0008 D8E0
 	move.l  #WORD_000978E4,D2                       ; 0002B416 243C 0009 78E4
 	add.l   #$E80,D2                                ; 0002B41C D4BC 0000 0E80

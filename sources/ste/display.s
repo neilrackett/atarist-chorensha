@@ -169,15 +169,12 @@ render_frame:
 	bsr		.text
 
 .borders:
-	moveq	#1,d0 ; Sprites and text.
-	jsr		mark_render_part
-
 	bsr		clear_margins
 
 	lea		picture_palette,a0
 	jsr		make_hardware_palette
 
-	moveq	#2,d0 ; Borders and colours.
+	moveq	#3,d0 ; Borders and colours.
 	jsr		mark_render_part
 
 	movem.l	(sp)+,d0-d7/a0-a6
@@ -187,12 +184,16 @@ render_frame:
 .sprites:
 	move.l	work_screen_address,a1
 	move	window_offset,d0
-	jmp		draw_sprites
+	jsr		draw_sprites
+	moveq	#1,d0 ; Sprites.
+	jmp		mark_render_part
 
 .text:
 	move.l	work_screen_address,a1
 	move	window_offset,d0
-	jmp		draw_text_rows
+	jsr		draw_text_rows
+	moveq	#2,d0 ; Text.
+	jmp		mark_render_part
 
 ; The window: in a stage, toward the ship (two thirds down the playfield),
 ; else (or with F2) the default.
