@@ -1,12 +1,20 @@
-# Cho Ren Sha 68k on the Atari STE / Mega STE
+# Cho Ren Sha 68k on the Atari ST, STE and Mega STE
 
-The game in colour on an Atari STE or Mega STE with 4 MB. The game runs at
-its full speed (50 frames per second), and the pictures are drawn as fast
-as the machine allows, leaving out the rest. It builds with the
+The game in colour on an Atari ST, STE or Mega STE with 4 MB. The game runs
+at its full speed (50 frames per second), and the pictures are drawn as
+fast as the machine allows, leaving out the rest. It builds with the
 atarist-toolkit-docker tools (`stcmd`). It has been tested in Hatari only.
+
+One program runs on all three. It needs no BLiTTER, so a plain ST draws as
+fast as an STE. What the STE adds is DMA sound (an ST has no sound effects
+yet), 4,096 colours instead of 512 (the same colour code: an ST ignores the
+extra bit) and its Jaguar pad port; the Mega STE adds 16 MHz and its cache.
+The folder and file names still say STE (`sources/ste`, `SZ2_STE.TOS`).
 
 **Results, in short.** Measured in Hatari 2.6.1 with TOS 2.06 and 4 MB. The
 attract demo runs 6,000 frames; the full-game replays reach stages 1 to 5.
+A plain ST (4 MB, TOS 1.04) gives the STE's figures: 12.1 pictures per
+second in the attract demo, 12.4 with the release build.
 
 | | STE (8 MHz) | Mega STE (16 MHz, cache) |
 |---|---|---|
@@ -70,7 +78,9 @@ tests/ste/oracle.sh
 ```
 
 Options:
-- `MACHINE`: `ste` or `megaste`.
+- `MACHINE`: `st`, `ste` or `megaste`. For an ST, `TOS=tmp/tos/tos104uk.img`
+  gives TOS 1.04 (copy it from `../atarist-rott/tmp/tos/`); TOS 2.06 and
+  EmuTOS run on an ST too.
 - `FRAMES`: exit after that many frames. The run writes `CHECKPTS.BIN`
   and a PI1 screenshot every 500 frames; `tests/ste/pi1_png.py` converts
   the screenshots to PNG in `tmp/out/shots_NAME/`.
@@ -354,12 +364,14 @@ The X68000's own sprite library code is already tight.
   sprite count and player state. They are compared with
   `tests/amiga/checkpoints.py`. The attract demo matches the Amiga port's
   reference (100 of 100) on the STE and the Mega STE, headless or not, and
-  in lockstep. The DEMO3 and DEMO8 replays give the same 2,048 checkpoints
+  in lockstep, and on an ST with TOS 1.04 (no cookie jar), TOS 2.06 and
+  EmuTOS. The DEMO3 and DEMO8 replays give the same 2,048 checkpoints
   before and after the shot slot change.
 - **Pixels.** `tests/ste/oracle.sh` builds with a frame dump at each
   screenshot and runs the attract demo in lockstep. `tools/ste/refrender.py`
   draws each picture again from the dump, independently of the 68000 code,
-  and every pixel and colour must match: 12 of 12 frames.
+  and every pixel and colour must match: 12 of 12 frames, on an STE and on
+  an ST.
 - **Other targets.** `build_ste.sh` checks that the other objects of `sz2.s`
   are unchanged.
 
@@ -381,6 +393,10 @@ The X68000's own sprite library code is already tight.
     address and more memory.
 - **Music.** MCDRV (YM2151 FM) is not emulated. A YM2149 conversion of the
   songs, or DMA samples streamed from disk, would be needed.
+- **Sound effects on an ST.** An ST has no DMA sound, so it plays none
+  yet. The YM2149 could play the samples from a timer interrupt (about
+  5-10% of the CPU at 6-8 kHz; 4-bit samples would also halve their
+  424 KB), or play effects made for it.
 - **Sound effects.** The 9 effects the game plays at 10.4 kHz play about
   1.5 times too fast: the Falcon port's `.sam` files were all converted as
   15.6 kHz recordings.

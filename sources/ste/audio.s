@@ -4,11 +4,13 @@
 ; _ADPCMSNS whether one still plays. The effects are the Falcon port's
 ; PCM_DAT/*.sam files (signed 8-bit mono, 12517 Hz), which the game loads
 ; into its heap itself; STE DMA sound plays them once each. No music (MCDRV
-; is not emulated).
+; is not emulated). An ST has no DMA sound: no effects there (yet).
 
 	xdef audio_play
 	xdef audio_status
 	xdef audio_stop
+
+	xref machine_has_ste_hardware
 
 ; ------------------------------------------------------------------------------
 	text
@@ -18,6 +20,9 @@
 ; ignored). Preserves all registers.
 
 audio_play:
+	tst.b	machine_has_ste_hardware
+	beq		.no_dma_sound
+
 	move.l	d0,-(sp)
 
 	clr.b	$ffff8901.w ; Stop.
@@ -43,12 +48,16 @@ audio_play:
 
 	move.l	(sp)+,d0
 
+.no_dma_sound:
 	rts
 
 ; _ADPCMSNS: d0.l = 2 while an effect plays, else 0.
 
 audio_status:
 	moveq	#0,d0
+
+	tst.b	machine_has_ste_hardware
+	beq		.idle
 
 	btst	#0,$ffff8901.w
 	beq		.idle
@@ -59,8 +68,12 @@ audio_status:
 	rts
 
 audio_stop:
+	tst.b	machine_has_ste_hardware
+	beq		.no_dma_sound
+
 	clr.b	$ffff8901.w
 
+.no_dma_sound:
 	rts
 
 ; ------------------------------------------------------------------------------

@@ -33,6 +33,7 @@
 	xdef display_mode_changed
 
 	xref L_00E82000
+	xref machine_has_ste_hardware
 	xref WORD_00098864
 	xref background_visible
 	xref copy_background
@@ -107,6 +108,9 @@ display_vbl:
 
 	move.b	display_screen_address+1,$ffff8201.w
 	move.b	display_screen_address+2,$ffff8203.w
+	tst.b	machine_has_ste_hardware
+	beq		.flipped ; (An ST has no low byte: the screens are 256-aligned.)
+
 	move.b	display_screen_address+3,$ffff820d.w
 
 	bra		.flipped

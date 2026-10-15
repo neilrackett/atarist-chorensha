@@ -1,5 +1,5 @@
 
-; Cho Ren Sha 68k: Atari STE / Mega STE proof of concept, from the Falcon
+; Cho Ren Sha 68k: Atari ST / STE / Mega STE port, from the Falcon
 ; port's main.s: memory set-up, machine detection, start-up and exit report.
 ;
 ; Memory: the TOS program (text, data, BSS: the X68000 shadows, GVRAM, the
@@ -23,6 +23,7 @@
 	xref detect_machine
 	xref initialize_machine
 	xref release_machine
+	xref machine_is_st
 	xref machine_is_ste
 	xref machine_is_mega_ste
 	xref set_cpu_speed
@@ -141,6 +142,9 @@ start:
 
 	jsr		detect_machine
 
+	tst.b	machine_is_st
+	bne		.machine_ok
+
 	tst.b	machine_is_ste
 	bne		.machine_ok
 
@@ -177,6 +181,10 @@ start:
 	bra		.wait_and_exit
 
 .data_found:
+	lea		st_text,a0
+	tst.b	machine_is_st
+	bne		.machine_text
+
 	lea		ste_text,a0
 	tst.b	machine_is_ste
 	bne		.machine_text
@@ -704,17 +712,21 @@ print_report:
 welcome_text:
 	dc.b	'Cho Ren Sha 68k',13,10
 	dc.b	'---------------',13,10
-	dc.b	'Original X68000 version (c) 1995 by Famibe No Yosshin.',13,10
-	dc.b	'Atari Falcon030 port by Sascha Springer; Amiga port by Adam Polkosnik.',13,10
-	dc.b	'Atari STE / Mega STE proof of concept.',13,10,13,10,0
+	dc.b	'(c) 1995 Famibe No Yosshin (X68000).',13,10
+	dc.b	'Falcon port: Sascha Springer.',13,10
+	dc.b	'Amiga port: Adam Polkosnik.',13,10
+	dc.b	'Atari ST / STE / Mega STE port.',13,10,13,10,0
+st_text:
+	dc.b	'Machine: Atari ST, 8 MHz.',13,10
+	dc.b	'No DMA sound: no sound effects.',13,10,0
 ste_text:
-	dc.b	'Machine: Atari STE (8 MHz).',13,10,0
+	dc.b	'Machine: Atari STE, 8 MHz.',13,10,0
 mega_ste_text:
 	dc.b	'Machine: Atari Mega STE.',13,10,0
 megaste8_file_name:
 	dc.b	'MEGASTE8.TXT',0
 cpu_text:
-	dc.b	'CPU control ($FFFF8E21): $',0
+	dc.b	'CPU ($FFFF8E21): $',0
 cpu_16mhz_text:
 	dc.b	', 16 MHz',0
 cpu_8mhz_text:
@@ -728,13 +740,15 @@ xpad_text:
 xpad_end_text:
 	dc.b	' pad slots.',13,10,0
 wrong_machine_text:
-	dc.b	'This program needs an Atari STE or Mega STE.',13,10,0
+	dc.b	'This program needs an Atari ST, STE',13,10
+	dc.b	'or Mega STE.',13,10,0
 no_data_text:
-	dc.b	'The game data is missing: ',0
+	dc.b	'Game data not found:',13,10,0
 no_data_help_text:
-	dc.b	' was not found.',13,10
-	dc.b	'The folders BGM_DAT, ETC_DAT and XSP_DAT (binaries/amiga) and',13,10
-	dc.b	'PCM_DAT (binaries/atari) go next to the program.',13,10,0
+	dc.b	13,10,'BGM_DAT, ETC_DAT and XSP_DAT',13,10
+	dc.b	'(binaries/amiga) and PCM_DAT',13,10
+	dc.b	'(binaries/atari) go next to',13,10
+	dc.b	'the program.',13,10,0
 bgm_data_file_name:
 	dc.b	'BGM_DAT\SZ2_BGM.CNF',0
 etc_data_file_name:
@@ -756,11 +770,11 @@ tpa_text:
 program_text:
 	dc.b	' KB, program ',0
 heap_text:
-	dc.b	' KB, game heap ',0
+	dc.b	' KB,',13,10,'game heap ',0
 arena_text:
-	dc.b	' KB, sprite arena ',0
+	dc.b	' KB, sprites ',0
 free_text:
-	dc.b	' KB; free after start ',0
+	dc.b	' KB, free ',0
 kilobytes_end_text:
 	dc.b	' KB.',13,10,0
 frames_file_name:
@@ -770,9 +784,10 @@ frame_limit_text:
 lockstep_file_name:
 	dc.b	'LOCKSTEP.TXT',0
 lockstep_text:
-	dc.b	'Lockstep: every frame shown (F1 switches).',13,10,0
+	dc.b	'Lockstep: every frame (F1 switches).',13,10,0
 starting_text:
-	dc.b	'Starting (the background takes a few seconds to build)...',13,10,0
+	dc.b	'Starting (the background takes a few',13,10
+	dc.b	'seconds to build)...',13,10,0
 press_key_text:
 	dc.b	13,10,'Press a key.',13,10,0
 exit_text:

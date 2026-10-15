@@ -9,8 +9,10 @@
 
 	xdef machine_type
 	xdef machine_cpu
+	xdef machine_is_st
 	xdef machine_is_ste
 	xdef machine_is_mega_ste
+	xdef machine_has_ste_hardware
 	xdef set_cpu_speed
 	xdef force_8mhz
 	xdef mega_ste_control
@@ -73,10 +75,30 @@ detect_machine:
 	bne		.cookies_loop
 
 .exit:
-	cmp.l	#MACHINE_STE,machine_type
+	move.l	machine_type,d0
+	cmp.l	#MACHINE_STE,d0
 	seq		machine_is_ste
-	cmp.l	#MACHINE_MEGA_STE,machine_type
+	cmp.l	#MACHINE_MEGA_STE,d0
 	seq		machine_is_mega_ste
+
+	; An ST or Mega ST: _MCH 0, or no _MCH at all (TOS 1.00-1.04 have no
+	; cookie jar).
+
+	tst.l	d0
+	beq		.st
+
+	cmp.l	#-1,d0
+	bne		.not_st
+
+.st:
+	st		machine_is_st
+
+.not_st:
+	; STE hardware (the extra video registers, DMA sound): STE, Mega STE.
+
+	move.b	machine_is_ste,d0
+	or.b	machine_is_mega_ste,d0
+	move.b	d0,machine_has_ste_hardware
 
 	rts
 
@@ -93,14 +115,21 @@ initialize_machine:
 	movem.l	d0-d7,old_palette
 	move.b	$ffff8201.w,old_screen_address+1
 	move.b	$ffff8203.w,old_screen_address+2
+
+	; The STE's: screen address low byte, line offset, fine scroll; DMA
+	; sound off. (An ST has none of them: a bus error.)
+
+	tst.b	machine_has_ste_hardware
+	beq		.no_ste_registers
+
 	move.b	$ffff820d.w,old_screen_address+3
 	move.b	$ffff820f.w,old_line_offset
 	move.b	$ffff8265.w,old_fine_scroll
 
-	; DMA sound off.
-
 	move.b	$ffff8921.w,old_sound_mode
 	clr.b	$ffff8901.w
+
+.no_ste_registers:
 
 	; MFP.
 
@@ -147,14 +176,20 @@ initialize_machine:
 .vectors_installed:
 	; Display: low resolution, 50 Hz, the port's screen and grey palette.
 
-	clr.b	$ffff820f.w
-	clr.b	$ffff8265.w
 	clr.b	$ffff8260.w
 	move.b	#2,$ffff820a.w
 
 	move.b	display_screen_address+1,$ffff8201.w
 	move.b	display_screen_address+2,$ffff8203.w
+
+	tst.b	machine_has_ste_hardware
+	beq		.st_display
+
+	clr.b	$ffff820f.w
+	clr.b	$ffff8265.w
 	move.b	display_screen_address+3,$ffff820d.w
+
+.st_display:
 
 	movem.l	st_palette,d0-d7
 	movem.l	d0-d7,$ffff8240.w
@@ -239,8 +274,13 @@ release_machine:
 	move.b	old_8e21,$ffff8e21.w
 
 .speed_restored:
+	tst.b	machine_has_ste_hardware
+	beq		.no_sound_restored
+
 	clr.b	$ffff8901.w
 	move.b	old_sound_mode,$ffff8921.w
+
+.no_sound_restored:
 
 	move.b	old_fa07,$fffffa07.w
 	move.b	old_fa09,$fffffa09.w
@@ -267,9 +307,15 @@ release_machine:
 .vectors_restored:
 	move.b	old_screen_address+1,$ffff8201.w
 	move.b	old_screen_address+2,$ffff8203.w
+
+	tst.b	machine_has_ste_hardware
+	beq		.st_display_restored
+
 	move.b	old_screen_address+3,$ffff820d.w
 	move.b	old_line_offset,$ffff820f.w
 	move.b	old_fine_scroll,$ffff8265.w
+
+.st_display_restored:
 	move.b	old_resolution,$ffff8260.w
 	move.b	old_sync,$ffff820a.w
 
@@ -337,6 +383,10 @@ old_screen_address:
 	ds.l	1
 
 machine_is_ste:
+	ds.b	1
+machine_is_st:
+	ds.b	1
+machine_has_ste_hardware:
 	ds.b	1
 machine_is_mega_ste:
 	ds.b	1

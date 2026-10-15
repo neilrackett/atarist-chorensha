@@ -76,6 +76,9 @@ if [ "$CHECK" = "1" ]; then
 	# Both versions are assembled from the same path (the ELF object holds
 	# the source file's name).
 
+	# The container must see the file just written (Docker's shared folders
+	# can lag): a stale copy would compare a version with itself.
+
 	for source in sz2_base sz2; do
 		if [ $source = sz2 ]; then
 			cp sources/sz2.s tmp/check/sz2.s
@@ -83,6 +86,16 @@ if [ "$CHECK" = "1" ]; then
 			git show "$BASE":sources/sz2.s > tmp/check/sz2.s
 		fi
 		file=/tmp/tmp/check/sz2.s
+		sum=$(md5 -q tmp/check/sz2.s 2>/dev/null || md5sum tmp/check/sz2.s | cut -d' ' -f1)
+		for attempt in 1 2 3 4 5 6 7 8 9 10; do
+			seen=$(st md5sum $file | cut -d' ' -f1)
+			[ "$seen" = "$sum" ] && break
+			sleep 1
+		done
+		if [ "$seen" != "$sum" ]; then
+			echo "$0: the container does not see tmp/check/sz2.s as written" >&2
+			exit 1
+		fi
 		st vasmm68k_mot $file -quiet -Felf -nosym -no-opt -m68000 -rangewarnings -I/tmp/sources -o /tmp/tmp/check/${source}_x68k.o
 		st vasmm68k_mot $file -quiet -no-opt -Faout -m68030 -D__ATARI__ -I/tmp/sources -o /tmp/tmp/check/${source}_atari.o
 		st vasmm68k_mot $file -quiet -no-opt -Fhunk -m68030 -D__AMIGA__ -I/tmp/sources -o /tmp/tmp/check/${source}_amiga.o

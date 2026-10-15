@@ -9931,10 +9931,10 @@ menu_port_text2:
 	ifd __STE__
 
 menu_port_text1:
-	dc.b	'atari ste PORT',0
+	dc.b	'atari st PORT',0
 
 menu_port_text2:
-	dc.b	'PROOF OF CONCEPT',0
+	dc.b	'ST, STE, MEGA STE',0
 
 	endif
 
