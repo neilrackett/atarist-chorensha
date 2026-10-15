@@ -1,282 +1,353 @@
-# Cho Ren Sha 68k: Atari STE / Mega STE proof of concept
+# Cho Ren Sha 68k on the Atari STE / Mega STE
 
-A proof of concept that answers two questions before any real port work:
-does the game fit in a 4 MB STE, and how far is the hardware from running
-it well. It builds with the atarist-toolkit-docker tools (`stcmd`), runs in
-Hatari on an STE and a Mega STE with 4 MB, and can be played, slowly.
+The game in colour on an Atari STE or Mega STE with 4 MB. The game runs at
+its full speed (50 frames per second), and the pictures are drawn as fast
+as the machine allows, leaving out the rest. It builds with the
+atarist-toolkit-docker tools (`stcmd`). It has been tested in Hatari only.
 
-**Results, in short** (Hatari 2.6.1, TOS 2.06, 4 MB; attract demo, 6,000
-frames):
+**Results, in short.** Measured in Hatari 2.6.1 with TOS 2.06 and 4 MB. The
+attract demo runs 6,000 frames; the full-game replays reach stages 1 to 5.
 
 | | STE (8 MHz) | Mega STE (16 MHz, cache) |
 |---|---|---|
-| Free memory (TPA) | 3,982 KB | 3,982 KB |
-| Program + game heap | 2,716 KB + 1,024 KB (871 KB used) | same |
-| Left over | 242 KB (179 KB of it used as sprite cache) | same |
-| Game logic per frame: median / 95% | 6.4 / 12.8 ms | 4.4 / 8.4 ms |
-| Stage start (background build) | about 6 s | about 4 s |
-| Pictures per second, game at full speed (this POC) | 1.0 | 2.2 |
-| Frames per second in lockstep (game slowed down) | 2.0 | 3.5 |
+| Free memory (TPA) | 3,982 KB | same |
+| Program + game heap | 1,972 KB + 1,024 KB (871 KB used) | same |
+| Sprite cache (the rest, less 64 KB for TOS) | 922 KB (986 KB in the release build) | same |
+| Game logic per frame: median / 95% / mean (attract demo) | 5.9 / 11.8 / 6.9 ms | 3.9 / 7.9 / 4.5 ms |
+| Render per picture (attract demo) | 48.5 ms | 36.8 ms |
+| **Pictures per second, attract demo** | **12.0** (12.3 release build) | **17.1** |
+| **Pictures per second, full-game replays** (DEMO3, DEMO8) | **11.4, 12.3** (8.7-14.3 by stage) | **16.1, 16.8** (13.2-18.8 by stage) |
+| First game start (the background is composed once) | 5.7 s | 3.4 s |
 
-- **It fits.** The whole game, with the X68000 shadows as the port layer
-  needs them today, takes 3.65 MB of the 3.9 MB a 4 MB STE leaves free
-  (TOS 1.62: 4,004 KB, EmuTOS 1.4: 3,998 KB). A full port can free more
-  than 1 MB of that (see "A full port").
-- **The game itself runs at full speed on both machines.** The 6,000-frame
-  attract demo reaches exactly the same game states as the Amiga port's
-  reference (100 of 100 checkpoints: score, random table, scroll, sprites,
-  player), and its logic takes about a third of a 50 Hz frame on an STE
-  (two thirds at the 95th percentile), a quarter on a Mega STE.
-- **Drawing is the problem.** This POC renders through a chunky buffer and
-  C2P, which is 60% of each picture's time; it shows about 1 picture per
-  second on an STE. A planar-native renderer would do several times better,
-  but the estimate below still puts a faithful port at roughly 5-10 pictures
-  per second on an STE and 8-15 on a Mega STE, with the game itself at full
-  speed.
+- **It fits, with room for a sprite cache.** The X68000's GVRAM and text
+  planes are gone. A 1 MB table of composed background lines takes their
+  place, and about 900 KB is left for sprites.
+- **The game logic stays at full speed.** The 6,000-frame attract demo
+  matches the Amiga port's reference (100 of 100 checkpoints). Two
+  full-game replays give the same 2,048 checkpoints (122,880 frames)
+  before and after the port's hand-optimised shot loop.
+- **Drawing sets the picture rate.** On an STE a picture takes about 48 ms:
+  15 for the background, 25-29 for the sprites, 3-4 for the text. That is
+  about one picture every 4 frames, or every 3 on a Mega STE.
 
 ## Building and running
 
-The build needs Docker running (for `stcmd`, the atarist-toolkit-docker
-wrapper; the repository is mounted at `/tmp` in the container).
+The build needs Docker running for `stcmd`, the atarist-toolkit-docker
+wrapper; the repository is mounted at `/tmp` in the container.
 
 ```
-./build_ste.sh                 binaries/ste/SZ2_STE.TOS (and SZ2_DBG.TOS)
-HEADLESS=1 ./build_ste.sh      binaries/ste/SZ2_HL.TOS: no rendering
+./build_ste.sh                 binaries/ste/SZ2_STE.TOS (measurements; and SZ2_DBG.TOS with symbols)
+RELEASE=1 ./build_ste.sh       binaries/ste/SZ2_REL.TOS: to play (no measurements)
+HEADLESS=1 ./build_ste.sh      binaries/ste/SZ2_HL.TOS: no rendering (game logic, checkpoints)
 ```
 
 `build_ste.sh` also checks that the `sz2.s` changes leave the other targets
-alone: the X68000, Falcon and Amiga objects of `sz2.s` must be byte-identical
-to those of the `amiga-port` revision (`CHECK=0` skips it).
+alone. The X68000, Falcon and Amiga objects of `sz2.s` must be byte-identical
+to those of the `amiga-port` revision; `CHECK=0` skips the check.
 
 `tests/ste/run_hatari.sh NAME` stages the program with the game data in
-`tmp/stage_NAME/` (Hatari's drive C:) and starts it in Hatari
-(`/Applications/Hatari.app`), with TOS 2.06 copied from
-`../atarist-rott/tmp/tos/` to `tmp/tos/` on first use:
+`tmp/stage_NAME/`, which is Hatari's drive C:, and starts it in Hatari
+(`/Applications/Hatari.app`). On first use, TOS 2.06 is copied from
+`../atarist-rott/tmp/tos/` to `tmp/tos/`.
 
 ```
+# Playing, in a window (MACHINE=megaste for the Mega STE).
+WINDOW=1 MACHINE=ste PROG=binaries/ste/SZ2_REL.TOS tests/ste/run_hatari.sh play
+
 # Measurement: 6,000 frames of the attract demo, headless, fast forward.
 MACHINE=ste FRAMES=6000 tests/ste/run_hatari.sh attract
 python3 tests/amiga/checkpoints.py compare tests/amiga/reference/attract-6000.txt tmp/out/attract_CHECKPTS.BIN
 
-# Playing, in a window (MACHINE=megaste for the Mega STE).
-WINDOW=1 MACHINE=ste tests/ste/run_hatari.sh play
-WINDOW=1 LOCKSTEP=1 MACHINE=megaste tests/ste/run_hatari.sh play
+# A full-game replay from the Falcon port's set instead of the attract demo.
+MACHINE=ste FRAMES=190000 REPLAY=DEMO3.REP tests/ste/run_hatari.sh demo3
+
+# Pixel oracle: every screenshot of a lockstep run against the reference renderer.
+tests/ste/oracle.sh
 ```
 
-Options: `MACHINE` (ste, megaste), `FRAMES` (exit after that many frames,
-write `CHECKPTS.BIN` and a screenshot every 500 frames, converted to PNG in
-`tmp/out/shots_NAME/` by `tests/ste/pi1_png.py`), `LOCKSTEP=1`, `INPUT`
-(a frame-timed joystick script in the Amiga port's text format, e.g.
-`tests/ste/input/autofire_held.txt` or `tests/amiga/input/menu_exit.txt`),
-`TOS`, `MEMSIZE`, `FF`, `WINDOW`. Console output (the start-up memory report
-and the exit report) is in `tmp/out/NAME.log`.
+Options:
+- `MACHINE`: `ste` or `megaste`.
+- `FRAMES`: exit after that many frames. The run writes `CHECKPTS.BIN`
+  and a PI1 screenshot every 500 frames; `tests/ste/pi1_png.py` converts
+  the screenshots to PNG in `tmp/out/shots_NAME/`.
+- `REPLAY`: a `binaries/atari/ETC_DAT` replay, played as the demo.
+- `LOCKSTEP=1`.
+- `INPUT`: a frame-timed joystick script in the Amiga port's text format,
+  such as `tests/ste/input/autofire_held.txt`.
+- `PROG`, `TOS`, `MEMSIZE`, `FF`, `WINDOW`, `MEGASTE8=1`. `MEGASTE8=1`
+  keeps a Mega STE at 8 MHz without the cache, for comparisons.
 
-**Playing:** cursor keys or the joystick move; CTRL, Z or fire shoot (held:
-auto fire in a stage); SHIFT or X is the second button; P or ESC pauses;
-EXIT in the main menu quits. F1 switches lockstep on and off: every frame is
-shown and the game slows down to the drawing speed (about 2 to 3.5 frames
-per second), which makes it playable; with Hatari's fast forward (Cmd+X on
-macOS, AltGr+X elsewhere) it runs at about normal speed on a fast host. F2
-switches between showing all 256 lines squashed into 200 and the middle 200
-lines at their real size.
+The console output is in `tmp/out/NAME.log`: the start-up memory report and
+the exit report, with timings per stage.
+
+**Controls:**
+
+| Key or control | Action |
+|---|---|
+| Cursor keys or joystick | Move |
+| CTRL, Z or fire | Shoot (held in a stage: auto fire) |
+| SHIFT or X | Second button |
+| P or ESC | Pause |
+| EXIT (main menu) | Quit |
+| F1 | Lockstep on and off: every frame is shown and the game slows down to the drawing speed |
+| F2 | Keeps the playfield window still instead of following the ship |
 
 The STE's enhanced joystick port A (a Jaguar pad) works on the STE; the
 Mega STE has no such port.
 
-## What it is made of
+On a Mega STE the program switches to 16 MHz with the cache on. It reads
+`$FFFF8E21` back and reports what it finds, and restores the register on
+exit.
 
-The two existing ports each had half of what an STE needs:
+## How it works
 
-| From | What | Where |
-|---|---|---|
-| Falcon port (`sources/atari`) | TOS start-up, machine take-over, MFP and vectors, IKBD, line-F Human68k DOS through GEMDOS, the IOCS shim, sound effects through DMA sound (the STE's registers), the 8-bit samples | `sources/ste/main.s`, `machine.s`, `emulator.s`, `input.s`, `audio.s`, `mem_map.s` |
-| Amiga port (`sources/amiga`) | The chunky renderer: the game's own GVRAM builder (scrolling two-layer background, which the Falcon port replaced with a frozen picture), palette merging, compiled sprites, text layer; the frame scheduler; the missing DOS and IOCS calls (`_BGTEXTGT`, `_VC_R1`, `_SETBLOCK`, `_NAMECK`, ...); checkpoints, input scripts, auto fire | `sources/ste/graphics.s`, `emulator.s`, `input.s`, `measure.s` |
-| New | Display (ST low resolution, C2P, 16 greys, line table), Timer D clock and measurements, PI1 screenshots | `sources/ste/display.s`, `measure.s` |
+The game core (`sources/sz2.s`, the X68000 program as 68000 source) runs
+on a port layer:
+- Human68k DOS through line-F and GEMDOS.
+- IOCS through trap #15.
+- The 50 Hz VBL as the game's frame tick.
+- Sound effects through DMA sound.
+- IKBD input.
 
-### 68000 changes
+The layer is taken from the Falcon port, with the Amiga port's frame
+scheduler, its extra DOS and IOCS calls, checkpoints and input scripts.
+What is new is the picture.
 
-The game core (`sz2.s`) is plain 68000 code. The ported layers needed:
+### Display (`display.s`)
 
-- No scaled indexes (`(a0,d0.w*4)`): about 60 sites, doubled into a
-  register first; no bit fields (the text renderer scans its group bits
-  instead of `bfffo`); 32-bit multiply and divide (`__LMUL`, `__LDIV`) in
-  software.
-- Runs of the background are copied with long moves from even addresses
-  only (a leading byte when a run starts at an odd x; source and
-  destination always have the same parity).
-- Indexed addressing has 8-bit displacements and absolute offsets of 16
-  bits: the text planes ($20000 apart) are walked with `add.l`.
-- Exception frames are 6 bytes (8 on the Falcon's 68030), which moves the
-  line-F calls' arguments; the game's VBL handler is entered through a fake
-  68000 frame (`pea`, `move sr`).
+ST low resolution, double-buffered, drawn in bitplanes:
 
-### `sz2.s`
+- **Lines 0-7, the HUD band:** the X68000 text layer's row 0 (score, high
+  score), drawn into both screens when the game writes it.
+- **Lines 8-199, the playfield:** 192 of the X68000's 256 lines at their
+  real size, 32 pixels from the left.
+  - In a stage the window follows the ship, which sits two thirds of the
+    way down; it moves at most 2 lines per frame.
+  - Elsewhere, or after F2, the window shows lines 32-223.
+  - The lives and bombs (text rows 1-3) stay at the top of the playfield.
 
-Built with `-D__STE__`, which defines `__PORT__`, `__CHUNKY__` and
-`__PORT_CREDITS__`. `__CHUNKY__` (defined by the Amiga build as well)
-selects the Amiga renderer and scheduler hooks the ST shares: the frame
-waits (`XSP_VSYNC`, `WAIT_VBL`), text row and clear hooks, "GVRAM rebuilt",
-the raster-sync skip, the CPU benchmark and the four flipped-tile fixes in
-the background builder. `__STE__` blocks: EXIT, `PRINTF`, the rotated screen
-(forced off), the stage hook for auto fire, the checkpoint symbols, the menu
-credits. The Falcon's text bookkeeping in `DRAW_CHARACTER` and
-`CLEAR_TEXT_PLANE` (with the only 68020 instruction an ST build would meet)
-is left out. The X68000, Falcon and Amiga objects are unchanged.
+The screen address is written at a VBL. The colours follow one VBL later,
+when the new picture appears.
 
-### Display
+### Colours (`palette.s`, `palette_map.i`, `tools/ste/palette_map.py`)
 
-ST low resolution, double-buffered, the 256-pixel-wide picture 32 pixels
-from the left. 200 of the 256 lines are shown: 56 evenly spread lines are
-left out (all of the playfield and the score stay visible) or, after F2, the
-middle 200 (the score line is cut off). The renderer composes only the lines
-shown.
+Every X68000 palette entry is drawn in one of the STE's 16 colours. The
+mapping is fixed: it is computed offline from colour usage measured over
+the attract demo and six full-game replays.
 
-Colours: 16 greys (the STE's 4-bit levels). Each of the renderer's 256
-palette slots gets the grey of its colour's luminance; slots are converted
-again only when the game changes them, so fades and colour cycling still
-show. A fixed 16-colour palette would replace one routine
-(`set_slot_grey`).
-
-C2P: a table per palette slot and pixel position (8 KB) of `movep`-format
-plane bits; eight lookups ORed into a long per 8 pixels, written with
-`movep.l`. About 50 cycles per pixel.
-
-### Memory
-
-| Part | KB |
+| ST colour | Use |
 |---|---|
-| Code (game 245, port 10) and data (37, of which sincos 32) | 292 |
-| Game BSS (includes the 128 KB demo replay buffer) | 310 |
-| X68000 shadows: text planes 512, registers and sprite RAM 96 | 608 |
-| GVRAM shadow (the converted layers live in its unused right halves) | 1,024 |
-| Renderer: text overlay 130, chunky buffer 81, background runs 66, palette and sprite tables 55 | 332 |
-| Display: two screens 63, C2P table 8, line table 1 | 72 |
-| Checkpoints 64, input script 8, stack 4 | 77 |
-| **Program** (with the basepage) | **2,716** |
-| Game heap (process area: stack, sprite patterns, samples, tables) | 1,024 (871 used) |
-| **Total** | **3,740** |
+| 0 | Backdrop (black while the background shows) |
+| 1, 2 | The game's colour-cycling entries (red, green) |
+| 3-7 | Background colours; every background entry is a 2x2 ordered dither of two of them, anchored to its layer so the pattern scrolls with it |
+| 8-15 | Sprite and text colours |
 
-The layers (2 x 128 KB) are kept inside the GVRAM shadow: the game's
-background builder writes only the left 256 pixels (bytes 0-511) of each
-1,024-byte line, so line n of each layer sits in the right half of page 0's
-line n. Without this the program left only about 50 KB free. The rotated
-screen's builder writes whole lines, so that mode is switched off.
+For every picture, each ST colour takes the current value of one
+representative X68000 entry, read from the video controller shadow. The
+game's fades, colour cycling and flashes therefore show without redrawing
+anything.
 
-What is left goes to a cache for compiled sprites (up to 256 KB, keeping
-64 KB free; 179-201 KB depending on the TOS); without it sprites are drawn
-by a generic routine.
+### Background (`background.s`)
+
+The game builds one background for the whole game:
+- Page 0, in front, repeats every 256 lines and scrolls 4 lines per frame.
+- Page 1 repeats every 32 lines and scrolls 1 line per frame.
+
+So there are only 256 x 32 different lines, page 0's line a over page 1's
+line b. All of them are composed once into a 1 MB table in ST colours and
+bitplanes, which replaces GVRAM:
+
+    T[s][a] = page 0 line a over page 1 line (a + s) & 31
+
+For playfield line g, a = (g + Y0) & 255 and s = ((g + Y1) − a) & 31. Since
+s is the same all the way down, a picture's background is one block of the
+table, wrapping at most once. It is copied with `movem` (192 lines x 128
+bytes, about 14 ms on an STE).
+
+The table is built at the first game, from the GVRAM the game builds
+itself (5.7 s on an STE). Later games skip the game's builder.
+
+### Sprites (`sprites.s`)
+
+- **Variants.** A variant is a (pattern, palette, horizontal flip); a
+  vertical flip draws the rows bottom-up.
+- **Masters.** A master is made on first use, two pixels at a time,
+  through a table per palette. It holds 16 rows of opaque pixels and
+  planes, and its first and last rows with pixels.
+- **Shifted copies.** For each of the 16 positions within a 16-pixel
+  group that the variant is drawn at, a copy is made on first use:
+  - Each master long is rotated, then split between the two groups.
+  - Per row, each group has a mask long and two plane longs.
+  - When all pixels fall into one group (bullets, particles), only that
+    group is kept.
+- **Drawing.** Per row, the screen's two groups are read into registers,
+  masked, ORed and written back with `movem`: 214 cycles per row, or 126
+  for one group.
+- **Cache.** Masters and copies live in an arena, found through a table
+  per pattern of its 32 variants. The arena is used in two halves: when
+  the active half is full, the other one is emptied and used, so what was
+  made most recently stays.
+- **Order.** The X68000's 64 priorities (larger in front, `$00-$0F` not
+  shown), drawn in buckets. Sprites outside the playfield lines are left
+  out before any variant work.
+
+### Text (`text.s`)
+
+The game's characters go into a 32 x 32 map instead of the X68000's 512 KB
+of text planes:
+- `DRAW_CHARACTER` jumps to `st_draw_character`.
+- Row 0 is drawn straight into the HUD band of both screens.
+- The other rows are drawn over each picture, masked, with `movep`. Only
+  the characters that have pixels are drawn: each row keeps a mask of
+  them.
+
+### The game code (`sz2.s`)
+
+The STE changes are all `ifd __STE__`; `-D__STE__` also defines `__PORT__`,
+`__CHUNKY__` (the Amiga port's hooks) and `__PORT_CREDITS__`:
+
+| Change | What it does |
+|---|---|
+| Builder skip (`INITIALIZE_SPRITES_AND_GRAPHICS`) | The background builder runs once only |
+| `DRAW_CHARACTER` | Goes to the character map |
+| VBL handler | Only the counters and the game's vsync function |
+| Sprite tables | Two, swapped at `XSP_OUT` instead of copied (`XOBJ_SET`'s room check reads `st_sprite_buffer_end`) |
+| Shot slot loop (`L_0002B410`) | Kept in registers, with the collision-grid routine and `XSP_SET_ST` inlined instruction for instruction (about 0.5 ms per frame) |
+| Stage hook | Auto fire |
+| Other | EXIT, `PRINTF`, the rotated screen (off), the menu credits |
+
+The X68000, Falcon and Amiga objects are unchanged (`build_ste.sh` checks
+this).
 
 ### Timing
 
-The 50 Hz VBL is the game's frame tick, as on the Falcon: the game runs at
-50 instead of 55.46 frames per second (a 55.35 Hz MFP Timer A tick would be
-a small change). The frame waits keep the game on schedule and leave out
-pictures when it is late (as on the Amiga, with up to 64 ticks of debt). A
-picture is rendered in the game's frame wait, not in an interrupt.
+The 50 Hz VBL is the game's frame tick, so the game runs at 50 instead of
+55.46 frames per second. After each game frame:
+- If the game is on time, the frame is drawn and shown.
+- If it is late, the frame is not drawn and the game catches up, with up to
+  64 frames of debt.
 
-Time is measured with MFP Timer D (38,400 Hz, independent of the CPU
-speed). "Game logic" is the time from the end of one frame wait to the
-start of the next: the game's own work for the frame, interrupts included.
+Measurement builds time everything with MFP Timer D (38,400 Hz,
+independent of the CPU speed): game logic per frame, render per picture,
+and its parts.
+
+## Memory
+
+| Part | KB |
+|---|---|
+| Code (game 246, port 12) | 258 |
+| Data | 40 |
+| Game BSS (includes the 128 KB demo replay buffer) | 310 |
+| Composed background table (at the GVRAM label; GVRAM while the game builds it) | 1,024 |
+| X68000 register and sprite shadows | 96 |
+| Two screens | 63 |
+| Background layers (made once, for the table) | 45 |
+| Sprite tables (per-palette pair tables 32, per-pattern variants 7.5, sprite list, order) | 46 |
+| Checkpoints (not in the release build) | 65 |
+| Text, input script, stage counters, stack | 27 |
+| **Program** | **1,972** (1,908 release) |
+| Game heap (stack, sprite patterns, samples, tables) | 1,024 (871 used) |
+| Kept free for TOS | 64 |
+| **Sprite arena** | **922** (986 release) |
 
 ## Measurements
 
-### Game logic
+### Pictures per second over the work (attract demo, 6,000 frames)
 
-| Per frame | STE | Mega STE | Amiga A1200 (68020/14) |
-|---|---|---|---|
-| Median | 6.4 ms | 4.4 ms | 1.8 ms |
-| 95th percentile | 12.8 ms | 8.4 ms | 3.7 ms |
-| Maximum (stage start, once) | 2.7 s | 1.5 s | - |
-
-A 50 Hz frame is 20 ms (18 ms at the X68000's 55.46 Hz). The STE needs a
-third of it for the game at the median, two thirds at the 95th percentile;
-the Mega STE a quarter and less than half. The Mega STE (16 MHz, cache) is
-about 1.45 times as fast as the STE on the game logic, 1.9 times on the
-rendering.
-
-### This POC's rendering (attract demo)
-
-| Per picture | STE | Mega STE |
+| Step | STE | Mega STE |
 |---|---|---|
-| Render (into the chunky buffer) | 257 ms | 135 ms |
-| C2P | 374 ms | 196 ms |
-| Pictures per second, game at full speed | 1.0 | 2.2 |
-| Lockstep: render, C2P | 129 ms, 361 ms | 87 ms, 189 ms |
-| Lockstep: frames per second | 2.0 | 3.5 |
+| Proof of concept: chunky buffer, C2P, 16 greys | 1.0 | 2.2 |
+| Colour, bitplanes, composed background, sprite masters | 6.6 | 11.7 |
+| Preshifted sprite cache, faster text | 8.8 | 14.0 |
+| VBL stub, swapped sprite tables | 9.4 | 14.5 |
+| HUD rows pinned, blank characters skipped, variant tables | 9.7 | 14.6 |
+| Arena in two halves | 9.8 | 14.7 |
+| Sprite rows through registers | 10.1 | 15.3 |
+| Faster masters and shifted copies (worst picture 431 to 274 ms) | 10.7 | 15.9 |
+| Shot slots in registers (logic −0.4 ms per frame) | 10.9 | 16.2 |
+| Faster text rows | 11.4 | 16.5 |
+| Leaner per-sprite path | 12.0 | 17.1 |
+| Release build (no measurements) | 12.3 | - |
 
-Rendering costs more at full speed than in lockstep, because about 50 game
-frames pass between two pictures: more palette slots, text rows and new
-sprite shapes to convert each time.
+### Pictures per second by stage (full-game replays, 190,000 frames)
 
-Hatari's profiler (STE, 25 s of the attract demo with full-speed play, per
-picture): C2P 339 ms; background composition 67 ms; text overlay update 49
-ms, text drawing 17 ms; palette merge 23 ms, grey table 19 ms; sprites
-about 17 ms, plus about 10 ms for each new compiled sprite shape (214 in the
-window). At each stage start, the game's own GVRAM build takes 2.3 s and the
-layer conversion 3.8 s.
+| Stage | STE DEMO3 | STE DEMO8 | Mega STE DEMO3 | Mega STE DEMO8 |
+|---|---|---|---|---|
+| 1 | 12.8 | 14.3 | 17.8 | 18.8 |
+| 2 | 13.1 | 14.0 | 17.8 | 18.4 |
+| 3 | 10.2 | 11.5 | 15.2 | 16.1 |
+| 4 | 8.7 | 10.2 | 13.2 | 14.7 |
+| 5 (part) | 15.6 | 10.1 | 19.7 | 14.6 |
+| **All** | **11.4** | **12.3** | **16.1** | **16.8** |
 
-## A full port: what it would take
+Game logic over the replays, median / 95%: STE 7.4 / 14.8 ms (DEMO3) and
+6.4 / 14.3 ms (DEMO8); Mega STE 4.9 / 9.4 and 4.4 / 9.4 ms. The stages
+are the low 4 bits of the game's stage word; DEMO3 ends early in stage 5,
+DEMO8 later.
 
-**Memory is not the obstacle.** The POC keeps the X68000 layout. A full port
-could drop most of it:
+### Where a picture's time goes
 
-- The background is built by the game into a 1 MB GVRAM shadow and
-  converted. Converted offline (as the Falcon port's `BACKGND.DAT` does, in
-  4-bit planar form) it would be 2 x 64 KB on disk, without the shadow and
-  without the 6-second stage start.
-- The text planes (512 KB, of which the game uses a 256 x 256 window) could
-  be replaced by drawing the game's characters directly.
-- The samples (370 KB of the heap) could be halved at 6.25 kHz.
+| Per picture (ms) | STE attract | STE DEMO3 | Mega STE attract | Mega STE DEMO3 |
+|---|---|---|---|---|
+| Background copy | 14.2 | 14.9 | 13.3 | 13.9 |
+| Sprites (drawing, making variants) | 29.4 | 28.0 | 20.3 | 20.8 |
+| Text | 3.8 | 2.9 | 2.4 | 1.7 |
+| Borders and colours | 0.8 | 0.8 | 0.6 | 0.6 |
+| **Render** | **48.5** | **46.9** | **36.8** | **37.2** |
 
-That is more than 1.5 MB, enough for preshifted or compiled planar sprites.
+In the attract demo an STE picture draws about 51 sprites: 315 rows of two
+groups and 290 of one, about 13.5 ms. Making variants takes about 6 ms on
+average: about 9 shifted copies and 1.3 masters a picture in the replays.
+The rest is per-sprite work and the priority sort. The background copy is
+bus-bound: it gains little from the Mega STE's 16 MHz.
 
-**The game logic is not the obstacle** either: it keeps its speed on both
-machines, with most of the frame left over.
+The game logic (headless profile of the attract demo, STE, mean 7.2 ms
+before the shot loop change):
+- `XOBJ_SET_ST` (multi-sprite objects): 13%.
+- The collision grid: 13%.
+- The shot slots: 11%.
+- `XSP_SET_ST`: 9%.
 
-**Drawing is.** A planar-native renderer removes the C2P (60% of this POC's
-time) and the chunky buffer, but still has to draw every picture:
+The X68000's own sprite library code is already tight.
 
-| Per picture, estimated for an 8 MHz STE | |
-|---|---|
-| Background: page 0 over page 1, both scrolling, 256 x 200 in 4 planes; 44% of the 16-pixel groups mix both pages (masked), 41% are opaque, 16% empty | 35-60 ms (CPU) or similar with the BLiTTER (three passes) |
-| Sprites: 70 on average, 169 at the 95th percentile, 268 at most (16 x 16, masked, shifted) | 35-85 ms, up to 135 ms |
-| Text (score) | a few ms |
-| **Total** | **about 75-150 ms** |
+## Verification
 
-Add the game's 6-13 ms per frame and an STE would show about 5-10 pictures
-per second with the game at full speed (every 5th to 10th frame), a Mega
-STE about 8-15. For comparison, the Amiga port's planar AGA renderer shows
-about 9.6 pictures per second on a stock A1200 (68020/14, with the blitter).
+- **Checkpoints.** Every 60 frames: score, random table index, scroll,
+  sprite count and player state. They are compared with
+  `tests/amiga/checkpoints.py`. The attract demo matches the Amiga port's
+  reference (100 of 100) on the STE and the Mega STE, headless or not, and
+  in lockstep. The DEMO3 and DEMO8 replays give the same 2,048 checkpoints
+  before and after the shot slot change.
+- **Pixels.** `tests/ste/oracle.sh` builds with a frame dump at each
+  screenshot and runs the attract demo in lockstep. `tools/ste/refrender.py`
+  draws each picture again from the dump, independently of the 68000 code,
+  and every pixel and colour must match: 12 of 12 frames.
+- **Other targets.** `build_ste.sh` checks that the other objects of `sz2.s`
+  are unchanged.
 
-The 16 colours are the other open question. The game uses about 99 colours
-at once (background 28, sprites 86, text 13); a full port needs a palette
-design (for example, background and sprites sharing 16 fixed colours, or
-raster palette changes), not greyscale.
+## Open items and next steps
 
-**Ways to get more speed**, each a trade:
-
-- The Mega STE's 16 MHz, or the STE BLiTTER for the background.
-- Drawing at half the frame rate, or the game at 25 Hz (slowed down).
-- Fewer sprites drawn (bullets as small dedicated shapes).
-- Only one background layer, scrolled by the STE's hardware.
-
-**Verdict:** the port fits and the game runs, but a faithful full port on an
-8 MHz STE would play at a low picture rate. It looks worth continuing only
-as a Mega STE-first port with a planar renderer, an offline background and
-a fixed 16-colour palette, with the renderer prototyped first (background
-and sprites in planar form, measured against the estimates above) before
-the rest.
-
-## Open items
-
-- Music: MCDRV (YM2151 FM) is not emulated; the Amiga port streams
-  pre-rendered music, which is not an option on an STE. A YM2149 conversion
-  of the songs, or DMA-streamed samples from disk, would be needed.
-- Sound effects: the effects the game plays at 10.4 kHz (9 of its sample
-  table entries) play about 1.5 times too fast: the Falcon port's `.sam`
-  files were all converted as 15.6 kHz recordings.
-- Timer C (the TOS 200 Hz timer) is stopped while the game runs, as on the
-  Falcon; fine with Hatari's GEMDOS drive, untested with floppies and hard
-  disks on real hardware.
-- The game runs at 50 Hz instead of 55.46 Hz.
-- Tested in Hatari only.
+- **The full 256 lines.** The playfield shows 192 of the 256 lines and
+  follows the ship. Opening the top and bottom borders, translated from
+  `../atarist-overscan`, would show them all. It is the riskiest step left:
+  the timing has to hold at 16 MHz too.
+- **HUD colours.** The score uses the shared sprite/text colours. A Timer B
+  palette change at line 8 would give the HUD band its own exact colours.
+- **More speed.**
+  - The sprite cache refills about every 600 frames in the full game. More
+    memory would help: samples at 6.25 kHz would free 185 KB, at some cost
+    in sound. So would keeping recently used copies when a half is emptied.
+  - The background copy is at the bus limit. Drawing from the table
+    directly with save-under sprites would need raster splits of the video
+    address and more memory.
+- **Music.** MCDRV (YM2151 FM) is not emulated. A YM2149 conversion of the
+  songs, or DMA samples streamed from disk, would be needed.
+- **Sound effects.** The 9 effects the game plays at 10.4 kHz play about
+  1.5 times too fast: the Falcon port's `.sam` files were all converted as
+  15.6 kHz recordings.
+- **Coverage.** Stages 6 and 7 are not reached by the replays used for the
+  colour map and the measurements.
+- **Timers.** Timer C (the TOS 200 Hz timer) is stopped while the game
+  runs. That is fine with Hatari's GEMDOS drive; it is untested with
+  floppies and hard disks on real hardware.
+- **Testing.** The port is tested in Hatari only.

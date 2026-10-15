@@ -14,7 +14,7 @@
 ;   SHIFT, X             trigger B
 ;   P, ESC               the X68000's ESC (START: pause)
 ;   F1                   lockstep on / off (every frame shown, game slowed)
-;   F2                   squash / crop the 256 lines into 200
+;   F2                   the playfield window stays still (display.s)
 ;
 ; INPUT.BIN (optional, next to the program; tests): joystick states from
 ; given frames on, in the Amiga port's input script format (made by
