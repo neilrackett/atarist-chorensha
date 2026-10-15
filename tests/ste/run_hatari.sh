@@ -31,6 +31,7 @@
 #             the attract demo (ETC_DAT/DEMO.REP)
 #   INPUT     an input script (text, as tests/amiga/input/*.txt; only its
 #             joystick lines are used), staged as INPUT.BIN
+#   AUTO      programs to run at boot from C:\AUTO (e.g. an Xpad provider)
 #   EXTRA     extra Hatari options
 #
 # Commands (after the program has started):
@@ -103,6 +104,12 @@ if [ "${MEGASTE8:-0}" = "1" ]; then
 fi
 if [ "${LOCKSTEP:-0}" = "1" ]; then
 	echo "lockstep" > "$STAGE/LOCKSTEP.TXT"
+fi
+if [ -n "${AUTO:-}" ]; then
+	mkdir -p "$STAGE/AUTO"
+	for program in $AUTO; do
+		cp "$program" "$STAGE/AUTO/" || exit 2
+	done
 fi
 if [ -n "${INPUT:-}" ]; then
 	python3 tests/amiga/make_input_script.py "$INPUT" "$STAGE/INPUT.BIN" || exit 2

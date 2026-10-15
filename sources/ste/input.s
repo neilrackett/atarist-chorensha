@@ -1,20 +1,31 @@
 
 ; Atari STE / Mega STE input, from the Falcon port's input.s: IKBD keyboard
-; and joystick (MFP ACIA interrupt), and the STE's enhanced joystick port
-; (a Jaguar pad; read every VBL, STE only: the Mega STE has no such port).
+; and joystick (MFP ACIA interrupt), the STE's enhanced joystick port (a
+; Jaguar pad; read every VBL, STE only: the Mega STE has no such port) and
+; Xpad pads (any provider's: read every VBL).
 ;
-; _JOYGET answers with the AND of three X68000 joystick bytes (active low:
+; _JOYGET answers with the AND of four X68000 joystick bytes (active low:
 ; bits 0-3 up, down, left, right; bit 5 trigger A, bit 6 trigger B): the
-; keyboard's, the IKBD joystick's and the pad's. _BITSNS answers from an
-; X68000 key matrix (16 groups of 8 scancodes) kept for the keys the game
-; reads (as the Amiga port: ESC, 1, TAB, RETURN, SPACE, cursors, SHIFT, CTRL).
+; keyboard's, the IKBD joystick's, the STE pad's and the Xpad pads'.
+; _BITSNS answers from an X68000 key matrix (16 groups of 8 scancodes) kept
+; for the keys the game reads (as the Amiga port: ESC, 1, TAB, RETURN,
+; SPACE, cursors, SHIFT, CTRL).
 ;
 ;   cursor keys          directions
-;   CTRL, Z, fire        trigger A (shot)
-;   SHIFT, X             trigger B
+;   Z, CTRL, fire        trigger A (shot)
+;   X, SHIFT             trigger B (bomb)
 ;   P, ESC               the X68000's ESC (START: pause)
 ;   F1                   lockstep on / off (every frame shown, game slowed)
 ;   F2                   the playfield window stays still (display.s)
+;
+; Xpad (lib/xpad, https://github.com/neilrackett/atarist-xpad): a provider
+; publishes its pads' state in a block found through the XPAD cookie; all
+; the pads present count, as one:
+;
+;   d-pad, left stick    directions (the provider folds the stick in)
+;   A, X, RB, RT         trigger A (shot; south, west, right shoulders)
+;   B, Y, LB, LT         trigger B (bomb; east, north, left shoulders)
+;   START                the X68000's ESC (pause)
 ;
 ; INPUT.BIN (optional, next to the program; tests): joystick states from
 ; given frames on, in the Amiga port's input script format (made by
@@ -26,6 +37,10 @@
 
 	xdef ikbd_handler
 	xdef input_tick
+	xdef find_xpad
+	xdef xpad_block
+	xdef xpad_pad_count
+	xdef xpad_matrix_escape
 	xdef joystick_now
 	xdef keyboard_matrix
 	xdef reset_input
@@ -41,6 +56,8 @@
 	xref display_mode_changed
 	xref crop_mode
 
+	include "xpad.inc"
+
 X68_UP=0
 X68_DOWN=1
 X68_LEFT=2
@@ -55,6 +72,10 @@ SPECIAL_CROP=$81
 
 MAXIMUM_SCRIPT_RECORDS=1024
 SCRIPT_JOYSTICK=0
+
+XPAD_TRIGGER_A_BUTTONS=XPAD_SOUTH|XPAD_WEST|XPAD_TR|XPAD_TR2
+XPAD_TRIGGER_B_BUTTONS=XPAD_EAST|XPAD_NORTH|XPAD_TL|XPAD_TL2
+X68_ESC_GROUP_0_BIT=1 ; The X68000's ESC: scancode $01.
 
 AUTOFIRE_SHIFT=1
 AUTOFIRE_FRAMES=1<<AUTOFIRE_SHIFT ; Pressed for 2 frames, released for 2.
@@ -256,10 +277,100 @@ process_key:
 
 ; ------------------------------------------------------------------------------
 ;
+; At start, in supervisor mode: an Xpad provider's block, through the
+; cookie jar, checked as xpad_valid() does (the cookie's value even, the
+; magic and major version, the pads inside the block); the address of pad
+; 0 in each of its two buffers worked out once (a block's layout never
+; changes). xpad_block = 0 if there is none. Preserves all registers.
+
+find_xpad:
+	movem.l	d0-d3/a0-a1,-(sp)
+
+	clr.l	xpad_block
+	move.l	XPAD_JAR.w,d0 ; The cookie jar, or 0.
+	beq		.done
+
+	move.l	d0,a1
+
+.next_cookie:
+	move.l	(a1),d0
+	beq		.done ; The end of the jar.
+
+	cmp.l	#XPAD_COOKIE,d0
+	beq		.found
+
+	addq.l	#8,a1
+
+	bra		.next_cookie
+
+.found:
+	move.l	4(a1),d0
+	beq		.done
+
+	btst	#0,d0
+	bne		.done ; (A word read there would be an address error.)
+
+	move.l	d0,a0
+	cmp.l	#XPAD_MAGIC,XPAD_MAGIC_OFF(a0)
+	bne		.done
+
+	cmp.b	#XPAD_VER_MAJOR,XPAD_VERSION_OFF(a0)
+	bne		.done
+
+	moveq	#0,d0
+	move.b	XPAD_PADCOUNT_OFF(a0),d0
+	beq		.done
+
+	cmp		#XPAD_MAX_PADS,d0
+	bhi		.done
+
+	move	XPAD_PADSIZE_OFF(a0),d1
+	cmp		#XPAD_PAD_SIZE_V1,d1
+	bcs		.done
+
+	btst	#0,d1
+	bne		.done
+
+	move	d0,xpad_pad_count
+	move	d1,xpad_pad_size
+	mulu	d1,d0 ; One buffer's bytes.
+
+	moveq	#0,d2
+	move	XPAD_PADSOFF_OFF(a0),d2
+	btst	#0,d2
+	bne		.done
+
+	move.l	d2,d1
+	add.l	d0,d1
+	add.l	d0,d1 ; The end of both buffers, inside the block?
+	moveq	#0,d3
+	move	XPAD_HDRSIZE_OFF(a0),d3
+	cmp.l	d3,d1
+	bhi		.done
+
+	lea		(a0,d2.l),a1
+	move.l	a1,xpad_buffer_0
+	add.l	d0,a1
+	move.l	a1,xpad_buffer_1
+	move.l	a0,xpad_block
+
+.done:
+	movem.l	(sp)+,d0-d3/a0-a1
+
+	rts
+
+; ------------------------------------------------------------------------------
+;
 ; Every VBL: the STE's enhanced joystick port A (a Jaguar pad: button A is
-; trigger A, B is trigger B). Preserves all registers.
+; trigger A, B is trigger B), and the Xpad pads. Preserves all registers.
 
 input_tick:
+	tst.l	xpad_block
+	beq		.no_xpad
+
+	bsr		read_xpad
+
+.no_xpad:
 	tst.b	machine_is_ste
 	beq		.done
 
@@ -295,6 +406,81 @@ input_tick:
 .done:
 	rts
 
+; The Xpad pads present, as one: their buttons ORed, from the front buffer;
+; a torn read (the provider committed meanwhile: active or seq changed) is
+; dropped, keeping the last state (the next is a VBL away). Preserves all
+; registers.
+
+read_xpad:
+	movem.l	d0-d4/a0-a1,-(sp)
+
+	move.l	xpad_block,a0
+	move	XPAD_SEQ_OFF(a0),d1
+	move.b	XPAD_ACTIVE_OFF(a0),d2 ; 0 or 1.
+	move.l	xpad_buffer_0,a1
+	tst.b	d2
+	beq		.buffer
+
+	move.l	xpad_buffer_1,a1
+
+.buffer:
+	moveq	#0,d3 ; Buttons.
+	move	xpad_pad_count,d4
+	subq	#1,d4
+
+.pad_loop:
+	tst.b	XPAD_PAD_TYPE(a1)
+	beq		.absent
+
+	or.l	XPAD_PAD_BUTTONS(a1),d3
+
+.absent:
+	add		xpad_pad_size,a1
+
+	dbf		d4,.pad_loop
+
+	cmp.b	XPAD_ACTIVE_OFF(a0),d2
+	bne		.torn
+
+	cmp		XPAD_SEQ_OFF(a0),d1
+	bne		.torn
+
+	; X68000 joystick bits (active low): the d-pad's are bits 0-3 too.
+
+	moveq	#XPAD_UP|XPAD_DOWN|XPAD_LEFT|XPAD_RIGHT,d0
+	and.b	d3,d0
+	not.b	d0
+
+	move.l	#XPAD_TRIGGER_A_BUTTONS,d1
+	and.l	d3,d1
+	beq		.no_trigger_a
+
+	bclr	#X68_TRIGGER_A,d0
+
+.no_trigger_a:
+	move.l	#XPAD_TRIGGER_B_BUTTONS,d1
+	and.l	d3,d1
+	beq		.no_trigger_b
+
+	bclr	#X68_TRIGGER_B,d0
+
+.no_trigger_b:
+	move.b	d0,xpad_joystick_state
+
+	moveq	#0,d0
+	and		#XPAD_START,d3
+	beq		.no_start
+
+	moveq	#1<<X68_ESC_GROUP_0_BIT,d0
+
+.no_start:
+	move.b	d0,xpad_matrix_escape
+
+.torn:
+	movem.l	(sp)+,d0-d4/a0-a1
+
+	rts
+
 ; ------------------------------------------------------------------------------
 ;
 ; _JOYGET: d0.l = the current state (all sources), as the X68000 hardware
@@ -328,6 +514,7 @@ joystick_now:
 	move.b	stick_joystick_state,d0
 	and.b	stick_joystick_state+1,d0
 	and.b	pad_joystick_state,d0
+	and.b	xpad_joystick_state,d0
 	and.b	script_joystick_state,d0
 	and.b	d1,d0
 	move.b	d0,last_joystick_state ; For the auto fire at the frame end.
@@ -467,6 +654,8 @@ reset_input:
 	st		stick_joystick_state
 	st		stick_joystick_state+1
 	st		pad_joystick_state
+	st		xpad_joystick_state
+	sf		xpad_matrix_escape
 	st		script_joystick_state
 	st		last_joystick_state
 	sf		in_stage
@@ -543,6 +732,19 @@ key_map:
 	bss
 ; ------------------------------------------------------------------------------
 
+	even
+
+xpad_block: ; The provider's block, or 0.
+	ds.l	1
+xpad_buffer_0: ; Pad 0 in each buffer.
+	ds.l	1
+xpad_buffer_1:
+	ds.l	1
+xpad_pad_count:
+	ds.w	1
+xpad_pad_size:
+	ds.w	1
+
 keyboard_matrix: ; Must be followed by matrix_key_counts, joystick_bit_counts.
 	ds.b	16
 matrix_key_counts: ; Per X68000 scancode: keys holding it.
@@ -555,6 +757,10 @@ keyboard_joystick_state:
 stick_joystick_state: ; IKBD joystick 1, joystick 0.
 	ds.b	2
 pad_joystick_state:
+	ds.b	1
+xpad_joystick_state: ; The Xpad pads', as X68000 joystick bits.
+	ds.b	1
+xpad_matrix_escape: ; Key matrix group 0 bits from the Xpad pads (START: ESC).
 	ds.b	1
 latest_horizontal:
 	ds.b	1

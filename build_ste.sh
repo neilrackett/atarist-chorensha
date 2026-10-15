@@ -32,6 +32,11 @@ st() {
 OUT=binaries/ste
 mkdir -p "$OUT" tmp/check
 
+if [ ! -f lib/xpad/src/xpad.inc ]; then
+	echo "$0: lib/xpad is missing: git submodule update --init" >&2
+	exit 1
+fi
+
 # FLAGS: extra defines for the port modules (e.g. "-D__USAGE__ -D__DUMP__"
 # for the colour tools' data runs); NAME: the program's name.
 
@@ -52,7 +57,7 @@ st vasmm68k_mot /tmp/sources/sz2.s -quiet -no-opt -Faout -m68000 -D__STE__ -I/tm
 MODULES="main machine emulator input audio measure dump display background palette text sprites mem_map"
 
 for module in $MODULES; do
-	st vasmm68k_mot /tmp/sources/ste/$module.s -quiet -Faout -m68000 -I/tmp/sources/ste $PORT_FLAGS -o /tmp/$OUT/$module.o
+	st vasmm68k_mot /tmp/sources/ste/$module.s -quiet -Faout -m68000 -I/tmp/sources/ste -I/tmp/lib/xpad/src $PORT_FLAGS -o /tmp/$OUT/$module.o
 done
 
 OBJECTS=""

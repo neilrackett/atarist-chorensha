@@ -31,6 +31,7 @@
 	xref exception_privilege
 	xref exception_line_a
 	xref display_screen_address
+	xref xpad_block
 	xref st_palette
 
 MACHINE_STE=$00010000
@@ -164,6 +165,28 @@ initialize_machine:
 	bset	#6,$fffffa09.w
 	bset	#6,$fffffa15.w
 
+	; With an Xpad provider, Timer C and the serial port's interrupts stay
+	; as TOS had them: TOS's Timer C handler calls etv_timer, where the
+	; providers update their pads (COMpad from TOS's serial receive
+	; buffer, STEpad from the STE's ports).
+
+	tst.l	xpad_block
+	beq		.no_xpad
+
+	move.b	old_fa07,d0
+	and.b	#%00011110,d0 ; Serial receive and transmit, buffer and error.
+	or.b	d0,$fffffa07.w
+	move.b	old_fa13,d0
+	and.b	#%00011110,d0
+	or.b	d0,$fffffa13.w
+	move.b	old_fa09,d0
+	and.b	#%00100110,d0 ; Timer C, CTS, DCD.
+	or.b	d0,$fffffa09.w
+	move.b	old_fa15,d0
+	and.b	#%00100110,d0
+	or.b	d0,$fffffa15.w
+
+.no_xpad:
 	ifnd __RELEASE__
 	and.b	#$f0,$fffffa1d.w ; Timer D stopped.
 	clr.b	$fffffa25.w ; 256.

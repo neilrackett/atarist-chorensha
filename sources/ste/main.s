@@ -61,6 +61,9 @@
 	xref print_stages
 	xref write_usage
 	xref divide_unsigned
+	xref find_xpad
+	xref xpad_block
+	xref xpad_pad_count
 	xref times_500
 	xref lockstep_mode
 
@@ -182,6 +185,20 @@ start:
 
 .machine_text:
 	jsr		print_text
+
+	jsr		find_xpad
+	tst.l	xpad_block
+	beq		.no_xpad
+
+	lea		xpad_text,a0
+	jsr		print_text
+	moveq	#0,d0
+	move	xpad_pad_count,d0
+	jsr		print_number
+	lea		xpad_end_text,a0
+	jsr		print_text
+
+.no_xpad:
 
 	tst.b	machine_is_mega_ste
 	beq		.speed_done
@@ -706,6 +723,10 @@ cpu_cache_text:
 	dc.b	', cache on.',13,10,0
 cpu_no_cache_text:
 	dc.b	', cache off.',13,10,0
+xpad_text:
+	dc.b	'Xpad: a provider with ',0
+xpad_end_text:
+	dc.b	' pad slots.',13,10,0
 wrong_machine_text:
 	dc.b	'This program needs an Atari STE or Mega STE.',13,10,0
 no_data_text:

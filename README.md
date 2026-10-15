@@ -180,8 +180,9 @@ drawer.
 The `ste-poc` work runs the game in colour on an Atari STE or Mega STE with
 4 MB of RAM, at its full game speed. It draws about 12 pictures per second
 on an STE and 17 on a Mega STE (16 MHz with the cache, switched on
-automatically), in a 192-line window that follows the ship. Building it,
-running it in Hatari, how it works and the measurements:
+automatically), in a 192-line window that follows the ship, and takes
+Xpad gamepads. Building it (after `git submodule update --init`, for
+`lib/xpad`), running it in Hatari, how it works and the measurements:
 `docs/STE_PORT.md`.
 
 
@@ -193,3 +194,5 @@ running it in Hatari, how it works and the measurements:
 - Amiga port: Adam Polkosnik.
 - Music recorded with MCDRV 0.69 by CUL (free software), played by the
   Musashi 68000 emulator and rendered with ymfm's YM2151 (Aaron Giles).
+- Controller input on the Atari STE via Xpad, Copyright (c) 2026 Neil
+  Rackett, BSD-2-Clause. See `lib/xpad/LICENSE`.

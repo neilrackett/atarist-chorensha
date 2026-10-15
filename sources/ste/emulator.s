@@ -64,6 +64,7 @@
 	xref input_tick
 	xref input_frame_end
 	xref keyboard_matrix
+	xref xpad_matrix_escape
 	xref audio_play
 	xref audio_status
 	xref audio_stop
@@ -920,7 +921,17 @@ trap_f_handler:
 	lea		keyboard_matrix,a0
 	moveq	#$f,d0
 	and		d1,d0
+	bne		.matrix_group
+
+	move.b	(a0),d0
+	or.b	xpad_matrix_escape,d0 ; An Xpad pad's START: ESC.
+
+	bra		.matrix_read
+
+.matrix_group:
 	move.b	(a0,d0.w),d0
+
+.matrix_read:
 	and.l	#$ff,d0
 
 	move.l	(sp)+,a0

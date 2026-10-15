@@ -33,7 +33,8 @@ attract demo runs 6,000 frames; the full-game replays reach stages 1 to 5.
 ## Building and running
 
 The build needs Docker running for `stcmd`, the atarist-toolkit-docker
-wrapper; the repository is mounted at `/tmp` in the container.
+wrapper; the repository is mounted at `/tmp` in the container. It also
+needs the Xpad submodule: `git submodule update --init`.
 
 ```
 ./build_ste.sh                 binaries/ste/SZ2_STE.TOS (measurements; and SZ2_DBG.TOS with symbols)
@@ -102,6 +103,23 @@ System Settings, Keyboard, Keyboard Shortcuts, Mission Control.)
 
 The STE's enhanced joystick port A (a Jaguar pad) works on the STE; the
 Mega STE has no such port.
+
+**Xpad gamepads.** With an [Xpad](https://github.com/neilrackett/atarist-xpad)
+provider installed (MD/Sidepad, COMpad, STEpad or any other), every pad it
+reports plays, alongside the keyboard and joysticks:
+
+| Pad | Action |
+|---|---|
+| D-pad or left stick | Move |
+| A, X, right shoulder or trigger | Shoot (held in a stage: auto fire) |
+| B, Y, left shoulder or trigger | Bomb (the second button) |
+| START | Pause |
+
+The start-up text says when a provider was found. While the game runs it
+owns the machine, but with a provider present it leaves TOS's Timer C and
+serial interrupts running: TOS's Timer C handler calls `etv_timer`, where
+providers update their pads (COMpad reads TOS's serial buffer there). That
+costs about 2% of the picture rate, and only with a provider installed.
 
 On a Mega STE the program switches to 16 MHz with the cache on. It reads
 `$FFFF8E21` back and reports what it finds, and restores the register on
@@ -325,6 +343,12 @@ before the shot loop change):
 The X68000's own sprite library code is already tight.
 
 ## Verification
+
+- **Xpad.** `tests/ste/xpad_test.sh` builds a scripted provider
+  (`tests/ste/xpad/xpadtest.s`, a TSR for `C:\AUTO` that presses buttons
+  from `etv_timer`) and runs the game with it. Its grabs show the menu
+  started with A, the ship moving while it fires, and the pause. With the
+  same provider idle, the attract demo still matches all its checkpoints.
 
 - **Checkpoints.** Every 60 frames: score, random table index, scroll,
   sprite count and player state. They are compared with
