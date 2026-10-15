@@ -890,6 +890,28 @@ MASTER_PAIR macro
 	or.l	4(a5,d3.w),d2
 	endm
 
+; Eight pixels: the pattern long at \1(a1), its bytes in the order \2-\5
+; (\6 = 1: flipped). An empty half only moves the planes along (nothing to
+; look up).
+
+MASTER_HALF macro
+	tst.l	\1(a1)
+	beq.s	.empty\@
+
+	MASTER_PAIR \2,\6
+	MASTER_PAIR \3,\6
+	MASTER_PAIR \4,\6
+	MASTER_PAIR \5,\6
+
+	bra.s	.done\@
+
+.empty\@:
+	lsl.l	#8,d1
+	lsl.l	#8,d2
+
+.done\@:
+	endm
+
 make_master:
 	movem.l	d2-d7/a1-a3/a5-a6,-(sp)
 
@@ -926,14 +948,8 @@ make_master:
 .row_loop:
 	moveq	#0,d1
 	moveq	#0,d2
-	MASTER_PAIR 0,0
-	MASTER_PAIR 1,0
-	MASTER_PAIR 2,0
-	MASTER_PAIR 3,0
-	MASTER_PAIR 64,0
-	MASTER_PAIR 65,0
-	MASTER_PAIR 66,0
-	MASTER_PAIR 67,0
+	MASTER_HALF 0,0,1,2,3,0
+	MASTER_HALF 64,64,65,66,67,0
 
 	bsr		.store_row
 	cmp		#16,d5
@@ -944,14 +960,8 @@ make_master:
 .flipped_row:
 	moveq	#0,d1
 	moveq	#0,d2
-	MASTER_PAIR 67,1
-	MASTER_PAIR 66,1
-	MASTER_PAIR 65,1
-	MASTER_PAIR 64,1
-	MASTER_PAIR 3,1
-	MASTER_PAIR 2,1
-	MASTER_PAIR 1,1
-	MASTER_PAIR 0,1
+	MASTER_HALF 64,67,66,65,64,1
+	MASTER_HALF 0,3,2,1,0,1
 
 	bsr		.store_row
 	cmp		#16,d5
