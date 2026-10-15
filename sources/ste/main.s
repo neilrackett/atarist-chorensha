@@ -150,6 +150,30 @@ start:
 	bra		.wait_and_exit
 
 .machine_ok:
+	; The game's data, next to the program (without it the game stops at
+	; once, its message in black).
+
+	lea		data_files,a1
+
+.data_loop:
+	move.l	(a1)+,d0
+	beq		.data_found
+
+	move.l	d0,a0
+	bsr		file_exists
+	bne		.data_loop
+
+	move.l	a0,-(sp)
+	lea		no_data_text,a0
+	jsr		print_text
+	move.l	(sp)+,a0
+	jsr		print_text
+	lea		no_data_help_text,a0
+	jsr		print_text
+
+	bra		.wait_and_exit
+
+.data_found:
 	lea		ste_text,a0
 	tst.b	machine_is_ste
 	bne		.machine_text
@@ -684,6 +708,24 @@ cpu_no_cache_text:
 	dc.b	', cache off.',13,10,0
 wrong_machine_text:
 	dc.b	'This program needs an Atari STE or Mega STE.',13,10,0
+no_data_text:
+	dc.b	'The game data is missing: ',0
+no_data_help_text:
+	dc.b	' was not found.',13,10
+	dc.b	'The folders BGM_DAT, ETC_DAT and XSP_DAT (binaries/amiga) and',13,10
+	dc.b	'PCM_DAT (binaries/atari) go next to the program.',13,10,0
+bgm_data_file_name:
+	dc.b	'BGM_DAT\SZ2_BGM.CNF',0
+etc_data_file_name:
+	dc.b	'ETC_DAT\RANDOM.TBL',0
+xsp_data_file_name:
+	dc.b	'XSP_DAT\SZ_TEXT.pcg',0
+pcm_data_file_name:
+	dc.b	'PCM_DAT\SZ2_PCM.CNF',0
+	even
+data_files: ; Checked at start (a file the game loads from each folder).
+	dc.l	bgm_data_file_name,etc_data_file_name,xsp_data_file_name
+	dc.l	pcm_data_file_name,0
 no_memory_text:
 	dc.b	'Not enough memory: needs ',0
 of_text:
