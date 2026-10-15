@@ -11,11 +11,11 @@ attract demo runs 6,000 frames; the full-game replays reach stages 1 to 5.
 | | STE (8 MHz) | Mega STE (16 MHz, cache) |
 |---|---|---|
 | Free memory (TPA) | 3,982 KB | same |
-| Program + game heap | 1,972 KB + 1,024 KB (871 KB used) | same |
-| Sprite cache (the rest, less 64 KB for TOS) | 922 KB (986 KB in the release build) | same |
+| Program + game heap | 2,004 KB + 1,024 KB (871 KB used) | same |
+| Sprite cache (the rest, less 64 KB for TOS) | 891 KB (955 KB in the release build) | same |
 | Game logic per frame: median / 95% / mean (attract demo) | 5.9 / 11.8 / 6.9 ms | 3.9 / 7.9 / 4.5 ms |
 | Render per picture (attract demo) | 47.7 ms | 36.4 ms |
-| **Pictures per second, attract demo** | **12.2** (12.4 release build) | **17.2** (17.4 release build) |
+| **Pictures per second, attract demo** | **12.1** (12.4 release build) | **17.1** (17.4 release build) |
 | **Pictures per second, full-game replays** (DEMO3, DEMO8) | **11.5, 12.4** (8.7-14.4 by stage) | **16.2, 16.9** (13.3-18.8 by stage) |
 | First game start (the background is composed once) | 5.7 s | 3.4 s |
 
@@ -48,7 +48,10 @@ to those of the `amiga-port` revision; `CHECK=0` skips the check.
 `tests/ste/run_hatari.sh NAME` stages the program with the game data in
 `tmp/stage_NAME/`, which is Hatari's drive C:, and starts it in Hatari
 (`/Applications/Hatari.app`). On first use, TOS 2.06 is copied from
-`../atarist-rott/tmp/tos/` to `tmp/tos/`.
+`../atarist-rott/tmp/tos/` to `tmp/tos/`. To run the program elsewhere, put
+the folders `BGM_DAT`, `ETC_DAT` and `XSP_DAT` (from `binaries/amiga`) and
+`PCM_DAT` (from `binaries/atari`) next to it. The program checks for them
+at start and says which one is missing.
 
 ```
 # Playing, in a window (MACHINE=megaste for the Mega STE).
@@ -115,7 +118,7 @@ What is new is the picture.
 
 ### Display (`display.s`)
 
-ST low resolution, double-buffered, drawn in bitplanes:
+ST low resolution, triple-buffered, drawn in bitplanes:
 
 - **Lines 0-7, the HUD band:** the X68000 text layer's row 0 (score, high
   score), drawn into both screens when the game writes it.
@@ -127,7 +130,11 @@ ST low resolution, double-buffered, drawn in bitplanes:
   - The lives and bombs (text rows 1-3) stay at the top of the playfield.
 
 The screen address is written at a VBL. The colours follow one VBL later,
-when the new picture appears.
+when the new picture appears. A presented picture is therefore on screen
+only two VBLs later, and the screen shown until then cannot be drawn into
+before that. So there are three screens: the one shown, the one presented
+and the one being drawn. Presenting waits for the picture before it to be
+on screen, which by then it nearly always is, and drawing never waits.
 
 ### Colours (`palette.s`, `palette_map.i`, `tools/ste/palette_map.py`)
 
@@ -240,15 +247,15 @@ and its parts.
 | Game BSS (includes the 128 KB demo replay buffer) | 310 |
 | Composed background table (at the GVRAM label; GVRAM while the game builds it) | 1,024 |
 | X68000 register and sprite shadows | 96 |
-| Two screens | 63 |
+| Three screens | 94 |
 | Background layers (made once, for the table) | 45 |
 | Sprite tables (per-palette pair tables 32, per-pattern variants 7.5, sprite list, order) | 46 |
 | Checkpoints (not in the release build) | 65 |
 | Text, input script, stage counters, stack | 27 |
-| **Program** | **1,972** (1,908 release) |
+| **Program** | **2,004** (1,940 release) |
 | Game heap (stack, sprite patterns, samples, tables) | 1,024 (871 used) |
 | Kept free for TOS | 64 |
-| **Sprite arena** | **922** (986 release) |
+| **Sprite arena** | **891** (955 release) |
 
 ## Measurements
 
@@ -268,6 +275,7 @@ and its parts.
 | Faster text rows | 11.4 | 16.5 |
 | Leaner per-sprite path | 12.0 | 17.1 |
 | Masters skip empty half rows | 12.2 | 17.2 |
+| Three screens: two let the next picture be drawn into the one still shown (flicker) | 12.1 | 17.1 |
 | Release build (no measurements, 64 KB more sprite cache) | 12.4 | 17.4 |
 
 ### Pictures per second by stage (full-game replays, 190,000 frames)
