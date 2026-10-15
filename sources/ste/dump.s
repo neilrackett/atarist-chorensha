@@ -16,11 +16,14 @@
 ;   exit report, and per stage (its low 4 bits) the frames, the 50 Hz ticks,
 ;   the pictures shown and their render time.
 
-	xdef count_sprite_usage
 	xdef record_stage
 	xdef stage_picture
-	xdef write_usage
 	xdef print_stages
+
+	ifd __USAGE__
+	xdef count_sprite_usage
+	xdef write_usage
+	endif
 
 	ifd __DUMP__
 	xdef write_graphics_dump
@@ -46,6 +49,8 @@ STAGE_SLOTS=16
 ; ------------------------------------------------------------------------------
 	text
 ; ------------------------------------------------------------------------------
+
+	ifd __USAGE__
 
 ; d0.w = number of sprites in SPRITE_DATA_TABLE. Preserves all registers.
 
@@ -166,6 +171,8 @@ make_histogram:
 	movem.l	(sp)+,d0-d3/a0-a1
 
 	rts
+
+	endif
 
 ; At each frame end: remembers the stage word's low byte, counts the frame
 ; and the ticks since the last one for the stage. Preserves all registers.
@@ -320,6 +327,8 @@ print_stages:
 
 	rts
 
+	ifd __USAGE__
+
 ; USAGE.BIN (GEMDOS, after the machine has been released).
 
 write_usage:
@@ -347,6 +356,8 @@ write_usage:
 	movem.l	(sp)+,d0-d3/a0-a2
 
 	rts
+
+	endif
 
 	ifd __DUMP__
 
@@ -470,8 +481,6 @@ usage_header:
 	ds.l	2
 usage_frames:
 	ds.l	1
-usage_counts: ; Per sprite/text palette entry: pixels shown.
-	ds.l	256
 stages_seen:
 	ds.b	32
 current_stage:
@@ -486,12 +495,17 @@ stage_pictures:
 	ds.l	STAGE_SLOTS
 stage_render:
 	ds.l	STAGE_SLOTS
+	ifd __USAGE__
+usage_counts: ; Per sprite/text palette entry: pixels shown.
+	ds.l	256
 histogram_made:
 	ds.b	PCG_PATTERNS
 	even
 histograms:
 	ds.b	PCG_PATTERNS*16
+	endif
 
+	even
 pattern_palettes: ; Per pattern: the palettes it was drawn with.
 	ds.w	2048
 
