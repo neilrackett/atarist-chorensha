@@ -62,6 +62,9 @@
 	xref L_00E80000
 	xref L_00E82000
 	xref render_line_needed
+	ifd __USAGE__
+	xref count_sprite_usage
+	endif
 
 PCG_PATTERNS=$75e
 MAXIMUM_SPRITES=512
@@ -175,6 +178,10 @@ prepare_sprite_infos:
 .count_ok:
 	move	d0,frame_sprite_count
 	move	d0,render_sprite_count
+
+	ifd __USAGE__
+	jsr		count_sprite_usage ; Colour statistics (dump.s).
+	endif
 
 	movem.l	a0/a2,-(sp)
 

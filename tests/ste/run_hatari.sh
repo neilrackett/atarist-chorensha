@@ -25,7 +25,10 @@
 #   MEMSIZE   RAM in MB (default 4)
 #   TIMEOUT   seconds before Hatari is stopped (default 900)
 #   BOOT_WAIT seconds from launch to the first command (default 10)
+#   MEGASTE8  1: keep a Mega STE at 8 MHz without the cache (MEGASTE8.TXT)
 #   LOCKSTEP  1: start in lockstep mode (every frame rendered; LOCKSTEP.TXT)
+#   REPLAY    a replay from binaries/atari/ETC_DAT (e.g. DEMO3.REP) used as
+#             the attract demo (ETC_DAT/DEMO.REP)
 #   INPUT     an input script (text, as tests/amiga/input/*.txt; only its
 #             joystick lines are used), staged as INPUT.BIN
 #   EXTRA     extra Hatari options
@@ -89,8 +92,14 @@ PROGRAM_NAME=$(basename "$PROG")
 cp "$PROG" "$STAGE/$PROGRAM_NAME"
 cp -R binaries/amiga/BGM_DAT binaries/amiga/ETC_DAT binaries/amiga/XSP_DAT "$STAGE/"
 cp -R binaries/atari/PCM_DAT "$STAGE/"
+if [ -n "${REPLAY:-}" ]; then
+	cp "binaries/atari/ETC_DAT/$REPLAY" "$STAGE/ETC_DAT/DEMO.REP" || exit 2
+fi
 if [ -n "$FRAMES" ]; then
 	echo "$FRAMES" > "$STAGE/FRAMES.TXT"
+fi
+if [ "${MEGASTE8:-0}" = "1" ]; then
+	echo "8 MHz" > "$STAGE/MEGASTE8.TXT"
 fi
 if [ "${LOCKSTEP:-0}" = "1" ]; then
 	echo "lockstep" > "$STAGE/LOCKSTEP.TXT"
@@ -161,6 +170,8 @@ fi
 wait $HPID 2>/dev/null
 
 [ -f "$STAGE/CHECKPTS.BIN" ] && cp "$STAGE/CHECKPTS.BIN" "$OUT/${NAME}_CHECKPTS.BIN"
+[ -f "$STAGE/USAGE.BIN" ] && cp "$STAGE/USAGE.BIN" "$OUT/${NAME}_USAGE.BIN"
+[ -f "$STAGE/GRAPHICS.BIN" ] && cp "$STAGE/GRAPHICS.BIN" "$OUT/${NAME}_GRAPHICS.BIN"
 if ls "$STAGE"/S*.PI1 > /dev/null 2>&1; then
 	cp "$STAGE"/S*.PI1 "$SHOTDIR/"
 	python3 tests/ste/pi1_png.py --montage "$SHOTDIR/montage.png" "$SHOTDIR"/S*.PI1

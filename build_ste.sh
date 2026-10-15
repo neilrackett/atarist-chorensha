@@ -13,6 +13,7 @@
 #   ./build_ste.sh                 the game
 #   HEADLESS=1 ./build_ste.sh      the game without rendering (SZ2_HL.TOS:
 #                                  game logic, checkpoints and timing only)
+#   FLAGS=... NAME=... ./build_ste.sh  extra defines, another program name
 
 set -e
 
@@ -29,23 +30,27 @@ st() {
 OUT=binaries/ste
 mkdir -p "$OUT" tmp/check
 
-EMULATOR_FLAGS=
-NAME=SZ2_STE
+# FLAGS: extra defines for the port modules (e.g. "-D__USAGE__ -D__DUMP__"
+# for the colour tools' data runs); NAME: the program's name.
+
+PORT_FLAGS="${FLAGS:-}"
+DEFAULT_NAME=SZ2_STE
 if [ "${HEADLESS:-0}" = "1" ]; then
-	EMULATOR_FLAGS=-D__HEADLESS__
-	NAME=SZ2_HL
+	PORT_FLAGS="$PORT_FLAGS -D__HEADLESS__"
+	DEFAULT_NAME=SZ2_HL
 fi
+NAME=${NAME:-$DEFAULT_NAME}
 
 st vasmm68k_mot /tmp/sources/sz2.s -quiet -no-opt -Faout -m68000 -D__STE__ -I/tmp/sources -o /tmp/$OUT/sz2_ste.o
 
-for module in main machine input audio measure display graphics mem_map; do
-	st vasmm68k_mot /tmp/sources/ste/$module.s -quiet -Faout -m68000 -o /tmp/$OUT/$module.o
+MODULES="main machine emulator input audio measure dump display graphics mem_map"
+
+for module in $MODULES; do
+	st vasmm68k_mot /tmp/sources/ste/$module.s -quiet -Faout -m68000 $PORT_FLAGS -o /tmp/$OUT/$module.o
 done
 
-st vasmm68k_mot /tmp/sources/ste/emulator.s -quiet -Faout -m68000 $EMULATOR_FLAGS -o /tmp/$OUT/emulator.o
-
 OBJECTS=""
-for module in main sz2_ste mem_map machine emulator input audio measure display graphics; do
+for module in main sz2_ste mem_map machine emulator input audio measure dump display graphics; do
 	OBJECTS="$OBJECTS /tmp/$OUT/$module.o"
 done
 

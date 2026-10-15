@@ -11,6 +11,9 @@
 	xdef machine_cpu
 	xdef machine_is_ste
 	xdef machine_is_mega_ste
+	xdef set_cpu_speed
+	xdef force_8mhz
+	xdef mega_ste_control
 
 	xref line_f_handler
 	xref trap_2_handler
@@ -168,15 +171,35 @@ initialize_machine:
 
 	bclr	#3,$fffffa17.w ; Automatic end of interrupt.
 
-	; Mega STE: 16 MHz and the cache.
+	rts
 
+; ------------------------------------------------------------------------------
+;
+; Mega STE: 16 MHz and the cache (bits 1 and 0 of $FFFF8E21), or 8 MHz
+; without the cache if force_8mhz is set (MEGASTE8.TXT, for comparisons).
+; The register is read back into mega_ste_control (the start-up text and
+; the exit report show it); release_machine puts the old value back.
+; Supervisor mode, before the take-over.
+
+set_cpu_speed:
 	tst.b	machine_is_mega_ste
-	beq		.not_mega_ste
+	beq		.done
 
-	move.b	$ffff8e21.w,old_8e21
-	or.b	#3,$ffff8e21.w
+	move.b	$ffff8e21.w,d0
+	move.b	d0,old_8e21
+	st		cpu_speed_set
 
-.not_mega_ste:
+	and.b	#$fc,d0
+	tst.b	force_8mhz
+	bne		.write
+
+	or.b	#3,d0 ; 16 MHz, cache.
+
+.write:
+	move.b	d0,$ffff8e21.w
+	move.b	$ffff8e21.w,mega_ste_control
+
+.done:
 	rts
 
 ; ------------------------------------------------------------------------------
@@ -184,12 +207,12 @@ initialize_machine:
 release_machine:
 	move	#$2700,sr
 
-	tst.b	machine_is_mega_ste
-	beq		.not_mega_ste
+	tst.b	cpu_speed_set
+	beq		.speed_restored
 
 	move.b	old_8e21,$ffff8e21.w
 
-.not_mega_ste:
+.speed_restored:
 	clr.b	$ffff8901.w
 	move.b	old_sound_mode,$ffff8921.w
 
@@ -302,6 +325,12 @@ old_fine_scroll:
 old_sound_mode:
 	ds.b	1
 old_8e21:
+	ds.b	1
+cpu_speed_set:
+	ds.b	1
+force_8mhz:
+	ds.b	1
+mega_ste_control: ; $FFFF8E21 as read back after set_cpu_speed.
 	ds.b	1
 
 old_fa07:

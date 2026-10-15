@@ -74,6 +74,7 @@
 	xref measure_logic
 	xref measure_picture
 	xref record_checkpoint
+	xref record_stage
 	xref divide_unsigned
 	xref write_screenshot
 
@@ -386,6 +387,7 @@ frame_wait_end:
 .no_screenshot:
 	jsr		input_frame_end
 	jsr		record_checkpoint
+	jsr		record_stage
 
 	move.l	frame_limit,d0
 	beq		.no_limit

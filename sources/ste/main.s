@@ -12,6 +12,9 @@
 ; then exits after that many frames (the attract demo, for measurements) and
 ; writes CHECKPTS.BIN.
 ;
+; MEGASTE8.TXT (optional): keep a Mega STE at 8 MHz without its cache (for
+; comparisons; by default a Mega STE runs at 16 MHz with the cache on).
+;
 ; LOCKSTEP.TXT (optional): start in lockstep mode (every frame shown, the
 ; game slowed down to the rendering speed; F1 switches).
 
@@ -22,6 +25,9 @@
 	xref release_machine
 	xref machine_is_ste
 	xref machine_is_mega_ste
+	xref set_cpu_speed
+	xref force_8mhz
+	xref mega_ste_control
 	xref initialize_display
 	xref initialize_renderer
 	xref release_renderer
@@ -48,6 +54,11 @@
 	xref print_hex
 	xref print_measurements
 	xref write_checkpoints
+	xref print_stages
+	xref write_usage
+	ifd __DUMP__
+	xref write_graphics_dump
+	endif
 	xref divide_unsigned
 	xref lockstep_mode
 
@@ -146,6 +157,18 @@ start:
 .machine_text:
 	jsr		print_text
 
+	tst.b	machine_is_mega_ste
+	beq		.speed_done
+
+	lea		megaste8_file_name,a0
+	bsr		file_exists
+	sne		force_8mhz
+
+	jsr		set_cpu_speed
+	bsr		print_cpu_speed
+
+.speed_done:
+
 	bsr		read_frame_limit
 	bsr		read_lockstep
 
@@ -187,10 +210,25 @@ start:
 
 	bsr		print_report
 
+	tst.b	machine_is_mega_ste
+	beq		.no_speed_report
+
+	bsr		print_cpu_speed
+
+.no_speed_report:
+
 	tst.l	frame_limit
 	beq		.wait_and_exit
 
 	jsr		write_checkpoints
+
+	ifd __USAGE__
+	jsr		write_usage
+	endif
+
+	ifd __DUMP__
+	jsr		write_graphics_dump
+	endif
 
 	bra		.exit
 
@@ -312,6 +350,65 @@ read_lockstep:
 
 .done:
 	rts
+
+; a0 = file name: Z clear if the file exists (Fopen succeeds). Preserves
+; a0.
+
+file_exists:
+	move.l	a0,-(sp)
+
+	clr		-(sp)
+	move.l	a0,-(sp)
+	move	#61,-(sp) ; Fopen
+	trap	#1
+	addq.l	#8,sp
+	tst.l	d0
+	bmi		.missing
+
+	move	d0,-(sp)
+	move	#62,-(sp) ; Fclose
+	trap	#1
+	addq.l	#4,sp
+
+	move.l	(sp)+,a0
+	moveq	#1,d0 ; Z clear.
+
+	rts
+
+.missing:
+	move.l	(sp)+,a0
+	moveq	#0,d0 ; Z set.
+
+	rts
+
+; The Mega STE's speed, as $FFFF8E21 reads back.
+
+print_cpu_speed:
+	lea		cpu_text,a0
+	jsr		print_text
+
+	moveq	#0,d0
+	move.b	mega_ste_control,d0
+	moveq	#2,d1
+	jsr		print_hex
+
+	lea		cpu_8mhz_text,a0
+	btst	#1,d0
+	beq		.speed
+
+	lea		cpu_16mhz_text,a0
+
+.speed:
+	jsr		print_text
+
+	lea		cpu_no_cache_text,a0
+	btst	#0,d0
+	beq		.cache
+
+	lea		cpu_cache_text,a0
+
+.cache:
+	jmp		print_text
 
 ; ------------------------------------------------------------------------------
 
@@ -447,6 +544,7 @@ print_report:
 	jsr		print_text
 
 	jsr		print_measurements
+	jsr		print_stages
 
 	; Heap high-water mark: the area was cleared at start.
 
@@ -548,7 +646,19 @@ welcome_text:
 ste_text:
 	dc.b	'Machine: Atari STE (8 MHz).',13,10,0
 mega_ste_text:
-	dc.b	'Machine: Atari Mega STE (16 MHz, cache).',13,10,0
+	dc.b	'Machine: Atari Mega STE.',13,10,0
+megaste8_file_name:
+	dc.b	'MEGASTE8.TXT',0
+cpu_text:
+	dc.b	'CPU control ($FFFF8E21): $',0
+cpu_16mhz_text:
+	dc.b	', 16 MHz',0
+cpu_8mhz_text:
+	dc.b	', 8 MHz',0
+cpu_cache_text:
+	dc.b	', cache on.',13,10,0
+cpu_no_cache_text:
+	dc.b	', cache off.',13,10,0
 wrong_machine_text:
 	dc.b	'This program needs an Atari STE or Mega STE.',13,10,0
 no_memory_text:
