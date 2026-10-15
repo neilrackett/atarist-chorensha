@@ -24,6 +24,9 @@
 	xref initialize_machine
 	xref release_machine
 	xref machine_is_st
+	xref machine_has_ste_hardware
+	xref ym_effects_played
+	xref ym_effects_unknown
 	xref machine_is_ste
 	xref machine_is_mega_ste
 	xref set_cpu_speed
@@ -644,6 +647,22 @@ print_report:
 	lea		line_end_text,a0
 	jsr		print_text
 
+	tst.b	machine_has_ste_hardware
+	bne		.no_ym_report
+
+	lea		ym_played_text,a0
+	jsr		print_text
+	move.l	ym_effects_played,d0
+	jsr		print_number
+	lea		ym_unknown_text,a0
+	jsr		print_text
+	move.l	ym_effects_unknown,d0
+	jsr		print_number
+	lea		line_end_text,a0
+	jsr		print_text
+
+.no_ym_report:
+
 	; Calls the port does not implement.
 
 	lea		unimplemented_dos,a2
@@ -818,6 +837,10 @@ cache_resets_text:
 	dc.b	'Sprite cache emptied (including at start): ',0
 half_switches_text:
 	dc.b	', halves switched: ',0
+ym_played_text:
+	dc.b	'YM sound effects played: ',0
+ym_unknown_text:
+	dc.b	', not recognised: ',0
 masters_made_text:
 	dc.b	', variants made: ',0
 shifts_made_text:

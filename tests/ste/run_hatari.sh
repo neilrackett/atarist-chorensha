@@ -32,6 +32,10 @@
 #   INPUT     an input script (text, as tests/amiga/input/*.txt; only its
 #             joystick lines are used), staged as INPUT.BIN
 #   AUTO      programs to run at boot from C:\AUTO (e.g. an Xpad provider)
+#   SOUND     Hatari's sound: off (default) or a rate (e.g. 44100)
+#   RECORD    a WAV file for Hatari's sound recording (sound on at 44100
+#             unless SOUND says otherwise; start and stop it with the
+#             command "fifo hatari-shortcut recsound")
 #   EXTRA     extra Hatari options
 #
 # Commands (after the program has started):
@@ -115,12 +119,23 @@ if [ -n "${INPUT:-}" ]; then
 	python3 tests/amiga/make_input_script.py "$INPUT" "$STAGE/INPUT.BIN" || exit 2
 fi
 
+SOUND=${SOUND:-off}
+CONFIG_OPTION=""
+if [ -n "${RECORD:-}" ]; then
+	[ "$SOUND" = "off" ] && SOUND=44100
+	case "$RECORD" in /*) ;; *) RECORD="$ROOT/$RECORD" ;; esac
+	rm -f "$RECORD"
+	printf '[Sound]\nbEnableSound = TRUE\nnPlaybackFreq = %s\nszYMCaptureFileName = %s\n' \
+		"$SOUND" "$RECORD" > "$OUT/hatari_$NAME.cfg"
+	CONFIG_OPTION="--configfile $OUT/hatari_$NAME.cfg"
+fi
+
 if [ "$WINDOW" != "1" ]; then
 	export SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy
 fi
 
-"$HATARI" ${EXTRA:-} --tos "$TOS" --machine "$MACHINE" --memsize "$MEMSIZE" \
-	--fast-boot on --fast-forward "$FF" --sound off --statusbar off \
+"$HATARI" $CONFIG_OPTION ${EXTRA:-} --tos "$TOS" --machine "$MACHINE" --memsize "$MEMSIZE" \
+	--fast-boot on --fast-forward "$FF" --sound "$SOUND" --statusbar off \
 	--confirm-quit off --conout 2 --cmd-fifo "$FIFO" \
 	--screenshot-dir "$SHOTDIR" --screenshot-format png \
 	"$STAGE/$PROGRAM_NAME" > "$LOG" 2> "$OUT/$NAME.err" &

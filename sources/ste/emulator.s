@@ -68,6 +68,7 @@
 	xref audio_play
 	xref audio_status
 	xref audio_stop
+	xref audio_tick
 	xref render_frame
 	xref present_frame
 	xref display_vbl
@@ -148,6 +149,7 @@ vbl_handler:
 
 	jsr		display_vbl
 	jsr		input_tick
+	jsr		audio_tick ; (An ST: the YM's effect.)
 
 	movem.l	(sp)+,d0-d1/a0-a1
 

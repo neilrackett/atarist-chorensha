@@ -34,6 +34,7 @@
 	xref exception_line_a
 	xref display_screen_address
 	xref xpad_block
+	xref audio_silence
 	xref st_palette
 
 MACHINE_STE=$00010000
@@ -232,7 +233,7 @@ initialize_machine:
 
 	bclr	#3,$fffffa17.w ; Automatic end of interrupt.
 
-	rts
+	jmp		audio_silence ; (An ST: the YM plays the effects.)
 
 ; ------------------------------------------------------------------------------
 ;
@@ -267,6 +268,8 @@ set_cpu_speed:
 
 release_machine:
 	move	#$2700,sr
+
+	jsr		audio_silence
 
 	tst.b	cpu_speed_set
 	beq		.speed_restored

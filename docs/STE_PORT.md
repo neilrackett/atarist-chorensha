@@ -6,9 +6,10 @@ fast as the machine allows, leaving out the rest. It builds with the
 atarist-toolkit-docker tools (`stcmd`). It has been tested in Hatari only.
 
 One program runs on all three. It needs no BLiTTER, so a plain ST draws as
-fast as an STE. What the STE adds is DMA sound (an ST has no sound effects
-yet), 4,096 colours instead of 512 (the same colour code: an ST ignores the
-extra bit) and its Jaguar pad port; the Mega STE adds 16 MHz and its cache.
+fast as an STE. What the STE adds is DMA sound (on an ST the YM2149 plays
+versions of the sound effects made from the samples), 4,096 colours instead
+of 512 (the same colour code: an ST ignores the extra bit) and its Jaguar
+pad port; the Mega STE adds 16 MHz and its cache.
 The folder and file names still say STE (`sources/ste`, `SZ2_STE.TOS`).
 
 **Results, in short.** Measured in Hatari 2.6.1 with TOS 2.06 and 4 MB. The
@@ -90,6 +91,9 @@ Options:
   such as `tests/ste/input/autofire_held.txt`.
 - `PROG`, `TOS`, `MEMSIZE`, `FF`, `WINDOW`, `MEGASTE8=1`. `MEGASTE8=1`
   keeps a Mega STE at 8 MHz without the cache, for comparisons.
+- `SOUND` (a rate, default off) and `RECORD=FILE.wav`: Hatari's sound, and
+  a recording of it, started and stopped with the command
+  `fifo hatari-shortcut recsound`.
 
 The console output is in `tmp/out/NAME.log`: the start-up memory report and
 the exit report, with timings per stage.
@@ -230,6 +234,35 @@ itself (5.7 s on an STE). Later games skip the game's builder.
 - **Order.** The X68000's 64 priorities (larger in front, `$00-$0F` not
   shown), drawn in buckets. Sprites outside the playfield lines are left
   out before any variant work.
+
+### Sound effects (`audio.s`, `ym_effects.i`, `tools/ste/ym_effects.py`)
+
+The game plays one effect at a time through `_ADPCMOUT`. On an STE or Mega
+STE, DMA sound plays the sample. An ST has no DMA sound, so its YM2149
+plays a version made in advance from each sample:
+
+- `tools/ste/ym_effects.py` cuts each `.sam` into 20 ms frames, one per
+  VBL. A frame's loudness is split between tone and noise by how tonal it
+  is (its spectral flatness). The tones are the strongest spectral peak, or
+  its fundamental if that is strong, on channel A, and a second peak that
+  is not one of its harmonics (a chord) on channel C. The noise is on
+  channel B, its period from the spectral centroid. Volumes are in the
+  YM's 3 dB steps. It writes `sources/ste/ym_effects.i`: 31 effects, 1,497
+  frames, 12 KB.
+- `tools/ste/ym_effects.py --preview DIR` also writes WAV files of every
+  effect as sampled and as the YM plays it. `ALL.wav` has them all, each
+  sampled then YM, and `ALL.txt` says where each one starts.
+- On the ST, `audio.s` recognises the effect by the sample's length and
+  first long, then writes one frame into the YM per VBL: a few hundred
+  cycles, with no visible cost. Effects the game plays at 10.4 kHz go
+  1.5 times slower and lower (see the open items). As in STDL's YM service,
+  registers 14 and 15 are never written, the mixer keeps the port direction
+  bits, and interrupts are masked between selecting a register and writing
+  it.
+
+The attract demo on an ST plays 757 effects in 6,000 frames, all of them
+recognised. A Hatari recording of an ST has sound in 276 of its 500 tenths
+of a second, and an STE's 275.
 
 ### Text (`text.s`)
 
@@ -393,13 +426,16 @@ The X68000's own sprite library code is already tight.
     address and more memory.
 - **Music.** MCDRV (YM2151 FM) is not emulated. A YM2149 conversion of the
   songs, or DMA samples streamed from disk, would be needed.
-- **Sound effects on an ST.** An ST has no DMA sound, so it plays none
-  yet. The YM2149 could play the samples from a timer interrupt (about
-  5-10% of the CPU at 6-8 kHz; 4-bit samples would also halve their
-  424 KB), or play effects made for it.
-- **Sound effects.** The 9 effects the game plays at 10.4 kHz play about
-  1.5 times too fast: the Falcon port's `.sam` files were all converted as
-  15.6 kHz recordings.
+- **Sound effects on an ST.** The YM versions are a first conversion: the
+  explosions, hits and menu sounds are close, and the sweeping lasers only
+  roughly. The converter's settings, or hand-made frames for single
+  effects, are the way to improve them. The ST still loads the samples
+  (370 KB of the game's heap), though the YM needs only their lengths and
+  first longs; not loading them would give the sprite cache that memory.
+- **Sound effects.** The effects the game plays at 10.4 kHz (four, the
+  second boss's) play 1.5 times too fast on an STE: the Falcon port's
+  `.sam` files were all converted as 15.6 kHz recordings. The ST's YM
+  versions play them at the right speed.
 - **Coverage.** Stages 6 and 7 are not reached by the replays used for the
   colour map and the measurements.
 - **Timers.** Timer C (the TOS 200 Hz timer) is stopped while the game
