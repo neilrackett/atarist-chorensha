@@ -88,12 +88,17 @@ the exit report, with timings per stage.
 | Key or control | Action |
 |---|---|
 | Cursor keys or joystick | Move |
-| CTRL, Z or fire | Shoot (held in a stage: auto fire) |
-| SHIFT or X | Second button |
+| Z, CTRL or fire | Shoot (held in a stage: auto fire) |
+| X or SHIFT | Second button |
 | P or ESC | Pause |
 | EXIT (main menu) | Quit |
 | F1 | Lockstep on and off: every frame is shown and the game slows down to the drawing speed |
 | F2 | Keeps the playfield window still instead of following the ship |
+
+On macOS, use Z and X rather than CTRL: Ctrl + the arrow keys are Mission
+Control shortcuts there, and Hatari never sees the arrows while Ctrl is held,
+so the ship cannot move and fire at once. (Or switch those shortcuts off in
+System Settings, Keyboard, Keyboard Shortcuts, Mission Control.)
 
 The STE's enhanced joystick port A (a Jaguar pad) works on the STE; the
 Mega STE has no such port.
