@@ -14,9 +14,9 @@ attract demo runs 6,000 frames; the full-game replays reach stages 1 to 5.
 | Program + game heap | 1,972 KB + 1,024 KB (871 KB used) | same |
 | Sprite cache (the rest, less 64 KB for TOS) | 922 KB (986 KB in the release build) | same |
 | Game logic per frame: median / 95% / mean (attract demo) | 5.9 / 11.8 / 6.9 ms | 3.9 / 7.9 / 4.5 ms |
-| Render per picture (attract demo) | 48.5 ms | 36.8 ms |
-| **Pictures per second, attract demo** | **12.0** (12.3 release build) | **17.1** |
-| **Pictures per second, full-game replays** (DEMO3, DEMO8) | **11.4, 12.3** (8.7-14.3 by stage) | **16.1, 16.8** (13.2-18.8 by stage) |
+| Render per picture (attract demo) | 47.7 ms | 36.4 ms |
+| **Pictures per second, attract demo** | **12.2** (12.4 release build) | **17.2** (17.4 release build) |
+| **Pictures per second, full-game replays** (DEMO3, DEMO8) | **11.5, 12.4** (8.7-14.4 by stage) | **16.2, 16.9** (13.3-18.8 by stage) |
 | First game start (the background is composed once) | 5.7 s | 3.4 s |
 
 - **It fits, with room for a sprite cache.** The X68000's GVRAM and text
@@ -27,8 +27,8 @@ attract demo runs 6,000 frames; the full-game replays reach stages 1 to 5.
   full-game replays give the same 2,048 checkpoints (122,880 frames)
   before and after the port's hand-optimised shot loop.
 - **Drawing sets the picture rate.** On an STE a picture takes about 48 ms:
-  15 for the background, 25-29 for the sprites, 3-4 for the text. That is
-  about one picture every 4 frames, or every 3 on a Mega STE.
+  14-15 for the background, 25-29 for the sprites, 3-4 for the text. That
+  is about one picture every 4 frames, or every 3 on a Mega STE.
 
 ## Building and running
 
@@ -267,18 +267,19 @@ and its parts.
 | Shot slots in registers (logic −0.4 ms per frame) | 10.9 | 16.2 |
 | Faster text rows | 11.4 | 16.5 |
 | Leaner per-sprite path | 12.0 | 17.1 |
-| Release build (no measurements) | 12.3 | - |
+| Masters skip empty half rows | 12.2 | 17.2 |
+| Release build (no measurements, 64 KB more sprite cache) | 12.4 | 17.4 |
 
 ### Pictures per second by stage (full-game replays, 190,000 frames)
 
 | Stage | STE DEMO3 | STE DEMO8 | Mega STE DEMO3 | Mega STE DEMO8 |
 |---|---|---|---|---|
-| 1 | 12.8 | 14.3 | 17.8 | 18.8 |
-| 2 | 13.1 | 14.0 | 17.8 | 18.4 |
-| 3 | 10.2 | 11.5 | 15.2 | 16.1 |
-| 4 | 8.7 | 10.2 | 13.2 | 14.7 |
-| 5 (part) | 15.6 | 10.1 | 19.7 | 14.6 |
-| **All** | **11.4** | **12.3** | **16.1** | **16.8** |
+| 1 | 13.0 | 14.4 | 17.8 | 18.8 |
+| 2 | 13.3 | 14.1 | 18.0 | 18.5 |
+| 3 | 10.3 | 11.5 | 15.2 | 16.2 |
+| 4 | 8.7 | 10.3 | 13.3 | 14.8 |
+| 5 (part) | 15.7 | 10.2 | 19.7 | 14.7 |
+| **All** | **11.5** | **12.4** | **16.2** | **16.9** |
 
 Game logic over the replays, median / 95%: STE 7.4 / 14.8 ms (DEMO3) and
 6.4 / 14.3 ms (DEMO8); Mega STE 4.9 / 9.4 and 4.4 / 9.4 ms. The stages
@@ -290,10 +291,10 @@ DEMO8 later.
 | Per picture (ms) | STE attract | STE DEMO3 | Mega STE attract | Mega STE DEMO3 |
 |---|---|---|---|---|
 | Background copy | 14.2 | 14.9 | 13.3 | 13.9 |
-| Sprites (drawing, making variants) | 29.4 | 28.0 | 20.3 | 20.8 |
-| Text | 3.8 | 2.9 | 2.4 | 1.7 |
+| Sprites (drawing, making variants) | 28.6 | 27.5 | 19.9 | 20.6 |
+| Text | 3.7 | 2.9 | 2.3 | 1.7 |
 | Borders and colours | 0.8 | 0.8 | 0.6 | 0.6 |
-| **Render** | **48.5** | **46.9** | **36.8** | **37.2** |
+| **Render** | **47.7** | **46.4** | **36.4** | **37.0** |
 
 In the attract demo an STE picture draws about 51 sprites: 315 rows of two
 groups and 290 of one, about 13.5 ms. Making variants takes about 6 ms on
@@ -334,9 +335,10 @@ The X68000's own sprite library code is already tight.
 - **HUD colours.** The score uses the shared sprite/text colours. A Timer B
   palette change at line 8 would give the HUD band its own exact colours.
 - **More speed.**
-  - The sprite cache refills about every 600 frames in the full game. More
-    memory would help: samples at 6.25 kHz would free 185 KB, at some cost
-    in sound. So would keeping recently used copies when a half is emptied.
+  - The sprite cache switches halves about every 750 frames in the full
+    game (500 on a Mega STE, which draws more pictures). More memory would
+    help: samples at 6.25 kHz would free 185 KB, at some cost in sound. So
+    would keeping recently used copies when a half is emptied.
   - The background copy is at the bus limit. Drawing from the table
     directly with save-under sprites would need raster splits of the video
     address and more memory.
