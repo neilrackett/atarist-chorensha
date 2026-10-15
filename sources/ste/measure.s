@@ -504,7 +504,7 @@ logic_mean_text:
 render_text:
 	dc.b	'Per picture (ms): render ',0
 present_text:
-	dc.b	'), C2P ',0
+	dc.b	'), present ',0
 maximum_text:
 	dc.b	' (max ',0
 close_line_text:

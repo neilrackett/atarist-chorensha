@@ -56,9 +56,6 @@
 	xref write_checkpoints
 	xref print_stages
 	xref write_usage
-	ifd __DUMP__
-	xref write_graphics_dump
-	endif
 	xref divide_unsigned
 	xref lockstep_mode
 
@@ -226,9 +223,6 @@ start:
 	jsr		write_usage
 	endif
 
-	ifd __DUMP__
-	jsr		write_graphics_dump
-	endif
 
 	bra		.exit
 

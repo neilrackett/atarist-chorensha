@@ -55,6 +55,7 @@ __PORT_CREDITS__ equ 1
 	xdef PLAYER_SCORE
 	xdef PLAYER_INFO_STRUCT
 	xdef WORD_00088E6C ; Random table index.
+	xdef WORD_00098864 ; The player's ship: x, y (the display window follows it).
 
 	endif
 
@@ -4513,6 +4514,12 @@ SET_TEXT_GRAPHICS:
 	rts                                             ; 00022370 4E75
 
 DRAW_CHARACTER:
+	ifd __STE__
+
+	jmp		st_draw_character ; A character map instead of the text planes (text.s).
+
+	endif
+
 	ifd __PORT__
 	ifnd __STE__ ; Falcon text bookkeeping.
 
@@ -17748,6 +17755,20 @@ INITIALIZE_SPRITES_AND_GRAPHICS:
 	rts
 
 	else
+
+	ifd __STE__
+
+	; The background (built once, then composed into a table: background.s)
+	; is not built again; only the XSP set-up the builder starts with.
+
+	tst.b	st_table_ready
+	beq.s	.st_build
+
+	jmp		L_000289C2
+
+.st_build:
+
+	endif
 	
 	link    A6,#-12                                 ; 00029560 4E56 FFF4                ; S($00026D1C) 
 

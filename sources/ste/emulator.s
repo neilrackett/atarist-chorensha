@@ -70,6 +70,7 @@
 	xref render_frame
 	xref present_frame
 	xref display_vbl
+	xref hide_background
 	xref read_timer
 	xref measure_logic
 	xref measure_picture
@@ -1049,6 +1050,32 @@ trap_f_handler:
 	rte
 
 .not_ontime:
+	cmp.b	#$b2,d0 ; _VPAGE: d1 = the graphics pages shown; none: no background.
+	bne		.not_vpage
+
+	btst	#0,d1
+	bne		.return_zero
+
+	btst	#1,d1
+	bne		.return_zero
+
+	jsr		hide_background
+
+	bra		.return_zero
+
+.not_vpage:
+	cmp.b	#$b5,d0 ; _WIPE: GVRAM cleared: no background.
+	beq		.no_background
+
+	cmp.b	#$90,d0 ; _G_CLR_ON: likewise.
+	bne		.not_g_clr_on
+
+.no_background:
+	jsr		hide_background
+
+	bra		.return_zero
+
+.not_g_clr_on:
 	; Known calls that do nothing here (0), else remembered for the exit
 	; report (and 0).
 

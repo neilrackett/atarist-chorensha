@@ -31,6 +31,7 @@
 	xdef reset_input
 	xdef input_frame_end
 	xdef st_stage_frame
+	xdef in_stage
 	xdef load_input_script
 
 	xref frame_count

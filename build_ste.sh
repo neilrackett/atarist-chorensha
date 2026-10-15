@@ -43,14 +43,14 @@ NAME=${NAME:-$DEFAULT_NAME}
 
 st vasmm68k_mot /tmp/sources/sz2.s -quiet -no-opt -Faout -m68000 -D__STE__ -I/tmp/sources -o /tmp/$OUT/sz2_ste.o
 
-MODULES="main machine emulator input audio measure dump display graphics mem_map"
+MODULES="main machine emulator input audio measure dump display background palette text sprites mem_map"
 
 for module in $MODULES; do
-	st vasmm68k_mot /tmp/sources/ste/$module.s -quiet -Faout -m68000 $PORT_FLAGS -o /tmp/$OUT/$module.o
+	st vasmm68k_mot /tmp/sources/ste/$module.s -quiet -Faout -m68000 -I/tmp/sources/ste $PORT_FLAGS -o /tmp/$OUT/$module.o
 done
 
 OBJECTS=""
-for module in main sz2_ste mem_map machine emulator input audio measure dump display graphics; do
+for module in main sz2_ste mem_map machine emulator input audio measure dump display background palette text sprites; do
 	OBJECTS="$OBJECTS /tmp/$OUT/$module.o"
 done
 
