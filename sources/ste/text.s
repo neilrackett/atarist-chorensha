@@ -72,25 +72,29 @@ st_draw_character:
 	lea		character_map,a0
 	add		d3,a0
 
-	; Characters with pixels per row (empty rows are skipped when drawing).
-
-	lea		character_blank,a2
-	lea		row_counts,a1
-	moveq	#0,d3
-	move.b	(a0),d3
-	tst.b	(a2,d3.w)
-	bne		.was_blank
-
-	subq.b	#1,(a1,d1.w)
-
-.was_blank:
 	move.b	d2,(a0)
+
+	; The row's characters with pixels (bit 31 - column), the only ones
+	; drawn.
+
+	lea		row_masks,a1
+	move	d1,d3
+	lsl		#2,d3
+	add		d3,a1
+	move.l	(a1),d3
+	movem.l	d4,-(sp)
+	moveq	#31,d4
+	sub		d0,d4
+	bclr	d4,d3
+	lea		character_blank,a2
 	tst.b	(a2,d2.w)
-	bne		.counted
+	bne		.blank
 
-	addq.b	#1,(a1,d1.w)
+	bset	d4,d3
 
-.counted:
+.blank:
+	movem.l	(sp)+,d4
+	move.l	d3,(a1)
 
 	tst		d1
 	bne		.done
@@ -280,12 +284,12 @@ amiga_clear_text_planes:
 	move.l	d0,(a0)+
 	dbf		d1,.clear_map
 
-	lea		row_counts,a0
-	moveq	#ROWS/4-1,d1
+	lea		row_masks,a0
+	moveq	#ROWS-1,d1
 
-.clear_counts:
+.clear_masks:
 	clr.l	(a0)+
-	dbf		d1,.clear_counts
+	dbf		d1,.clear_masks
 
 	moveq	#0,d0
 	moveq	#0,d1
@@ -342,12 +346,23 @@ compile_characters:
 ;
 ; a1 = the screen, d0.w = the window offset (playfield ST line = X68000
 ; line - offset): rows 1-31 of the map, masked, the lines in the playfield.
-; Uses d0-d7/a0-a3.
+; Uses d0-d7/a0-a4/a6.
+
+; Character line \1 (0-7) at line \1 of a1: planes and mask from (a0)+.
+
+TEXT_LINE macro
+	movep.l	\1*SCREEN_LINE(a1),d0
+	move.l	(a0)+,d2
+	and.l	(a0)+,d0
+	or.l	d2,d0
+	movep.l	d0,\1*SCREEN_LINE(a1)
+	endm
 
 draw_text_rows:
 	move	d0,d6 ; Window offset.
 	move.l	a1,a3
 	lea		character_map+COLUMNS,a2 ; Row 1.
+	lea		column_offsets,a6
 	moveq	#1,d5 ; Row.
 
 .row_loop:
@@ -365,80 +380,104 @@ draw_text_rows:
 	bgt		.done ; Below the playfield (the rows below are too).
 
 .pinned:
-
 	move	d7,d0
 	addq	#7,d0
 	cmp		#PLAYFIELD_TOP,d0
 	blt		.next_row ; Above it.
 
-	lea		row_counts,a0
-	tst.b	(a0,d5.w)
+	move	d5,d0
+	lsl		#2,d0
+	lea		row_masks,a0
+	tst.l	(a0,d0.w)
 	beq		.next_row ; No characters.
 
-	moveq	#0,d4 ; Column.
+	; The lines inside the playfield: d3 = character lines skipped at the
+	; top (* 8: bytes), d4 = lines drawn - 1, a4 = the first one's address.
 
-.column_loop:
-	moveq	#0,d2
-	move.b	(a2,d4.w),d2
-	lea		character_blank,a0
-	tst.b	(a0,d2.w)
-	bne		.next_column
-
-	movem.l	d4-d7/a2-a3,-(sp)
-
-	bsr		character_lines ; a0 = lines.
-	move.l	a3,a1
-	move	d4,d0
-	bsr		column_address
-
-	; First line's address, and the lines inside the playfield.
-
-	move	d7,d0 ; ST line of character line 0.
-	moveq	#0,d1 ; Character lines skipped at the top.
+	moveq	#0,d3
+	move	d7,d0
 	cmp		#PLAYFIELD_TOP,d0
 	bge		.top_ok
 
-	move	#PLAYFIELD_TOP,d1
-	sub		d0,d1
+	move	#PLAYFIELD_TOP,d3
+	sub		d0,d3
 	move	#PLAYFIELD_TOP,d0
 
 .top_ok:
-	mulu	#SCREEN_LINE,d0
-	add.l	d0,a1
-	lsl		#3,d1
-	add		d1,a0 ; 8 bytes per character line.
-	lsr		#3,d1
-
-	moveq	#8,d2
-	sub		d1,d2 ; Lines left.
-	move	d7,d0
-	addq	#7,d0
-	sub		#PLAYFIELD_BOTTOM,d0
+	moveq	#8-1,d4
+	sub		d3,d4
+	move	d7,d1
+	addq	#7,d1
+	sub		#PLAYFIELD_BOTTOM,d1
 	ble		.bottom_ok
 
-	sub		d0,d2
+	sub		d1,d4
 
 .bottom_ok:
-	subq	#1,d2
-	bmi		.drawn
+	mulu	#SCREEN_LINE,d0
+	lea		PICTURE_X_BYTES(a3,d0.l),a4
+	lsl		#3,d3
 
-.line_loop:
-	movep.l	0(a1),d0
-	move.l	(a0)+,d1 ; Planes.
-	and.l	(a0)+,d0 ; Mask.
-	or.l	d1,d0
-	movep.l	d0,0(a1)
-	lea		SCREEN_LINE(a1),a1
-
-	dbf		d2,.line_loop
-
-.drawn:
-	movem.l	(sp)+,d4-d7/a2-a3
+	move	d5,d0
+	lsl		#2,d0
+	lea		row_masks,a0
+	move.l	(a0,d0.w),d7 ; Columns to draw (bit 31: column 0).
+	moveq	#-1,d1 ; Column.
 
 .next_column:
-	addq	#1,d4
-	cmp		#COLUMNS,d4
-	bne		.column_loop
+	tst.l	d7
+	beq		.next_row
+
+	addq	#1,d1
+	add.l	d7,d7
+	bcc		.next_column
+
+	moveq	#0,d2
+	move.b	(a2,d1.w),d2
+	move	d2,d0
+	lsl		#6,d0 ; 64 bytes per character.
+	lea		character_data,a0
+	add		d0,a0
+
+	lea		character_ready,a1
+	tst.b	(a1,d2.w)
+	bne		.ready
+
+	st		(a1,d2.w)
+	bsr		convert_character
+
+.ready:
+	add		d3,a0
+	move	d1,d0
+	add		d0,d0
+	move	(a6,d0.w),d0
+	lea		(a4,d0.w),a1
+
+	cmp		#8-1,d4
+	bne		.clipped
+
+	TEXT_LINE 0
+	TEXT_LINE 1
+	TEXT_LINE 2
+	TEXT_LINE 3
+	TEXT_LINE 4
+	TEXT_LINE 5
+	TEXT_LINE 6
+	TEXT_LINE 7
+
+	bra		.next_column
+
+.clipped:
+	move	d4,lines_left
+
+.line_loop:
+	TEXT_LINE 0
+	lea		SCREEN_LINE(a1),a1
+
+	subq	#1,lines_left
+	bpl		.line_loop
+
+	bra		.next_column
 
 .next_row:
 	lea		COLUMNS(a2),a2
@@ -449,14 +488,21 @@ draw_text_rows:
 .done:
 	rts
 
+column_offsets: ; Per column: the byte of its 8 pixels in the line.
+COLUMN set 0
+	rept	COLUMNS
+	dc.w	(COLUMN>>1)*8+(COLUMN&1)
+COLUMN set COLUMN+1
+	endr
+
 ; ------------------------------------------------------------------------------
 	data
 ; ------------------------------------------------------------------------------
 
 character_map: ; Codes, row by row; SPACE = empty.
 	dcb.b	COLUMNS*ROWS,SPACE
-row_counts: ; Characters with pixels per row.
-	dcb.b	ROWS,0
+row_masks: ; Per row, its characters with pixels (bit 31 - column).
+	dcb.l	ROWS,0
 character_blank: ; Per code: no pixels (SPACE until converted).
 	dcb.b	SPACE,0
 	dc.b	-1
