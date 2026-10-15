@@ -41,6 +41,13 @@
 	xref frame_count
 	xref divide_unsigned
 
+	ifd __ORACLE__
+	xref L_00E80000
+	xref character_map
+	xref sprite_list
+	xref render_sprite_count
+	endif
+
 SCREEN_LINES=200
 SCREEN_LINE=160
 SCREEN_SIZE=SCREEN_LINES*SCREEN_LINE
@@ -366,10 +373,91 @@ write_screenshot:
 	trap	#1
 	addq.l	#4,sp
 
+	ifd __ORACLE__
+	bsr		write_frame_dump
+	endif
+
 .done:
 	movem.l	(sp)+,d0-d3/a0-a2
 
 	rts
+
+	ifd __ORACLE__
+
+; Oracle builds (lockstep runs): with each screenshot, Fnnnnnnn.BIN, what
+; the picture was drawn from, for tools/ste/refrender.py: 'CRSF', the
+; window offset (word), background shown (byte), padding (byte), the pages'
+; scroll Y0, Y1 and R1 (words), the sprites (word), the video controller
+; shadow ($400 bytes), the text layer's character map (32 x 32 bytes), the
+; sprite list (8 bytes each).
+
+write_frame_dump:
+	lea		screenshot_name,a0
+	move.b	#'F',(a0)
+	move.b	#'B',9(a0)
+	move.b	#'I',10(a0)
+	move.b	#'N',11(a0)
+
+	lea		frame_header,a1
+	move.l	#'CRSF',(a1)+
+	move	window_offset,(a1)+
+	move.b	background_visible,(a1)+
+	clr.b	(a1)+
+	move	L_00E80000+$1a,(a1)+
+	move	L_00E80000+$22,(a1)+
+	move	L_00E82000+VC_PRIORITY,(a1)+
+	move	render_sprite_count,(a1)+
+
+	clr		-(sp)
+	pea		screenshot_name
+	move	#60,-(sp) ; Fcreate
+	trap	#1
+	addq.l	#8,sp
+	tst.l	d0
+	bmi		.restore
+
+	move	d0,d3
+
+	lea		frame_header,a0
+	moveq	#16,d1
+	bsr		.write
+	lea		L_00E82000,a0
+	move.l	#$400,d1
+	bsr		.write
+	lea		character_map,a0
+	move.l	#32*32,d1
+	bsr		.write
+	lea		sprite_list,a0
+	moveq	#0,d1
+	move	render_sprite_count,d1
+	lsl.l	#3,d1
+	bsr		.write
+
+	move	d3,-(sp)
+	move	#62,-(sp) ; Fclose
+	trap	#1
+	addq.l	#4,sp
+
+.restore:
+	lea		screenshot_name,a0
+	move.b	#'S',(a0)
+	move.b	#'P',9(a0)
+	move.b	#'I',10(a0)
+	move.b	#'1',11(a0)
+
+	rts
+
+.write:
+	pea		(a0)
+	move.l	d1,-(sp)
+	move	d3,-(sp)
+	move	#64,-(sp) ; Fwrite
+	trap	#1
+	lea		12(sp),sp
+
+	rts
+
+	endif
 
 ; ------------------------------------------------------------------------------
 	data
@@ -404,6 +492,11 @@ picture_palette: ; The colours of the picture being drawn.
 	ds.w	16
 window_offset:
 	ds.w	1
+
+	ifd __ORACLE__
+frame_header:
+	ds.b	16
+	endif
 
 flip_pending: ; 2: a new picture to show at the next VBL, 1: its colours next.
 	ds.b	1

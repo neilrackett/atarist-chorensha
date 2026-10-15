@@ -172,6 +172,9 @@ wait $HPID 2>/dev/null
 [ -f "$STAGE/CHECKPTS.BIN" ] && cp "$STAGE/CHECKPTS.BIN" "$OUT/${NAME}_CHECKPTS.BIN"
 [ -f "$STAGE/USAGE.BIN" ] && cp "$STAGE/USAGE.BIN" "$OUT/${NAME}_USAGE.BIN"
 [ -f "$STAGE/GRAPHICS.BIN" ] && cp "$STAGE/GRAPHICS.BIN" "$OUT/${NAME}_GRAPHICS.BIN"
+if ls "$STAGE"/F*.BIN > /dev/null 2>&1; then
+	cp "$STAGE"/F*.BIN "$SHOTDIR/"
+fi
 if ls "$STAGE"/S*.PI1 > /dev/null 2>&1; then
 	cp "$STAGE"/S*.PI1 "$SHOTDIR/"
 	python3 tests/ste/pi1_png.py --montage "$SHOTDIR/montage.png" "$SHOTDIR"/S*.PI1

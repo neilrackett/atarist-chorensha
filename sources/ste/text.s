@@ -20,6 +20,7 @@
 	xdef amiga_text_row_written
 	xdef compile_characters
 	xdef draw_text_rows
+	xdef character_map
 
 	xref TEXT_GRAPHICS_ADDRESS
 	xref sprite_colour_map

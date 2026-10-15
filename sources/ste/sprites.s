@@ -41,6 +41,8 @@
 	xdef draw_sprites
 	xdef margin_top
 	xdef margin_bottom
+	xdef sprite_list
+	xdef render_sprite_count
 
 	xref SPRITE_DATA_TABLE
 	xref CURRENT_SPRITE_DATA_ENTRY
