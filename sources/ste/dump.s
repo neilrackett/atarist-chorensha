@@ -13,10 +13,12 @@
 ;   palettes as above, the sprite patterns), read by tests/amiga/graphics_summary.py
 ;   and the colour tools.
 ; - The stages the game reached (the stage word, PLAYER_SCORE + 4), for the
-;   exit report.
+;   exit report, and per stage (its low 4 bits) the frames, the 50 Hz ticks,
+;   the pictures shown and their render time.
 
 	xdef count_sprite_usage
 	xdef record_stage
+	xdef stage_picture
 	xdef write_usage
 	xdef print_stages
 
@@ -31,8 +33,15 @@
 	xref PLAYER_SCORE
 	xref print_text
 	xref print_hex
+	xref print_number
+	xref print_tenths
+	xref divide_unsigned
+	xref times_500
+	xref units_to_tenths_ms
+	xref total_vbl_count
 
 PCG_PATTERNS=$75e
+STAGE_SLOTS=16
 
 ; ------------------------------------------------------------------------------
 	text
@@ -158,11 +167,11 @@ make_histogram:
 
 	rts
 
-; At each frame end: remembers the stage word's low byte. Preserves all
-; registers.
+; At each frame end: remembers the stage word's low byte, counts the frame
+; and the ticks since the last one for the stage. Preserves all registers.
 
 record_stage:
-	movem.l	d0-d1/a0,-(sp)
+	movem.l	d0-d2/a0,-(sp)
 
 	moveq	#0,d0
 	move.b	PLAYER_SCORE+5,d0
@@ -171,7 +180,37 @@ record_stage:
 	lea		stages_seen,a0
 	bset	d0,(a0,d1.w)
 
-	movem.l	(sp)+,d0-d1/a0
+	and		#STAGE_SLOTS-1,d0
+	move	d0,current_stage
+	lsl		#2,d0
+	lea		stage_frames,a0
+	addq.l	#1,(a0,d0.w)
+
+	move.l	total_vbl_count,d1
+	move.l	d1,d2
+	sub.l	stage_last_ticks,d1
+	move.l	d2,stage_last_ticks
+	lea		stage_ticks,a0
+	add.l	d1,(a0,d0.w)
+
+	movem.l	(sp)+,d0-d2/a0
+
+	rts
+
+; d0.l = a picture's render time (measure.s units): counted for the stage.
+; Preserves all registers.
+
+stage_picture:
+	movem.l	d1/a0,-(sp)
+
+	move	current_stage,d1
+	lsl		#2,d1
+	lea		stage_pictures,a0
+	addq.l	#1,(a0,d1.w)
+	lea		stage_render,a0
+	add.l	d0,(a0,d1.w)
+
+	movem.l	(sp)+,d1/a0
 
 	rts
 
@@ -205,6 +244,77 @@ print_stages:
 
 	lea		line_end_text,a0
 	jsr		print_text
+
+	; Per stage: frames, pictures (per second of ticks), render time.
+
+	moveq	#0,d2
+
+.slot_loop:
+	move	d2,d0
+	lsl		#2,d0
+	lea		stage_frames,a1
+	tst.l	(a1,d0.w)
+	beq		.next_slot
+
+	lea		stage_text,a0
+	jsr		print_text
+	move	d2,d0
+	moveq	#1,d1
+	jsr		print_hex
+
+	lea		stage_frames_text,a0
+	jsr		print_text
+	move	d2,d0
+	lsl		#2,d0
+	move.l	(a1,d0.w),d0
+	jsr		print_number
+
+	lea		stage_pictures_text,a0
+	jsr		print_text
+	move	d2,d0
+	lsl		#2,d0
+	lea		stage_pictures,a1
+	move.l	(a1,d0.w),d0
+	jsr		print_number
+
+	lea		stage_per_second_text,a0
+	jsr		print_text
+	move	d2,d0
+	lsl		#2,d0
+	move.l	(a1,d0.w),d0 ; Pictures * 500 / ticks: tenths per second.
+	jsr		times_500
+	lea		stage_ticks,a1
+	move	d2,d1
+	lsl		#2,d1
+	move.l	(a1,d1.w),d1
+	beq		.no_ticks
+
+	jsr		divide_unsigned
+	jsr		print_tenths
+
+.no_ticks:
+	lea		stage_render_text,a0
+	jsr		print_text
+	move	d2,d0
+	lsl		#2,d0
+	lea		stage_pictures,a1
+	move.l	(a1,d0.w),d1
+	beq		.no_pictures
+
+	lea		stage_render,a1
+	move.l	(a1,d0.w),d0
+	jsr		divide_unsigned
+	jsr		units_to_tenths_ms
+	jsr		print_tenths
+
+.no_pictures:
+	lea		stage_end_text,a0
+	jsr		print_text
+
+.next_slot:
+	addq	#1,d2
+	cmp		#STAGE_SLOTS,d2
+	bne		.slot_loop
 
 	movem.l	(sp)+,d0-d2/a0-a1
 
@@ -335,6 +445,18 @@ stages_text:
 	dc.b	'Stages reached:',0
 space_dollar_text:
 	dc.b	' $',0
+stage_text:
+	dc.b	'Stage $',0
+stage_frames_text:
+	dc.b	': frames ',0
+stage_pictures_text:
+	dc.b	', pictures ',0
+stage_per_second_text:
+	dc.b	' (per second ',0
+stage_render_text:
+	dc.b	'), render ',0
+stage_end_text:
+	dc.b	' ms',13,10,0
 line_end_text:
 	dc.b	13,10,0
 
@@ -352,6 +474,18 @@ usage_counts: ; Per sprite/text palette entry: pixels shown.
 	ds.l	256
 stages_seen:
 	ds.b	32
+current_stage:
+	ds.w	1
+stage_last_ticks:
+	ds.l	1
+stage_frames:
+	ds.l	STAGE_SLOTS
+stage_ticks:
+	ds.l	STAGE_SLOTS
+stage_pictures:
+	ds.l	STAGE_SLOTS
+stage_render:
+	ds.l	STAGE_SLOTS
 histogram_made:
 	ds.b	PCG_PATTERNS
 	even

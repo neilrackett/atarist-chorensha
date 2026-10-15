@@ -122,7 +122,9 @@ display_vbl:
 render_frame:
 	movem.l	d0-d7/a0-a6,-(sp)
 
+	ifnd __RELEASE__
 	jsr		start_render_parts
+	endif
 
 	bsr		update_window
 
@@ -143,8 +145,10 @@ render_frame:
 	bsr		clear_playfield
 
 .layers:
+	ifnd __RELEASE__
 	moveq	#0,d0 ; Background.
 	jsr		mark_render_part
+	endif
 
 	; R1 bits 13-12 = sprite priority, 11-10 = text priority (0 = front).
 
@@ -174,8 +178,10 @@ render_frame:
 	lea		picture_palette,a0
 	jsr		make_hardware_palette
 
+	ifnd __RELEASE__
 	moveq	#3,d0 ; Borders and colours.
 	jsr		mark_render_part
+	endif
 
 	movem.l	(sp)+,d0-d7/a0-a6
 
@@ -184,16 +190,24 @@ render_frame:
 .sprites:
 	move.l	work_screen_address,a1
 	move	window_offset,d0
+	ifd __RELEASE__
+	jmp		draw_sprites
+	else
 	jsr		draw_sprites
 	moveq	#1,d0 ; Sprites.
 	jmp		mark_render_part
+	endif
 
 .text:
 	move.l	work_screen_address,a1
 	move	window_offset,d0
+	ifd __RELEASE__
+	jmp		draw_text_rows
+	else
 	jsr		draw_text_rows
 	moveq	#2,d0 ; Text.
 	jmp		mark_render_part
+	endif
 
 ; The window: in a stage, toward the ship (two thirds down the playfield),
 ; else (or with F2) the default.

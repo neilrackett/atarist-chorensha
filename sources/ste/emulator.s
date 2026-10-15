@@ -351,6 +351,7 @@ amiga_xsp_vsync:
 ; the next one is the game's own work for that frame.
 
 frame_wait_begin:
+	ifnd __RELEASE__
 	tst.b	frame_timed
 	beq		.first
 
@@ -359,6 +360,7 @@ frame_wait_begin:
 	jsr		measure_logic
 
 .first:
+	endif
 	move	frame_sprite_count,last_sprite_count
 	clr		frame_sprite_count
 
@@ -367,9 +369,11 @@ frame_wait_begin:
 frame_wait_end:
 	move.l	total_vbl_count,vbl_count_at_wake
 
+	ifnd __RELEASE__
 	jsr		read_timer
 	move.l	d0,last_wake_time
 	st		frame_timed
+	endif
 
 	addq.l	#1,frame_count
 
@@ -387,8 +391,10 @@ frame_wait_end:
 
 .no_screenshot:
 	jsr		input_frame_end
+	ifnd __RELEASE__
 	jsr		record_checkpoint
 	jsr		record_stage
+	endif
 
 	move.l	frame_limit,d0
 	beq		.no_limit
@@ -408,6 +414,10 @@ render_and_present:
 	st		rendering
 	addq.l	#1,rendered_frames
 
+	ifd __RELEASE__
+	jsr		render_frame
+	jsr		present_frame
+	else
 	jsr		read_timer
 	move.l	d0,d6
 
@@ -424,10 +434,11 @@ render_and_present:
 
 	jsr		read_timer
 	sub.l	d5,d0
-	move.l	d0,d1 ; Presentation (C2P).
+	move.l	d0,d1 ; Presentation.
 	move.l	d5,d0
 	sub.l	d6,d0 ; Rendering.
 	jsr		measure_picture
+	endif
 
 	move.l	screenshot_due,d0
 	beq		.no_screenshot

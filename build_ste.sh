@@ -13,6 +13,8 @@
 #   ./build_ste.sh                 the game
 #   HEADLESS=1 ./build_ste.sh      the game without rendering (SZ2_HL.TOS:
 #                                  game logic, checkpoints and timing only)
+#   RELEASE=1 ./build_ste.sh       the game without the measurements (SZ2_REL.TOS:
+#                                  no Timer D, timing, checkpoints or report)
 #   FLAGS=... NAME=... ./build_ste.sh  extra defines, another program name
 
 set -e
@@ -38,6 +40,10 @@ DEFAULT_NAME=SZ2_STE
 if [ "${HEADLESS:-0}" = "1" ]; then
 	PORT_FLAGS="$PORT_FLAGS -D__HEADLESS__"
 	DEFAULT_NAME=SZ2_HL
+fi
+if [ "${RELEASE:-0}" = "1" ]; then
+	PORT_FLAGS="$PORT_FLAGS -D__RELEASE__"
+	DEFAULT_NAME=SZ2_REL
 fi
 NAME=${NAME:-$DEFAULT_NAME}
 

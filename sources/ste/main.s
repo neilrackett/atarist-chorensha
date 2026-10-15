@@ -61,6 +61,7 @@
 	xref print_stages
 	xref write_usage
 	xref divide_unsigned
+	xref times_500
 	xref lockstep_mode
 
 HEAP_SIZE=$100000 ; The game's process area: PSP, game stack (64 KB), heap.
@@ -208,6 +209,11 @@ start:
 	move	#$2300,sr
 
 	jsr		release_renderer
+
+	ifd __RELEASE__
+	cmp.l	#EXIT_GAME,exit_reason
+	beq		.exit ; Back to the desktop (the report only after an exception).
+	endif
 
 	bsr		print_report
 
@@ -533,7 +539,7 @@ print_report:
 	jsr		print_text
 
 	move.l	rendered_frames,d0 ; Pictures per second (tenths): * 500 / ticks.
-	mulu	#500,d0
+	jsr		times_500
 	move.l	total_vbl_count,d1
 	jsr		divide_unsigned
 	jsr		print_tenths

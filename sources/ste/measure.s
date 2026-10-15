@@ -27,6 +27,7 @@
 	xdef print_tenths
 	xdef print_hex
 	xdef divide_unsigned
+	xdef times_500
 	xdef units_to_tenths_ms
 
 	xref frame_count
@@ -35,6 +36,7 @@
 	xref PLAYER_INFO_STRUCT
 	xref WORD_00088E6C
 	xref BACKGROUND_SCROLL_COUNTER
+	xref stage_picture
 
 CHECKPOINT_INTERVAL=60
 CHECKPOINT_SIZE=32
@@ -116,6 +118,7 @@ measure_logic:
 ; Preserves all registers.
 
 measure_picture:
+	jsr		stage_picture
 	addq.l	#1,pictures_measured
 	add.l	d0,render_total
 	add.l	d1,present_total
@@ -415,6 +418,23 @@ units_to_tenths_ms:
 	add.l	d1,d0
 	moveq	#96,d1
 	bsr		divide_unsigned
+
+	move.l	(sp)+,d1
+
+	rts
+
+; d0.l = d0.l * 500 (pictures per tick to tenths per second at 50 Hz).
+; Preserves the other registers.
+
+times_500:
+	move.l	d1,-(sp)
+
+	move.l	d0,d1
+	lsl.l	#2,d1 ; 4x
+	lsl.l	#7,d0 ; 128x
+	sub.l	d1,d0 ; 124x
+	lsl.l	#2,d0 ; 496x
+	add.l	d1,d0 ; 500x
 
 	move.l	(sp)+,d1
 

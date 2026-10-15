@@ -158,16 +158,19 @@ initialize_machine:
 	movem.l	st_palette,d0-d7
 	movem.l	d0-d7,$ffff8240.w
 
-	; IKBD (ACIA) and Timer D (measurements, 150 Hz overflows).
+	; IKBD (ACIA) and Timer D (measurements, 150 Hz overflows; not in the
+	; release build).
 
 	bset	#6,$fffffa09.w
 	bset	#6,$fffffa15.w
 
+	ifnd __RELEASE__
 	and.b	#$f0,$fffffa1d.w ; Timer D stopped.
 	clr.b	$fffffa25.w ; 256.
 	or.b	#5,$fffffa1d.w ; Divide by 64: 38400 Hz.
 	bset	#4,$fffffa09.w
 	bset	#4,$fffffa15.w
+	endif
 
 	bclr	#3,$fffffa17.w ; Automatic end of interrupt.
 
