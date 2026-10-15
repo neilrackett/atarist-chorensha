@@ -62,7 +62,24 @@ st_draw_character:
 	lsl		#5,d3
 	add		d0,d3
 	lea		character_map,a0
-	move.b	d2,(a0,d3.w)
+	add		d3,a0
+
+	; Characters per row (empty rows are skipped when drawing).
+
+	lea		row_counts,a1
+	cmp.b	#SPACE,(a0)
+	beq		.was_space
+
+	subq.b	#1,(a1,d1.w)
+
+.was_space:
+	move.b	d2,(a0)
+	cmp.b	#SPACE,d2
+	beq		.counted
+
+	addq.b	#1,(a1,d1.w)
+
+.counted:
 
 	tst		d1
 	bne		.done
@@ -237,6 +254,13 @@ amiga_clear_text_planes:
 	move.l	d0,(a0)+
 	dbf		d1,.clear_map
 
+	lea		row_counts,a0
+	moveq	#ROWS/4-1,d1
+
+.clear_counts:
+	clr.l	(a0)+
+	dbf		d1,.clear_counts
+
 	moveq	#0,d0
 	moveq	#0,d1
 	moveq	#0,d2
@@ -313,6 +337,10 @@ draw_text_rows:
 	addq	#7,d0
 	cmp		#PLAYFIELD_TOP,d0
 	blt		.next_row ; Above it.
+
+	lea		row_counts,a0
+	tst.b	(a0,d5.w)
+	beq		.next_row ; No characters.
 
 	moveq	#0,d4 ; Column.
 
@@ -393,6 +421,8 @@ draw_text_rows:
 
 character_map: ; Codes, row by row; SPACE = empty.
 	dcb.b	COLUMNS*ROWS,SPACE
+row_counts: ; Characters other than SPACE per row.
+	dcb.b	ROWS,0
 
 ; ------------------------------------------------------------------------------
 	bss
