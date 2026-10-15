@@ -15,3 +15,5 @@
 /binaries/ste/*.o
 /binaries/ste/*.TOS
 /tmp/
+
+.DS_Store
