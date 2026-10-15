@@ -475,7 +475,6 @@ draw_sprites:
 	movem.l	d0-d7/a0-a6,-(sp)
 
 	move	d0,window_offset
-	move.l	a1,screen_base
 	move	#PLAYFIELD_BOTTOM+1,margin_top
 	move	#PLAYFIELD_TOP-1,margin_bottom
 
@@ -488,38 +487,28 @@ draw_sprites:
 	bsr		reset_cache
 
 .cache_ok:
-	bsr		order_sprites
+	move.l	a1,a5
+	bsr		order_sprites ; (Uses a0-a3.)
 	beq		.done
+
+	move.l	a5,a3 ; Kept by draw_one_sprite: a3, a6, d6, d7.
 
 	lea		sprite_order,a6
 	subq	#1,d7
+	move	window_offset,d6
+	add		#16,d6 ; (The sprite y's 16-line offset.)
 
 .sprite_loop:
-	move	(a6)+,d0
-	lsl		#3,d0
-	move.l	sprite_list,a5
-	add		d0,a5 ; x, y, pattern, attributes.
-
-	movem.l	d7/a6,-(sp)
-	sf		retried
-
-.retry:
+	move.l	(a6)+,a5 ; x, y, pattern, attributes.
 	bsr		draw_one_sprite
 	bpl		.next_sprite ; Drawn (or nothing to draw).
 
 	; The arena's half was full: switch halves and try once more.
 
-	tst.b	retried
-	bne		.next_sprite
-
-	st		retried
 	bsr		switch_half
-
-	bra		.retry
+	bsr		draw_one_sprite
 
 .next_sprite:
-	movem.l	(sp)+,d7/a6
-
 	dbf		d7,.sprite_loop
 
 .done:
@@ -527,36 +516,43 @@ draw_sprites:
 
 	rts
 
-; a5 = sprite list entry. N set if the arena was full.
+; a5 = sprite list entry, a3 = the screen (line 0), d6.w = window offset
+; + 16. N set if the arena was full (nothing drawn). Uses d0-d5/a0-a2/a4.
 
 draw_one_sprite:
-	move	4(a5),d1 ; Pattern.
-	cmp		#PCG_PATTERNS,d1
+	movem.w	(a5),d0-d3 ; x, y, pattern, attributes.
+	cmp		#PCG_PATTERNS,d2
 	bcc		.nothing
 
-	move	(a5),d2 ; x
-	cmp		#272,d2
+	cmp		#272,d0
 	bhi		.nothing
 
-	move	2(a5),d3 ; y
-	cmp		#272,d3
+	cmp		#272,d1
 	bhi		.nothing
+
+	; Outside the playfield lines: nothing (before any variant work).
+
+	sub		d6,d1 ; ST line of pattern row 0.
+	cmp		#PLAYFIELD_BOTTOM,d1
+	bgt		.nothing
+
+	cmp		#PLAYFIELD_TOP-15,d1
+	blt		.nothing
 
 	; Variant key: pattern (bits 0-10), palette (11-14), horizontal flip
 	; (15).
 
-	move	6(a5),d4 ; Attributes.
-	move	d4,d0
-	and		#$0f00,d0
-	lsl		#3,d0
-	or		d1,d0
-	btst	#14,d4
+	move	d3,d4
+	and		#$0f00,d4
+	lsl		#3,d4
+	or		d2,d4
+	btst	#14,d3
 	beq		.no_flip
 
-	bset	#15,d0
+	bset	#15,d4
 
 .no_flip:
-	cmp		last_key,d0 ; The same variant as the sprite before?
+	cmp		last_key,d4 ; The same variant as the sprite before?
 	bne		.find
 
 	move.l	last_record,a4
@@ -564,158 +560,151 @@ draw_one_sprite:
 	bra		.variant_found
 
 .find:
-	move	d0,-(sp)
-	bsr		find_variant ; a4 = record.
-	movem	(sp)+,d0 ; (Flags kept.)
-	bmi		.full
+	; Its record, through the pattern's table of 32 variants (palette,
+	; horizontal flip: key bits 15-11).
 
-	move	d0,last_key
+	move	d2,d5
+	add		d5,d5
+	add		d5,d5
+	lea		pattern_tables,a0
+	move.l	(a0,d5.w),d5
+	beq		.make
+
+	move.l	d5,a0
+	move	d4,d5
+	rol		#5,d5
+	and		#31,d5
+	add		d5,d5
+	add		d5,d5
+	move.l	(a0,d5.w),d5
+	beq		.make
+
+	move.l	d5,a4
+
+.found:
+	move	d4,last_key
 	move.l	a4,last_record
 
 .variant_found:
-
-	move	RECORD_ROW_COUNT(a4),d6
+	move	RECORD_ROW_COUNT(a4),d5
 	beq		.nothing ; Empty pattern.
 
-	; Shifted copy for this position.
+	; Shifted copy for this position: ST x = x + 16.
 
-	move	(a5),d2
-	add		#16,d2 ; ST x.
-	moveq	#15,d5
-	and		d2,d5 ; Shift.
-	lsr		#4,d2 ; Group.
-
-	move	d5,d0
-	lsl		#2,d0
-	move.l	RECORD_SHIFTS(a4,d0.w),d0
-	bne		.shifted
-
-	bsr		make_shifted ; d5 = shift -> d0 = copy.
-	bmi		.full
+	add		#16,d0
+	moveq	#15,d4
+	and		d0,d4 ; Shift.
+	lsr		#4,d0 ; Group.
+	add		d4,d4
+	add		d4,d4
+	move.l	RECORD_SHIFTS(a4,d4.w),d2
+	beq		.make_shifted
 
 .shifted:
-	move.l	d0,a0
-	move	(a0)+,d4 ; Groups.
-	moveq	#ROW_BYTES,d1
-	tst		d4
-	beq		.row_size
-
-	moveq	#GROUP_BYTES,d1
-
-.row_size:
-	move	d1,row_bytes
+	move.l	d2,a0
+	move	(a0)+,d4 ; Groups (0 both).
 
 	; Rows and lines: normal: data row i is line y0 + first + i, going
 	; down; vertical flip: line y0 + 15 - first - i, going up.
 
-	move	2(a5),d3
-	sub		#16,d3
-	sub		window_offset,d3 ; ST line of pattern row 0.
-	move	RECORD_FIRST_ROW(a4),d1
-
-	btst	#15,6(a5)
+	move	RECORD_FIRST_ROW(a4),d2
+	btst	#15,d3
 	bne		.vertical_flip
 
-	add		d1,d3 ; Line of data row 0.
+	add		d2,d1 ; Line of data row 0.
 	move	#SCREEN_LINE,a2
 
-	cmp		#PLAYFIELD_TOP,d3
+	cmp		#PLAYFIELD_TOP,d1
 	bge		.top_ok
 
-	move	#PLAYFIELD_TOP,d0
-	sub		d3,d0 ; Rows above the playfield.
-	sub		d0,d6
+	move	#PLAYFIELD_TOP,d2
+	sub		d1,d2 ; Rows above the playfield.
+	sub		d2,d5
 	ble		.nothing
 
-	mulu	row_bytes,d0
-	add.l	d0,a0
-	move	#PLAYFIELD_TOP,d3
+	bsr		.skip_rows
+	move	#PLAYFIELD_TOP,d1
 
 .top_ok:
-	move	d3,d0
-	add		d6,d0
-	subq	#1,d0 ; Last line.
-	sub		#PLAYFIELD_BOTTOM,d0
+	move	d1,d2
+	add		d5,d2
+	sub		#PLAYFIELD_BOTTOM+1,d2 ; Rows below it.
 	ble		.lines_ok
 
-	sub		d0,d6
+	sub		d2,d5
 	ble		.nothing
 
 	bra		.lines_ok
 
 .vertical_flip:
-	add		#15,d3
-	sub		d1,d3 ; Line of data row 0 (the lowest).
+	add		#15,d1
+	sub		d2,d1 ; Line of data row 0 (the lowest).
 	move	#-SCREEN_LINE,a2
 
-	cmp		#PLAYFIELD_BOTTOM,d3
+	cmp		#PLAYFIELD_BOTTOM,d1
 	ble		.bottom_ok
 
-	move	d3,d0
-	sub		#PLAYFIELD_BOTTOM,d0 ; Rows below the playfield.
-	sub		d0,d6
+	move	d1,d2
+	sub		#PLAYFIELD_BOTTOM,d2 ; Rows below the playfield.
+	sub		d2,d5
 	ble		.nothing
 
-	mulu	row_bytes,d0
-	add.l	d0,a0
-	move	#PLAYFIELD_BOTTOM,d3
+	bsr		.skip_rows
+	move	#PLAYFIELD_BOTTOM,d1
 
 .bottom_ok:
-	move	d3,d0
-	sub		d6,d0
-	addq	#1,d0 ; Highest line.
-	cmp		#PLAYFIELD_TOP,d0
+	move	d1,d2
+	sub		d5,d2
+	sub		#PLAYFIELD_TOP-1,d2 ; Lines above the highest, in it.
 	bge		.lines_ok
 
-	sub		#PLAYFIELD_TOP,d0
-	add		d0,d6 ; (d0 negative)
+	add		d2,d5 ; (d2 negative: rows above it)
 	ble		.nothing
 
 .lines_ok:
 	; Borders reached: record the lines.
 
-	cmp		#FIRST_PICTURE_GROUP,d2
+	cmp		#FIRST_PICTURE_GROUP,d0
 	bcs		.margin
 
-	cmp		#LAST_PICTURE_GROUP,d2
+	cmp		#LAST_PICTURE_GROUP,d0
 	bcs		.no_margin
 
 .margin:
-	move	d3,d0 ; Lines d3 ... d3 +/- (d6 - 1).
-	move	d3,d1
+	move	d1,d2 ; Lines d1 ... d1 +/- (d5 - 1).
+	move	d1,d3
 	cmp.l	#0,a2
 	bmi		.going_up
 
-	add		d6,d1
-	subq	#1,d1
+	add		d5,d3
+	subq	#1,d3
 
 	bra		.margin_range
 
 .going_up:
-	sub		d6,d0
-	addq	#1,d0
+	sub		d5,d2
+	addq	#1,d2
 
 .margin_range:
-	cmp		margin_top,d0
+	cmp		margin_top,d2
 	bge		.top_kept
 
-	move	d0,margin_top
+	move	d2,margin_top
 
 .top_kept:
-	cmp		margin_bottom,d1
+	cmp		margin_bottom,d3
 	ble		.no_margin
 
-	move	d1,margin_bottom
+	move	d3,margin_bottom
 
 .no_margin:
-	move.l	screen_base,a1
-	mulu	#SCREEN_LINE,d3
-	add.l	d3,a1
-	lsl		#3,d2
-	add		d2,a1
+	move.l	a3,a1
+	mulu	#SCREEN_LINE,d1
+	add.l	d1,a1
+	lsl		#3,d0
+	add		d0,a1
 
-	move	d6,d7
-	subq	#1,d7
+	subq	#1,d5
 
 	tst		d4
 	bne		.one_group
@@ -738,7 +727,7 @@ draw_one_sprite:
 	movem.l	d0-d3,(a1)
 	add.l	a2,a1
 
-	dbf		d7,.row_loop
+	dbf		d5,.row_loop
 
 	bra		.nothing
 
@@ -758,12 +747,53 @@ draw_one_sprite:
 	movem.l	d0-d1,(a1)
 	add.l	a2,a1
 
-	dbf		d7,.group_row_loop
+	dbf		d5,.group_row_loop
 
 .nothing:
 	moveq	#0,d0 ; N clear.
 
 	rts
+
+; d2.w = rows to leave out at the copy's start (a0): one group's or two.
+
+.skip_rows:
+	mulu	#GROUP_BYTES,d2
+	tst		d4
+	bne		.one_group_skipped
+
+	add.l	d2,d2
+
+.one_group_skipped:
+	add.l	d2,a0
+
+	rts
+
+.make:
+	; A new variant (find_variant makes it).
+
+	movem.l	d0-d4/d6,-(sp)
+	move	d4,d0 ; Key.
+	move	d2,d1 ; Pattern.
+	move	d3,d4 ; Attributes.
+	bsr		find_variant
+	movem.l	(sp)+,d0-d4/d6
+	bmi		.full
+
+	bra		.found
+
+.make_shifted:
+	movem.l	d0-d1/d3,-(sp)
+	move	d4,d5
+	lsr		#2,d5 ; Shift.
+	bsr		make_shifted
+	move.l	d0,d2
+	movem.l	(sp)+,d0-d1/d3
+	tst.l	d2
+	bmi		.full
+
+	move	RECORD_ROW_COUNT(a4),d5
+
+	bra		.shifted
 
 .full:
 	moveq	#-1,d0 ; N set.
@@ -1168,7 +1198,7 @@ make_shifted:
 
 ; ------------------------------------------------------------------------------
 ;
-; sprite_order = the shown sprites' list indices in drawing order. Returns
+; sprite_order = the shown sprites' list entries in drawing order. Returns
 ; d7 = their number (Z set if none or no pattern data).
 
 order_sprites:
@@ -1224,7 +1254,6 @@ order_sprites:
 	move.l	sprite_list,a0
 	lea		bucket_ends,a2
 	lea		sprite_order,a3
-	moveq	#0,d2 ; List index.
 	move	d6,d0
 	subq	#1,d0
 
@@ -1239,10 +1268,10 @@ order_sprites:
 	subq	#1,d3
 	move	d3,(a2,d1.w)
 	add		d3,d3
-	move	d2,(a3,d3.w)
+	add		d3,d3
+	move.l	a0,(a3,d3.w)
 
 .not_ordered:
-	addq	#1,d2
 	addq.l	#8,a0
 
 	dbf		d0,.order_loop
@@ -1275,19 +1304,14 @@ margin_top:
 	ds.w	1
 margin_bottom:
 	ds.w	1
-row_bytes:
-	ds.w	1
 active_half:
 	ds.w	1
 last_key: ; The variant of the sprite before (EMPTY_KEY: none).
 	ds.w	1
 cache_reset_pending:
 	ds.b	1
-retried:
-	ds.b	1
+	even
 
-screen_base:
-	ds.l	1
 last_record:
 	ds.l	1
 arena:
@@ -1327,7 +1351,7 @@ second_sprite_table: ; The game fills this and SPRITE_DATA_TABLE in turn.
 second_sprite_table_end:
 	ds.l	1 ; $FFFFFFFF
 sprite_order:
-	ds.w	MAXIMUM_SPRITES
+	ds.l	MAXIMUM_SPRITES
 bucket_counts:
 	ds.w	PRIORITY_BUCKETS
 bucket_ends:
