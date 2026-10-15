@@ -34,6 +34,8 @@
 	xref arena_size
 	xref cache_resets
 	xref half_switches
+	xref masters_made
+	xref shifts_made
 	xref reset_input
 	xref load_input_script
 	xref start_emulator
@@ -576,6 +578,14 @@ print_report:
 	jsr		print_text
 	move.l	half_switches,d0
 	jsr		print_number
+	lea		masters_made_text,a0
+	jsr		print_text
+	move.l	masters_made,d0
+	jsr		print_number
+	lea		shifts_made_text,a0
+	jsr		print_text
+	move.l	shifts_made,d0
+	jsr		print_number
 	lea		line_end_text,a0
 	jsr		print_text
 
@@ -724,6 +734,10 @@ cache_resets_text:
 	dc.b	'Sprite cache emptied (including at start): ',0
 half_switches_text:
 	dc.b	', halves switched: ',0
+masters_made_text:
+	dc.b	', variants made: ',0
+shifts_made_text:
+	dc.b	', shifted copies made: ',0
 unimplemented_dos_text:
 	dc.b	'Unimplemented DOS calls:',0
 unimplemented_iocs_text:

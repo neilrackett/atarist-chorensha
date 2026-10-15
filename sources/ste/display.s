@@ -40,6 +40,8 @@
 	xref in_stage
 	xref frame_count
 	xref divide_unsigned
+	xref start_render_parts
+	xref mark_render_part
 
 	ifd __ORACLE__
 	xref L_00E80000
@@ -120,6 +122,8 @@ display_vbl:
 render_frame:
 	movem.l	d0-d7/a0-a6,-(sp)
 
+	jsr		start_render_parts
+
 	bsr		update_window
 
 	; Background, or colour 0.
@@ -139,6 +143,9 @@ render_frame:
 	bsr		clear_playfield
 
 .layers:
+	moveq	#0,d0 ; Background.
+	jsr		mark_render_part
+
 	; R1 bits 13-12 = sprite priority, 11-10 = text priority (0 = front).
 
 	move	L_00E82000+VC_PRIORITY,d0
@@ -162,10 +169,16 @@ render_frame:
 	bsr		.text
 
 .borders:
+	moveq	#1,d0 ; Sprites and text.
+	jsr		mark_render_part
+
 	bsr		clear_margins
 
 	lea		picture_palette,a0
 	jsr		make_hardware_palette
+
+	moveq	#2,d0 ; Borders and colours.
+	jsr		mark_render_part
 
 	movem.l	(sp)+,d0-d7/a0-a6
 

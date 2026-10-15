@@ -5,21 +5,22 @@
 ; palettes, flips), up to 512 per frame in its sprite list. A variant is a
 ; (pattern, palette, horizontal flip); a vertical flip only draws the rows in
 ; reverse order. For each variant used, a master in ST colours (palette_map.i)
-; is made on first use: 16 rows of a mask word (1 = transparent) and four
-; plane words. For each horizontal position within a 16-pixel group (shift)
-; it is drawn at, a shifted copy is made on first use from the master: per
-; row two groups of a mask long and two plane longs, the planes already 0
-; where transparent, so drawing is
+; is made on first use, two pixels at a time through a table per palette: 16
+; rows of the opaque pixels and the four plane words. For each horizontal
+; position within a 16-pixel group (shift) it is drawn at, a shifted copy is
+; made on first use from the master (each long rotated, then split between
+; the two groups): per row two groups of a mask long (1 = keep, in both
+; words) and two plane longs, the planes already 0 where transparent, so
+; drawing reads the screen's row, masks it and writes it back:
 ;
-;     movem.l (a0)+,d0-d5      ; mask, planes 0-1, planes 2-3 of each group
-;     and.l d0,(a1) / or.l d1,(a1) / and.l d0,4(a1) / or.l d2,4(a1)
-;     ... the same for the second group at 8(a1)
+;     movem.l (a1),d0-d3 / move.l (a0)+,d4 / and.l d4,d0 / and.l d4,d1
+;     or.l (a0)+,d0 / or.l (a0)+,d1 / ... the same for d2-d3 / movem.l d0-d3,(a1)
 ;
-; (262 cycles per row; empty rows at the top and bottom are left out). When
+; (214 cycles per row; empty rows at the top and bottom are left out). When
 ; the shifted pixels all fall into one of the two groups (narrow shapes:
-; bullets, particles), only that group is kept and drawn (142 cycles). The
+; bullets, particles), only that group is kept and drawn (126 cycles). The
 ; masters and shifted copies live in an arena (the memory left free: about
-; 900 KB with 4 MB), found through a table per pattern of its 32 variants.
+; 850 KB with 4 MB), found through a table per pattern of its 32 variants.
 ; The arena is used in two halves: when the active half is full, the other
 ; one is emptied (everything kept there forgotten) and used, so what was
 ; made most recently stays.
@@ -65,14 +66,17 @@ FIRST_SHOWN_PRIORITY=$10
 
 EMPTY_KEY=$ffff ; No variant (last_key).
 
-; Variant record: first row (word), row count (word), 16 shifted copies
-; (pointers, 0 = not made), the master (16 rows of mask and 4 plane words).
+; Variant record: first row (word), row count (word), the opaque pixels of
+; all rows (word, OR), 16 shifted copies (pointers, 0 = not made), the
+; master: 16 rows of the opaque pixels (both words), planes 0:1 and 2:3.
 
 RECORD_FIRST_ROW=0
 RECORD_ROW_COUNT=2
-RECORD_SHIFTS=4
-RECORD_MASTER=4+16*4
-RECORD_SIZE=RECORD_MASTER+16*10
+RECORD_UNION=4
+RECORD_SHIFTS=8
+RECORD_MASTER=8+16*4
+MASTER_ROW_BYTES=12
+RECORD_SIZE=RECORD_MASTER+16*MASTER_ROW_BYTES
 ROW_BYTES=24 ; A shifted row: two groups of mask, planes 0-1, planes 2-3.
 GROUP_BYTES=12
 
@@ -204,9 +208,102 @@ initialize_renderer:
 	move.l	d2,arena_size
 
 .done:
+	bsr		build_pair_tables
 	bsr		reset_cache
 
 	movem.l	(sp)+,d0-d2/a0-a2
+
+	rts
+
+; For make_master, per palette and per byte of two X68000 pixels (the left
+; one in the high nibble): their plane bits, as a long of planes 0 (bits
+; 17-16, the left pixel's higher) and 1 (bits 1-0), and one of planes 2 and
+; 3; nibble 0 (transparent) gives none. Also each byte with its nibbles
+; swapped (horizontal flip).
+
+build_pair_tables:
+	movem.l	d0-d7/a0-a2,-(sp)
+
+	lea		sprite_colour_map,a0
+	lea		pair_tables,a1
+	moveq	#16-1,d7 ; Palettes.
+
+.palette_loop:
+	lea		colour_bits,a2
+	moveq	#16-1,d6
+
+.colour_loop:
+	move.b	(a0)+,d1 ; ST colour.
+	moveq	#0,d2
+	moveq	#0,d3
+	lsr.b	#1,d1
+	bcc		.no_plane_0
+	bset	#16,d2
+.no_plane_0:
+	lsr.b	#1,d1
+	bcc		.no_plane_1
+	addq	#1,d2
+.no_plane_1:
+	lsr.b	#1,d1
+	bcc		.no_plane_2
+	bset	#16,d3
+.no_plane_2:
+	lsr.b	#1,d1
+	bcc		.no_plane_3
+	addq	#1,d3
+.no_plane_3:
+	move.l	d2,(a2)+
+	move.l	d3,(a2)+
+
+	dbf		d6,.colour_loop
+
+	lea		colour_bits,a2
+	clr.l	(a2)+ ; Nibble 0: transparent.
+	clr.l	(a2)+
+	lea		-8(a2),a2
+	moveq	#0,d6 ; Left nibble.
+
+.left_loop:
+	move	d6,d0
+	lsl		#3,d0
+	move.l	(a2,d0.w),d2
+	add.l	d2,d2
+	move.l	4(a2,d0.w),d3
+	add.l	d3,d3
+	moveq	#0,d5 ; Right nibble.
+
+.right_loop:
+	move	d5,d0
+	lsl		#3,d0
+	move.l	(a2,d0.w),d4
+	or.l	d2,d4
+	move.l	d4,(a1)+
+	move.l	4(a2,d0.w),d4
+	or.l	d3,d4
+	move.l	d4,(a1)+
+
+	addq	#1,d5
+	cmp		#16,d5
+	bne		.right_loop
+
+	addq	#1,d6
+	cmp		#16,d6
+	bne		.left_loop
+
+	dbf		d7,.palette_loop
+
+	lea		pair_swapped,a0
+	moveq	#0,d0
+
+.swap_loop:
+	move.b	d0,d1
+	ror.b	#4,d1
+	move.b	d1,(a0)+
+	addq	#1,d0
+	cmp		#256,d0
+	bne		.swap_loop
+
+	movem.l	(sp)+,d0-d7/a0-a2
 
 	rts
 
@@ -623,16 +720,22 @@ draw_one_sprite:
 	tst		d4
 	bne		.one_group
 
+	; The screen's row is read into registers, masked and written back
+	; (214 cycles per row of two groups, 126 of one).
+
 .row_loop:
-	movem.l	(a0)+,d0-d5
-	and.l	d0,(a1)
-	or.l	d1,(a1)
-	and.l	d0,4(a1)
-	or.l	d2,4(a1)
-	and.l	d3,8(a1)
-	or.l	d4,8(a1)
-	and.l	d3,12(a1)
-	or.l	d5,12(a1)
+	movem.l	(a1),d0-d3
+	move.l	(a0)+,d4
+	and.l	d4,d0
+	and.l	d4,d1
+	or.l	(a0)+,d0
+	or.l	(a0)+,d1
+	move.l	(a0)+,d4
+	and.l	d4,d2
+	and.l	d4,d3
+	or.l	(a0)+,d2
+	or.l	(a0)+,d3
+	movem.l	d0-d3,(a1)
 	add.l	a2,a1
 
 	dbf		d7,.row_loop
@@ -646,11 +749,13 @@ draw_one_sprite:
 	addq.l	#8,a1 ; The second group only.
 
 .group_row_loop:
-	movem.l	(a0)+,d0-d2
-	and.l	d0,(a1)
-	or.l	d1,(a1)
-	and.l	d0,4(a1)
-	or.l	d2,4(a1)
+	movem.l	(a1),d0-d1
+	move.l	(a0)+,d2
+	and.l	d2,d0
+	and.l	d2,d1
+	or.l	(a0)+,d0
+	or.l	(a0)+,d1
+	movem.l	d0-d1,(a1)
 	add.l	a2,a1
 
 	dbf		d7,.group_row_loop
@@ -735,42 +840,30 @@ find_variant:
 	rts
 
 ;  a4 = new record, d1.w = pattern, d4.w = attributes (palette bits 8-11,
-; horizontal flip bit 14): its master, first row and row count, no shifted
-; copies yet. Preserves d2-d4/a5.
+; horizontal flip bit 14): its master, first row, row count and opaque
+; pixels, no shifted copies yet. Preserves d2-d7/a1-a6.
 
-; One pixel into the row's mask (d0) and planes (d1: 0 and 1, d2: 2 and 3)
-; from the nibble in d4 (0 transparent): \1 = 0 for the next pixel from the
-; left of d3 (rol), 1 from its right (lsr).
+; The next two pixels (the pattern byte at \1(a1)) into the row's planes
+; 0:1 (d1) and 2:3 (d2), through the palette's pair table (a5); \2 = 1 for
+; a horizontal flip (nibbles swapped through a6).
 
-MASTER_PIXEL macro
-	ifeq	\1
-	rol.l	#4,d3
-	moveq	#$f,d4
-	and		d3,d4
-	else
-	moveq	#$f,d4
-	and		d3,d4
-	lsr.l	#4,d3
+MASTER_PAIR macro
+	moveq	#0,d3
+	move.b	\1(a1),d3
+	if \2
+	move.b	(a6,d3.w),d3
 	endif
-	add		d0,d0
-	add.l	d1,d1
-	add.l	d2,d2
-	lsl		#3,d4
-	bne.s	.opaque\@
-
-	addq	#1,d0
-
-	bra.s	.done\@
-
-.opaque\@:
-	or.l	(a5,d4.w),d1
-	or.l	4(a5,d4.w),d2
-
-.done\@:
+	lsl		#3,d3
+	lsl.l	#2,d1
+	or.l	(a5,d3.w),d1
+	lsl.l	#2,d2
+	or.l	4(a5,d3.w),d2
 	endm
 
 make_master:
-	movem.l	d2-d7/a1-a3/a5,-(sp)
+	movem.l	d2-d7/a1-a3/a5-a6,-(sp)
+
+	addq.l	#1,masters_made
 
 	lea		RECORD_SHIFTS(a4),a0
 	moveq	#16-1,d0
@@ -785,44 +878,15 @@ make_master:
 	lsl.l	#7,d0
 	add.l	d0,a1 ; Pattern: rows of 8 pixels at +4r and +64+4r.
 
-	; The palette's colours as plane bits to OR in: per X68000 colour,
-	; planes 0 and 1 (bits 16 and 0), planes 2 and 3.
-
 	move	d4,d0
-	lsr		#4,d0
-	and		#$f0,d0
-	lea		sprite_colour_map,a2
-	add		d0,a2
-	lea		colour_bits,a5
-	move.l	a5,a0
-	moveq	#16-1,d0
+	and		#$0f00,d0
+	lsl		#3,d0 ; Palette * 2048.
+	lea		pair_tables,a5
+	add		d0,a5
+	lea		pair_swapped,a6
 
-.colour_loop:
-	move.b	(a2)+,d1 ; ST colour.
-	moveq	#0,d2
-	moveq	#0,d3
-	lsr.b	#1,d1
-	bcc		.no_plane_0
-	bset	#16,d2
-.no_plane_0:
-	lsr.b	#1,d1
-	bcc		.no_plane_1
-	addq	#1,d2
-.no_plane_1:
-	lsr.b	#1,d1
-	bcc		.no_plane_2
-	bset	#16,d3
-.no_plane_2:
-	lsr.b	#1,d1
-	bcc		.no_plane_3
-	addq	#1,d3
-.no_plane_3:
-	move.l	d2,(a0)+
-	move.l	d3,(a0)+
-
-	dbf		d0,.colour_loop
-
-	lea		RECORD_MASTER(a4),a3 ; Rows: mask, planes 0-3.
+	lea		RECORD_MASTER(a4),a3
+	clr		RECORD_UNION(a4)
 	moveq	#-1,d6 ; First row with pixels (none yet).
 	moveq	#-1,d7 ; Last one.
 	moveq	#0,d5 ; Row.
@@ -830,18 +894,16 @@ make_master:
 	bne		.flipped_row
 
 .row_loop:
-	moveq	#0,d0 ; Mask (1 = transparent).
 	moveq	#0,d1
 	moveq	#0,d2
-
-	move.l	(a1),d3 ; Pixels 0-7, high nibble first.
-	rept	8
-	MASTER_PIXEL 0
-	endr
-	move.l	64(a1),d3 ; Pixels 8-15.
-	rept	8
-	MASTER_PIXEL 0
-	endr
+	MASTER_PAIR 0,0
+	MASTER_PAIR 1,0
+	MASTER_PAIR 2,0
+	MASTER_PAIR 3,0
+	MASTER_PAIR 64,0
+	MASTER_PAIR 65,0
+	MASTER_PAIR 66,0
+	MASTER_PAIR 67,0
 
 	bsr		.store_row
 	cmp		#16,d5
@@ -850,18 +912,16 @@ make_master:
 	bra		.rows_done
 
 .flipped_row:
-	moveq	#0,d0
 	moveq	#0,d1
 	moveq	#0,d2
-
-	move.l	64(a1),d3 ; Pixels 15-8.
-	rept	8
-	MASTER_PIXEL 1
-	endr
-	move.l	(a1),d3 ; Pixels 7-0.
-	rept	8
-	MASTER_PIXEL 1
-	endr
+	MASTER_PAIR 67,1
+	MASTER_PAIR 66,1
+	MASTER_PAIR 65,1
+	MASTER_PAIR 64,1
+	MASTER_PAIR 3,1
+	MASTER_PAIR 2,1
+	MASTER_PAIR 1,1
+	MASTER_PAIR 0,1
 
 	bsr		.store_row
 	cmp		#16,d5
@@ -877,20 +937,30 @@ make_master:
 	move	d7,RECORD_ROW_COUNT(a4)
 
 .done:
-	movem.l	(sp)+,d2-d7/a1-a3/a5
+	movem.l	(sp)+,d2-d7/a1-a3/a5-a6
 
 	rts
 
-; Stores row d5 (mask d0, planes d1, d2), notes the first and last rows with
+; Stores row d5 (planes d1, d2) with its opaque pixels (any plane set: the
+; sprite colours are never ST colour 0), notes the first and last rows with
 ; pixels, advances.
 
 .store_row:
-	move	d0,(a3)+
+	move.l	d1,d0
+	or.l	d2,d0
+	move.l	d0,d3
+	swap	d3
+	or		d3,d0 ; Opaque pixels.
+	move	d0,d3
+	swap	d0
+	move	d3,d0 ; In both words.
+	move.l	d0,(a3)+
 	move.l	d1,(a3)+
 	move.l	d2,(a3)+
 	addq.l	#4,a1
 
-	cmp		#$ffff,d0
+	or		d3,RECORD_UNION(a4)
+	tst		d3
 	beq		.empty_row
 
 	tst		d6
@@ -908,21 +978,116 @@ make_master:
 
 ; a4 = record, d5.w = shift (0-15) -> d0 = its shifted copy (made now), N
 ; set if the arena is full. Preserves d2/a5.
+;
+; Each master long (two words: opaque or planes) rotated right by the shift
+; holds both groups' halves: ANDed with the low 16 - shift bits of each word
+; (d6) the first group's, with the top shift bits (swapped) the second's.
 
-; d\1 = the next master word << 16 >> shift (the two groups' halves).
+; d\1 rotated right by the shift: \2 = 0: by d5 (= shift), 1: swapped and
+; rotated left by d5 (= 16 - shift; faster for shifts 9-15).
 
-SHIFT_WORD macro
-	moveq	#0,\1
-	move	(a1)+,\1
+SHIFT_ROTATE macro
+	ifeq	\2
+	ror.l	d5,\1
+	else
 	swap	\1
-	lsr.l	d5,\1
+	rol.l	d5,\1
+	endif
+	endm
+
+; Rows of both groups: mask, planes 0:1, planes 2:3 of each.
+
+SHIFT_BOTH macro
+.both\@:
+	movem.l	(a1)+,d0-d2
+	SHIFT_ROTATE d0,\1
+	move.l	d0,d3
+	and.l	d6,d0
+	eor.l	d0,d3
+	not.l	d0
+	not.l	d3
+	SHIFT_ROTATE d1,\1
+	move.l	d1,d4
+	and.l	d6,d1
+	eor.l	d1,d4
+	swap	d4
+	move.l	d0,(a3)+
+	move.l	d1,(a3)+
+	SHIFT_ROTATE d2,\1
+	move.l	d2,d0
+	and.l	d6,d2
+	eor.l	d2,d0
+	swap	d0
+	move.l	d2,(a3)+
+	move.l	d3,(a3)+
+	move.l	d4,(a3)+
+	move.l	d0,(a3)+
+
+	dbf		d7,.both\@
+
+	bra		.made
+	endm
+
+; Rows of one group: \2 = 0 the first (d6 = its bits), 1 the second (d6 =
+; its bits; the plane words swapped back).
+
+SHIFT_ONE macro
+.one\@:
+	movem.l	(a1)+,d0-d2
+	SHIFT_ROTATE d0,\1
+	and.l	d6,d0
+	not.l	d0
+	SHIFT_ROTATE d1,\1
+	and.l	d6,d1
+	SHIFT_ROTATE d2,\1
+	and.l	d6,d2
+	if \2
+	swap	d1
+	swap	d2
+	endif
+	move.l	d0,(a3)+
+	move.l	d1,(a3)+
+	move.l	d2,(a3)+
+
+	dbf		d7,.one\@
+
+	bra		.made
 	endm
 
 make_shifted:
 	movem.l	d1-d7/a1-a3,-(sp)
 
+	addq.l	#1,shifts_made
+
+	; Groups with pixels, from all rows' opaque pixels: the first gets
+	; bits shift-15, the second bits 0 to shift-1.
+
+	move	RECORD_UNION(a4),d0
+	moveq	#-1,d1
+	lsl		d5,d1 ; $ffff << shift: the first group's bits.
+	move	d0,d2
+	and		d1,d2
+	not		d1
+	and		d0,d1
+	moveq	#SHIFTED_SECOND,d4
+	tst		d2
+	beq		.groups_known ; Nothing in the first.
+
+	moveq	#SHIFTED_FIRST,d4
+	tst		d1
+	beq		.groups_known ; Nothing in the second.
+
+	moveq	#SHIFTED_BOTH,d4
+
+.groups_known:
 	move	RECORD_ROW_COUNT(a4),d0
-	mulu	#ROW_BYTES,d0
+	mulu	#GROUP_BYTES,d0
+	tst		d4
+	bne		.size_known
+
+	add.l	d0,d0 ; ROW_BYTES
+
+.size_known:
 	addq.l	#2,d0
 	bsr		allocate
 	beq		.full
@@ -931,103 +1096,62 @@ make_shifted:
 	move	d5,d0
 	lsl		#2,d0
 	move.l	a3,RECORD_SHIFTS(a4,d0.w)
-	addq.l	#2,a3 ; (The groups word.)
+	move	d4,(a3)+
 
 	lea		RECORD_MASTER(a4),a1
 	move	RECORD_FIRST_ROW(a4),d0
-	mulu	#10,d0
+	mulu	#MASTER_ROW_BYTES,d0
 	add		d0,a1
 	move	RECORD_ROW_COUNT(a4),d7
 	subq	#1,d7
-	moveq	#0,d0 ; Opaque pixels of all rows (both groups).
 
-.row_loop:
-	moveq	#0,d1 ; Opaque, shifted.
-	move	(a1)+,d1
-	not		d1
-	swap	d1
-	lsr.l	d5,d1
-	or.l	d1,d0
-	not.l	d1 ; Masks (1 = keep).
+	; d6 = the first group's bits in both words (the low 16 - shift).
 
-	SHIFT_WORD d2 ; Plane 0.
-	SHIFT_WORD d3 ; Plane 1.
-	SHIFT_WORD d4 ; Plane 2.
-	SHIFT_WORD d6 ; Plane 3.
-
-	; Group 1: mask:mask, plane 0:plane 1, plane 2:plane 3 (high words),
-	; then group 2 (low words).
-
-	swap	d1
-	move	d1,(a3)+
-	move	d1,(a3)+
-	swap	d2
-	move	d2,(a3)+
-	swap	d3
-	move	d3,(a3)+
-	swap	d4
-	move	d4,(a3)+
+	moveq	#-1,d0
+	lsr		d5,d0
+	move	d0,d6
 	swap	d6
-	move	d6,(a3)+
+	move	d0,d6
 
-	swap	d1
-	move	d1,(a3)+
-	move	d1,(a3)+
-	swap	d2
-	move	d2,(a3)+
-	swap	d3
-	move	d3,(a3)+
-	swap	d4
-	move	d4,(a3)+
-	swap	d6
-	move	d6,(a3)+
+	cmp		#9,d5
+	bcc		.rotate_left
 
-	dbf		d7,.row_loop
+	; Shifts 0-8: rotated right by the shift.
 
-	; One group only? Then its rows are moved together and the arena gets
-	; the rest back (this copy is its last allocation).
+	cmp		#SHIFTED_FIRST,d4
+	bcs		.both_right
+	beq		.first_right
 
-	move	d5,d1
-	lsl		#2,d1
-	move.l	RECORD_SHIFTS(a4,d1.w),a0 ; The copy.
-	clr		(a0)
+	not.l	d6
+	SHIFT_ONE 0,1
 
-	moveq	#SHIFTED_FIRST,d1
-	tst		d0
-	beq		.one_group ; Nothing in group 2.
+.first_right:
+	SHIFT_ONE 0,0
 
-	moveq	#SHIFTED_SECOND,d1
-	swap	d0
-	tst		d0
-	bne		.done ; Pixels in both.
+.both_right:
+	SHIFT_BOTH 0
 
-.one_group:
-	move	d1,(a0)+
-	move.l	a0,a1 ; Source rows.
-	cmp		#SHIFTED_FIRST,d1
-	beq		.compact
+.rotate_left:
+	; Shifts 9-15: swapped, rotated left by 16 - shift.
 
-	lea		GROUP_BYTES(a1),a1 ; The second group's half.
+	neg		d5
+	add		#16,d5
 
-.compact:
-	move.l	a0,a2 ; Destination.
-	move	RECORD_ROW_COUNT(a4),d7
-	subq	#1,d7
+	cmp		#SHIFTED_FIRST,d4
+	bcs		.both_left
+	beq		.first_left
 
-.compact_loop:
-	move.l	(a1)+,(a2)+
-	move.l	(a1)+,(a2)+
-	move.l	(a1)+,(a2)+
-	lea		GROUP_BYTES(a1),a1
+	not.l	d6
+	SHIFT_ONE 1,1
 
-	dbf		d7,.compact_loop
+.first_left:
+	SHIFT_ONE 1,0
 
-	move.l	a2,arena_next
+.both_left:
+	SHIFT_BOTH 1
 
-.done:
-	move	d5,d0
-	lsl		#2,d0
-	move.l	RECORD_SHIFTS(a4,d0.w),d0
+.made:
+	move.l	a0,d0
 
 	movem.l	(sp)+,d1-d7/a1-a3
 
@@ -1178,14 +1302,24 @@ cache_resets:
 	ds.l	1
 half_switches:
 	ds.l	1
+masters_made:
+	ds.l	1
+shifts_made:
+	ds.l	1
 half_size:
 	ds.l	1
 
 	xdef cache_resets
 	xdef half_switches
+	xdef masters_made
+	xdef shifts_made
 
-colour_bits: ; make_master: per colour, the plane bits to OR in.
+colour_bits: ; build_pair_tables: per colour, its plane bits.
 	ds.l	16*2
+pair_tables: ; Per palette, per byte of two pixels: planes 0:1, planes 2:3.
+	ds.l	16*256*2
+pair_swapped: ; Per byte, its nibbles swapped.
+	ds.b	256
 sprite_list: ; The renderer's sprite table (the game's last complete one).
 	ds.l	1
 second_sprite_table: ; The game fills this and SPRITE_DATA_TABLE in turn.

@@ -18,6 +18,8 @@
 	xdef read_timer
 	xdef measure_logic
 	xdef measure_picture
+	xdef start_render_parts
+	xdef mark_render_part
 	xdef record_checkpoint
 	xdef write_checkpoints
 	xdef print_text
@@ -37,6 +39,7 @@
 CHECKPOINT_INTERVAL=60
 CHECKPOINT_SIZE=32
 MAXIMUM_CHECKPOINTS=2048 ; 122,880 frames.
+RENDER_PARTS=3
 
 HISTOGRAM_BUCKETS=256
 BUCKET_UNITS=19 ; 0.495 ms.
@@ -128,6 +131,34 @@ measure_picture:
 	move.l	d1,present_maximum
 
 .present_ok:
+	rts
+
+; The render's parts: start_render_parts at the start of a picture, then
+; mark_render_part with d0.w = the part ending (RENDER_PARTS of them) adds
+; the time since the previous mark. Preserve all registers.
+
+start_render_parts:
+	move.l	d0,-(sp)
+	bsr		read_timer
+	move.l	d0,part_start
+	move.l	(sp)+,d0
+
+	rts
+
+mark_render_part:
+	movem.l	d0-d2/a0,-(sp)
+
+	move	d0,d2
+	bsr		read_timer
+	move.l	d0,d1
+	sub.l	part_start,d0
+	move.l	d1,part_start
+	lsl		#2,d2
+	lea		render_parts,a0
+	add.l	d0,(a0,d2.w)
+
+	movem.l	(sp)+,d0-d2/a0
+
 	rts
 
 ; At each frame end: every CHECKPOINT_INTERVAL frames, frame (long), score
@@ -308,6 +339,34 @@ print_measurements:
 	bsr		print_tenths
 
 	lea		close_line_text,a0
+	bsr		print_text
+
+	; The render's parts.
+
+	lea		parts_text,a0
+	bsr		print_text
+
+	lea		render_parts,a1
+	lea		part_names,a2
+	moveq	#RENDER_PARTS-1,d7
+
+.part_loop:
+	move.l	a2,a0
+	bsr		print_text
+
+.name_end:
+	tst.b	(a2)+
+	bne		.name_end
+
+	move.l	(a1)+,d0
+	move.l	pictures_measured,d1
+	bsr		divide_unsigned
+	bsr		units_to_tenths_ms
+	bsr		print_tenths
+
+	dbf		d7,.part_loop
+
+	lea		line_end_text,a0
 	bsr		print_text
 
 .no_pictures:
@@ -507,6 +566,12 @@ present_text:
 	dc.b	'), present ',0
 maximum_text:
 	dc.b	' (max ',0
+parts_text:
+	dc.b	'Render parts (ms):',0
+part_names: ; RENDER_PARTS
+	dc.b	' background ',0
+	dc.b	', sprites and text ',0
+	dc.b	', borders and colours ',0
 close_line_text:
 	dc.b	')'
 line_end_text:
@@ -542,6 +607,10 @@ present_total:
 	ds.l	1
 present_maximum:
 	ds.l	1
+part_start:
+	ds.l	1
+render_parts:
+	ds.l	RENDER_PARTS
 
 	xdef pictures_measured
 
