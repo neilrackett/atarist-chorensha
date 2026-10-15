@@ -19,8 +19,8 @@
 ; the shifted pixels all fall into one of the two groups (narrow shapes:
 ; bullets, particles), only that group is kept and drawn (142 cycles). The
 ; masters and shifted copies live in an arena (the memory left free: about
-; 900 KB with 4 MB), found through a hash table of variants; when the arena
-; is full it is emptied and refilled with what is drawn next.
+; 900 KB with 4 MB), found through a table per pattern of its 32 variants;
+; when the arena is full it is emptied and refilled with what is drawn next.
 ;
 ; Order: the X68000's priority (the attribute's low 6 bits; larger is in
 ; front, $00-$0F not shown), in 64 buckets drawn upwards; within a bucket the
@@ -61,9 +61,7 @@ MAXIMUM_SPRITES=512
 PRIORITY_BUCKETS=64
 FIRST_SHOWN_PRIORITY=$10
 
-HASH_SIZE=8192
-MAXIMUM_RECORDS=HASH_SIZE*3/4
-EMPTY_KEY=$ffff
+EMPTY_KEY=$ffff ; No variant (last_key).
 
 ; Variant record: first row (word), row count (word), 16 shifted copies
 ; (pointers, 0 = not made), the master (16 rows of mask and 4 plane words).
@@ -237,11 +235,9 @@ reset_cache:
 	move.l	arena,d0
 	add.l	arena_size,d0
 	move.l	d0,arena_end
-	clr		record_count
-
-	lea		hash_keys,a0
-	moveq	#-1,d0
-	move	#HASH_SIZE/2-1,d1
+	lea		pattern_tables,a0
+	moveq	#0,d0
+	move	#PCG_PATTERNS-1,d1
 
 .clear:
 	move.l	d0,(a0)+
@@ -576,58 +572,60 @@ draw_one_sprite:
 ; ------------------------------------------------------------------------------
 ;
 ; d0.w = variant key, d1.w = pattern, d4.w = attributes -> a4 = its record
-; (made if new). N set if the arena is full.
+; (made if new). N set if the arena is full. Two levels: per pattern a table
+; (in the arena) of its 32 variants' records (palette, horizontal flip).
 
 find_variant:
-	move	d0,d5 ; Hash: the key's top 3 bits folded into its low 13.
-	move	d0,d6
-	rol		#3,d6
-	and		#7,d6
-	eor		d6,d5
-	and		#HASH_SIZE-1,d5
-	add		d5,d5 ; Byte offset in the word table.
+	lea		pattern_tables,a0
+	move	d1,d5
+	add		d5,d5
+	add		d5,d5
+	move.l	(a0,d5.w),d6
+	bne		.table
 
-	lea		hash_keys,a0
+	; The pattern's first variant: its table.
 
-.probe:
-	move	(a0,d5.w),d6
-	cmp		d0,d6
-	beq		.found
+	movem.l	d0-d1/d4-d5,-(sp)
+	move.l	#32*4,d0
+	bsr		allocate
+	movem.l	(sp)+,d0-d1/d4-d5
+	beq		.full
 
-	cmp		#EMPTY_KEY,d6
+	moveq	#32-1,d6
+
+.clear_table:
+	clr.l	(a0)+
+	dbf		d6,.clear_table
+
+	lea		-32*4(a0),a0
+	lea		pattern_tables,a1
+	move.l	a0,(a1,d5.w)
+	move.l	a0,d6
+
+.table:
+	move.l	d6,a1 ; The pattern's table.
+	move	d0,d5
+	rol		#5,d5 ; Horizontal flip and palette (key bits 15-11).
+	and		#31,d5
+	add		d5,d5
+	add		d5,d5
+	move.l	(a1,d5.w),d6
 	beq		.new
 
-	addq	#2,d5
-	and		#(HASH_SIZE-1)*2,d5
-
-	bra		.probe
-
-.found:
-	lea		hash_records,a0
-	add		d5,d5
-	move.l	(a0,d5.w),a4
+	move.l	d6,a4
 	moveq	#0,d0 ; N clear.
 
 	rts
 
 .new:
-	cmp		#MAXIMUM_RECORDS,record_count
-	bcc		.full
-
-	movem.l	d0-d1/d4-d5,-(sp)
+	movem.l	d0-d1/d4-d5/a1,-(sp)
 	move.l	#RECORD_SIZE,d0
 	bsr		allocate
-	movem.l	(sp)+,d0-d1/d4-d5
+	movem.l	(sp)+,d0-d1/d4-d5/a1
 	beq		.full
 
 	move.l	a0,a4
-	addq	#1,record_count
-
-	lea		hash_keys,a0
-	move	d0,(a0,d5.w)
-	lea		hash_records,a0
-	add		d5,d5
-	move.l	a4,(a0,d5.w)
+	move.l	a4,(a1,d5.w)
 
 	bsr		make_master
 
@@ -1061,8 +1059,6 @@ row_bytes:
 	ds.w	1
 last_key: ; The variant of the sprite before (EMPTY_KEY: none).
 	ds.w	1
-record_count:
-	ds.w	1
 cache_reset_pending:
 	ds.b	1
 retried:
@@ -1099,10 +1095,8 @@ bucket_counts:
 	ds.w	PRIORITY_BUCKETS
 bucket_ends:
 	ds.w	PRIORITY_BUCKETS
-hash_keys:
-	ds.w	HASH_SIZE
-hash_records:
-	ds.l	HASH_SIZE
+pattern_tables: ; Per pattern: its variants' table, or 0.
+	ds.l	PCG_PATTERNS
 
 ; ------------------------------------------------------------------------------
 	end

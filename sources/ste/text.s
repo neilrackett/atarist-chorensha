@@ -35,6 +35,7 @@ SCREEN_LINE=160
 PICTURE_X_BYTES=16 ; The picture starts 32 pixels into the line.
 PLAYFIELD_TOP=8 ; ST lines: 0-7 the HUD band, 8-199 the playfield.
 PLAYFIELD_BOTTOM=199
+HUD_ROWS=4 ; Rows 0-3: score (the band), lives and bombs (pinned).
 
 ; ------------------------------------------------------------------------------
 	text
@@ -59,24 +60,33 @@ st_draw_character:
 	move.l	7*4+12(sp),d2 ; Code.
 	and		#CHARACTERS-1,d2
 
+	; The glyph, converted now if new (blank glyphs are not drawn).
+
+	movem.l	d0-d1,-(sp)
+	bsr		character_lines
+	movem.l	(sp)+,d0-d1
+
 	move	d1,d3
 	lsl		#5,d3
 	add		d0,d3
 	lea		character_map,a0
 	add		d3,a0
 
-	; Characters per row (empty rows are skipped when drawing).
+	; Characters with pixels per row (empty rows are skipped when drawing).
 
+	lea		character_blank,a2
 	lea		row_counts,a1
-	cmp.b	#SPACE,(a0)
-	beq		.was_space
+	moveq	#0,d3
+	move.b	(a0),d3
+	tst.b	(a2,d3.w)
+	bne		.was_blank
 
 	subq.b	#1,(a1,d1.w)
 
-.was_space:
+.was_blank:
 	move.b	d2,(a0)
-	cmp.b	#SPACE,d2
-	beq		.counted
+	tst.b	(a2,d2.w)
+	bne		.counted
 
 	addq.b	#1,(a1,d1.w)
 
@@ -233,6 +243,21 @@ convert_character:
 	subq	#1,lines_left
 	bne		.line_loop
 
+	; Blank: no pixel in any line (its 8 masks all ones).
+
+	moveq	#-1,d0
+	moveq	#8-1,d1
+
+.blank_loop:
+	and.l	-(a0),d0
+	subq.l	#4,a0
+	dbf		d1,.blank_loop
+
+	move	2*4+2(sp),d2 ; The saved d2: the code.
+	lea		character_blank,a1
+	cmp.l	#-1,d0
+	seq		(a1,d2.w)
+
 	movem.l	(sp)+,d0-d7/a0-a3
 
 	rts
@@ -326,13 +351,20 @@ draw_text_rows:
 	moveq	#1,d5 ; Row.
 
 .row_loop:
-	; ST lines of the row: row * 8 - offset ... + 7.
+	; ST lines of the row: row * 8 - offset ... + 7; rows 1-3 (the HUD's
+	; lives and bombs) stay at the top of the playfield, as they overlay
+	; the X68000's screen.
 
 	move	d5,d7
 	lsl		#3,d7
+	cmp		#HUD_ROWS,d5
+	bcs		.pinned
+
 	sub		d6,d7
 	cmp		#PLAYFIELD_BOTTOM,d7
 	bgt		.done ; Below the playfield (the rows below are too).
+
+.pinned:
 
 	move	d7,d0
 	addq	#7,d0
@@ -348,8 +380,9 @@ draw_text_rows:
 .column_loop:
 	moveq	#0,d2
 	move.b	(a2,d4.w),d2
-	cmp.b	#SPACE,d2
-	beq		.next_column
+	lea		character_blank,a0
+	tst.b	(a0,d2.w)
+	bne		.next_column
 
 	movem.l	d4-d7/a2-a3,-(sp)
 
@@ -422,8 +455,12 @@ draw_text_rows:
 
 character_map: ; Codes, row by row; SPACE = empty.
 	dcb.b	COLUMNS*ROWS,SPACE
-row_counts: ; Characters other than SPACE per row.
+row_counts: ; Characters with pixels per row.
 	dcb.b	ROWS,0
+character_blank: ; Per code: no pixels (SPACE until converted).
+	dcb.b	SPACE,0
+	dc.b	-1
+	dcb.b	CHARACTERS-SPACE-1,0
 
 ; ------------------------------------------------------------------------------
 	bss

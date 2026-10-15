@@ -32,6 +32,7 @@
 	xref initialize_renderer
 	xref release_renderer
 	xref arena_size
+	xref cache_resets
 	xref reset_input
 	xref load_input_script
 	xref start_emulator
@@ -566,6 +567,13 @@ print_report:
 	lea		kilobytes_end_text,a0
 	jsr		print_text
 
+	lea		cache_resets_text,a0
+	jsr		print_text
+	move.l	cache_resets,d0
+	jsr		print_number
+	lea		line_end_text,a0
+	jsr		print_text
+
 	; Calls the port does not implement.
 
 	lea		unimplemented_dos,a2
@@ -707,6 +715,8 @@ per_second_text:
 	dc.b	' while polling), per second: ',0
 heap_used_text:
 	dc.b	'Game heap used: ',0
+cache_resets_text:
+	dc.b	'Sprite cache emptied (including at start): ',0
 unimplemented_dos_text:
 	dc.b	'Unimplemented DOS calls:',0
 unimplemented_iocs_text:

@@ -163,7 +163,8 @@ def render(dump, page0, page1, patterns, font, sprite_map, representatives):
                 if code == SPACE:
                     continue
                 for r in range(8):
-                    sy = row * 8 + r - window
+                    # Rows 1-3 (lives, bombs) stay at the playfield's top.
+                    sy = row * 8 + r - (window if row >= 4 else 0)
                     if sy < 8 or sy > 199:
                         continue
                     for x in range(8):
