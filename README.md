@@ -182,9 +182,10 @@ with 4 MB of RAM, at its full game speed. It draws about 12 pictures per
 second on an ST or STE and 17 on a Mega STE (16 MHz with the cache,
 switched on automatically), in a 192-line window that follows the ship,
 and takes Xpad gamepads. An ST plays YM2149 versions of the sound
-effects, made from the samples by `tools/ste/ym_effects.py`. Building it (after `git submodule update --init`, for
-`lib/xpad`), running it in Hatari, how it works and the measurements:
-`docs/STE_PORT.md`.
+effects, made from the samples by `tools/ste/ym_effects.py`
+(`binaries/ste/PCM_DAT/SZ2_YM.BIN`), and loads no samples. Building it
+(after `git submodule update --init`, for `lib/xpad`), running it in
+Hatari, how it works and the measurements: `docs/STE_PORT.md`.
 
 
 ## Credits

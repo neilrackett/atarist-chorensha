@@ -12335,7 +12335,31 @@ L_0002633E:
 	addq.w  #$8,A7                                  ; 00026360 504F
 
 	cmp.w   #$FFFF,D1                               ; 00026362 B27C FFFF
+	ifd __STE__
+	bne.w   L_000263C2
+
+	; An ST (no DMA sound) loads no samples: the YM version of the effect
+	; (st_ym_effect, audio.s) stands in for each.
+
+	tst.b	machine_has_ste_hardware
+	bne.s	.st_load_sample
+
+	move.l	D5,-(A7)
+	jsr		st_ym_effect
+	addq.w	#$4,A7
+	move.l	-516(A6),D1
+	asl.l	#$4,D1
+	movea.l	D6,A0
+	adda.l	D1,A0
+	move.l	D0,6(A0)
+	clr.l	2(A0)
+
+	bra.w	L_000263E2
+
+.st_load_sample:
+	else
 	bne.s   L_000263C2                              ; 00026366 665A
+	endif
 
 	pea     L_00026290(pc)                          ; 00026368 487A FF26
 	move.l  D5,-(A7)                                ; 0002636C 2F05

@@ -5,12 +5,16 @@
 ; files (signed 8-bit mono, 12517 Hz), which the game loads into its heap
 ; itself. No music (MCDRV is not emulated).
 ;
+; Each machine loads only what it plays:
+;
 ; - STE, Mega STE: DMA sound plays the samples once each.
-; - ST (no DMA sound): the YM2149 plays versions made by
-;   tools/ste/ym_effects.py (ym_effects.i): per 50 Hz VBL a frame of two
-;   tones (channels A and C) and noise (channel B). The effect is found by
-;   the sample's length and first long; effects the game plays at 10.4 kHz
-;   (its mode's rate 3: the .sam files are all 15.6 kHz conversions) go 1.5
+; - ST (no DMA sound): no samples; the YM2149 plays versions made by
+;   tools/ste/ym_effects.py, PCM_DAT\SZ2_YM.BIN (loaded at start: see the
+;   tool for its format): per 50 Hz VBL a frame of two tones (channels A
+;   and C) and noise (channel B). The game's sample loader (sz2.s) asks
+;   st_ym_effect for each sample's effect instead of loading it, and
+;   _ADPCMOUT then hands it over. Effects the game plays at 10.4 kHz (its
+;   mode's rate 3: the .sam files are all 15.6 kHz conversions) go 1.5
 ;   times slower and lower. As in STDL's YM service: registers 14 and 15
 ;   (TOS's floppy select) are never written, the mixer keeps the port
 ;   direction bits, and interrupts are masked between selecting a register
@@ -22,10 +26,20 @@
 	xdef audio_stop
 	xdef audio_tick
 	xdef audio_silence
+	xdef load_ym_effects
+	xdef st_ym_effect
+	xdef ym_file_name
 	xdef ym_effects_played
 	xdef ym_effects_unknown
 
 	xref machine_has_ste_hardware
+
+YM_ENTRY_SIZE=20 ; SZ2_YM.BIN: name (12), frames (long), their number (word).
+YM_ENTRY_FRAMES=12
+YM_ENTRY_COUNT=16
+YM_HEADER_SIZE=8 ; 'CRSY', effects (word), frame size (word).
+YM_FRAME_SIZE=8
+YM_NAME_SIZE=12
 
 YM_SELECT=$ffff8800 ; (Reads the selected register.)
 YM_DATA=$ffff8802
@@ -116,29 +130,192 @@ audio_stop:
 
 ; ------------------------------------------------------------------------------
 ;
-; ST: the effect whose sample this is (by its length and first long), from
-; the next VBL on.
+; At start, on an ST: PCM_DAT\SZ2_YM.BIN into memory (GEMDOS, before the
+; sprite arena takes the rest), its frame offsets made addresses. N set if
+; it could not be loaded.
+
+load_ym_effects:
+	movem.l	d1-d4/a0-a2,-(sp)
+
+	clr		-(sp)
+	pea		ym_file_name
+	move	#61,-(sp) ; Fopen
+	trap	#1
+	addq.l	#8,sp
+	move.l	d0,d3
+	bmi		.failed
+
+	move	#2,-(sp) ; From the end: the size.
+	move	d3,-(sp)
+	clr.l	-(sp)
+	move	#66,-(sp) ; Fseek
+	trap	#1
+	lea		10(sp),sp
+	move.l	d0,d4
+	ble		.close_failed
+
+	clr		-(sp)
+	move	d3,-(sp)
+	clr.l	-(sp)
+	move	#66,-(sp)
+	trap	#1
+	lea		10(sp),sp
+
+	move.l	d4,-(sp)
+	move	#72,-(sp) ; Malloc
+	trap	#1
+	addq.l	#6,sp
+	tst.l	d0
+	ble		.close_failed
+
+	move.l	d0,a2
+	move.l	a2,-(sp)
+	move.l	d4,-(sp)
+	move	d3,-(sp)
+	move	#63,-(sp) ; Fread
+	trap	#1
+	lea		12(sp),sp
+	cmp.l	d4,d0
+	bne		.close_failed
+
+	move	d3,-(sp)
+	move	#62,-(sp) ; Fclose
+	trap	#1
+	addq.l	#4,sp
+
+	cmp.l	#'CRSY',(a2)
+	bne		.failed
+
+	cmp		#YM_FRAME_SIZE,6(a2)
+	bne		.failed
+
+	move	4(a2),d1
+	move	d1,ym_effect_count
+	lea		YM_HEADER_SIZE(a2),a0
+	move.l	a0,ym_directory
+	subq	#1,d1
+	bmi		.loaded
+
+.relocate:
+	move.l	a2,d0
+	add.l	d0,YM_ENTRY_FRAMES(a0)
+	lea		YM_ENTRY_SIZE(a0),a0
+
+	dbf		d1,.relocate
+
+.loaded:
+	moveq	#0,d0 ; N clear.
+
+	bra		.done
+
+.close_failed:
+	move	d3,-(sp)
+	move	#62,-(sp)
+	trap	#1
+	addq.l	#4,sp
+
+.failed:
+	clr		ym_effect_count
+	moveq	#-1,d0 ; N set.
+
+.done:
+	movem.l	(sp)+,d1-d4/a0-a2
+
+	rts
+
+; From the game's sample loader (sz2.s, an ST): the YM version of the
+; sample named at 4(sp) (C convention: "PCM_DAT\NAME.sam", in any case):
+; d0.l = its directory entry, or 0. Uses d0-d1/a0-a1.
+
+st_ym_effect:
+	movem.l	d2-d3/a2,-(sp)
+
+	move.l	3*4+4(sp),a0
+
+	; The name: after the last \ or :.
+
+	move.l	a0,a1
+
+.find_name:
+	move.b	(a0)+,d0
+	beq		.name_found
+
+	cmp.b	#92,d0 ; Backslash.
+	beq		.separator
+
+	cmp.b	#':',d0
+	bne		.find_name
+
+.separator:
+	move.l	a0,a1
+
+	bra		.find_name
+
+.name_found:
+	move.l	ym_directory,a2
+	move	ym_effect_count,d3
+	subq	#1,d3
+	bmi		.not_found
+
+.entry_loop:
+	move.l	a1,a0
+	moveq	#0,d2 ; Offset in the entry's name.
+
+.compare:
+	move.b	(a0)+,d0
+	cmp.b	#'a',d0
+	bcs		.upper
+
+	cmp.b	#'z',d0
+	bhi		.upper
+
+	sub.b	#'a'-'A',d0
+
+.upper:
+	move.b	(a2,d2.w),d1
+	cmp.b	d1,d0
+	bne		.next_entry
+
+	tst.b	d0
+	beq		.found ; Both ended.
+
+	addq	#1,d2
+	cmp		#YM_NAME_SIZE,d2
+	bne		.compare
+
+	tst.b	(a0)
+	beq		.found ; A 12-character name.
+
+.next_entry:
+	lea		YM_ENTRY_SIZE(a2),a2
+
+	dbf		d3,.entry_loop
+
+.not_found:
+	moveq	#0,d0
+
+	bra		.done
+
+.found:
+	move.l	a2,d0
+
+.done:
+	movem.l	(sp)+,d2-d3/a2
+
+	rts
+
+; ------------------------------------------------------------------------------
+;
+; _ADPCMOUT on an ST: a1 = the effect's directory entry (st_ym_effect put it
+; where the sample would be), from the next VBL on.
 
 ym_play:
-	movem.l	d0/d3/a0,-(sp)
+	movem.l	d0/a0,-(sp)
 
 	sf		ym_playing ; (The VBL leaves it alone meanwhile.)
 
-	lea		ym_effects,a0
-	moveq	#YM_EFFECTS-1,d3
-
-.find:
-	cmp.l	(a0),d2
-	bne		.next
-
-	move.l	(a1),d0
-	cmp.l	4(a0),d0
-	beq		.found
-
-.next:
-	lea		YM_EFFECT_SIZE(a0),a0
-
-	dbf		d3,.find
+	move.l	a1,d0
+	bne		.found
 
 	addq.l	#1,ym_effects_unknown
 	st		ym_silence_pending
@@ -147,8 +324,8 @@ ym_play:
 
 .found:
 	addq.l	#1,ym_effects_played
-	move.l	8(a0),ym_frames
-	move	12(a0),ym_frame_count
+	move.l	YM_ENTRY_FRAMES(a1),ym_frames
+	move	YM_ENTRY_COUNT(a1),ym_frame_count
 	clr		ym_position
 	move	#POSITION_STEP,ym_step
 	sf		ym_slow
@@ -167,7 +344,7 @@ ym_play:
 	st		ym_playing
 
 .done:
-	movem.l	(sp)+,d0/d3/a0
+	movem.l	(sp)+,d0/a0
 
 	rts
 
@@ -211,7 +388,7 @@ audio_tick:
 	cmp		ym_frame_count,d0
 	bcc		.end
 
-	lsl		#3,d0 ; YM_FRAME_SIZE
+	lsl		#3,d0 ; YM_FRAME_SIZE (8)
 	move.l	ym_frames,a0
 	add		d0,a0
 
@@ -328,18 +505,25 @@ audio_silence:
 	data
 ; ------------------------------------------------------------------------------
 
-	include "ym_effects.i"
+ym_file_name:
+	dc.b	'PCM_DAT\SZ2_YM.BIN',0
+
+	even
 
 ; ------------------------------------------------------------------------------
 	bss
 ; ------------------------------------------------------------------------------
 
+ym_directory: ; SZ2_YM.BIN's effects.
+	ds.l	1
 ym_frames: ; The playing effect's frames.
 	ds.l	1
 ym_effects_played:
 	ds.l	1
-ym_effects_unknown: ; Samples not in ym_effects (none expected).
+ym_effects_unknown: ; Samples without a YM version (none expected).
 	ds.l	1
+ym_effect_count:
+	ds.w	1
 ym_frame_count:
 	ds.w	1
 ym_position: ; Frames, in 1/256.

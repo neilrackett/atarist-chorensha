@@ -14,8 +14,10 @@ The folder and file names still say STE (`sources/ste`, `SZ2_STE.TOS`).
 
 **Results, in short.** Measured in Hatari 2.6.1 with TOS 2.06 and 4 MB. The
 attract demo runs 6,000 frames; the full-game replays reach stages 1 to 5.
-A plain ST (4 MB, TOS 1.04) gives the STE's figures: 12.1 pictures per
-second in the attract demo, 12.4 with the release build.
+A plain ST (4 MB, TOS 1.04) draws a little faster than an STE: 12.3
+pictures per second in the attract demo, 12.6 with the release build. It
+loads no samples, so its sprite cache is bigger (1,347 KB in the release
+build, against the STE's 953 KB).
 
 | | STE (8 MHz) | Mega STE (16 MHz, cache) |
 |---|---|---|
@@ -60,8 +62,12 @@ to those of the `amiga-port` revision; `CHECK=0` skips the check.
 (`/Applications/Hatari.app`). On first use, TOS 2.06 is copied from
 `../atarist-rott/tmp/tos/` to `tmp/tos/`. To run the program elsewhere, put
 the folders `BGM_DAT`, `ETC_DAT` and `XSP_DAT` (from `binaries/amiga`) and
-`PCM_DAT` (from `binaries/atari`) next to it. The program checks for them
-at start and says which one is missing.
+`PCM_DAT` (from `binaries/atari`) next to it, with `SZ2_YM.BIN` (from
+`binaries/ste/PCM_DAT`) added to `PCM_DAT`. Each machine loads only what
+it plays: an ST the YM effects in `SZ2_YM.BIN` and none of the `.sam`
+samples, an STE or Mega STE the samples and not `SZ2_YM.BIN`; the run
+script stages only those. The program checks for its files at start and
+says which one is missing.
 
 ```
 # Playing, in a window (MACHINE=megaste for the Mega STE).
@@ -235,11 +241,22 @@ itself (5.7 s on an STE). Later games skip the game's builder.
   shown), drawn in buckets. Sprites outside the playfield lines are left
   out before any variant work.
 
-### Sound effects (`audio.s`, `ym_effects.i`, `tools/ste/ym_effects.py`)
+### Sound effects (`audio.s`, `tools/ste/ym_effects.py`, `PCM_DAT\SZ2_YM.BIN`)
 
-The game plays one effect at a time through `_ADPCMOUT`. On an STE or Mega
-STE, DMA sound plays the sample. An ST has no DMA sound, so its YM2149
-plays a version made in advance from each sample:
+The game loads its samples at start (`LOAD_PCM_SAMPLE_FILES`, from the
+list in `PCM_DAT\SZ2_PCM.CNF`) and plays one effect at a time through
+`_ADPCMOUT`. Each machine loads only what it plays:
+
+- **STE, Mega STE:** the game loads the samples (370 KB of its heap) and
+  DMA sound plays them.
+- **ST:** no DMA sound, so its YM2149 plays a version made in advance from
+  each sample. The program loads `PCM_DAT\SZ2_YM.BIN` at start (12 KB). In
+  the game's loader, a hook (`ifd __STE__`) asks `st_ym_effect` for each
+  sample's YM version by file name instead of loading it, and
+  `_ADPCMOUT` hands it over. The game's heap is 384 KB smaller, and the
+  sprite cache gets it.
+
+The YM versions:
 
 - `tools/ste/ym_effects.py` cuts each `.sam` into 20 ms frames, one per
   VBL. A frame's loudness is split between tone and noise by how tonal it
@@ -247,22 +264,23 @@ plays a version made in advance from each sample:
   its fundamental if that is strong, on channel A, and a second peak that
   is not one of its harmonics (a chord) on channel C. The noise is on
   channel B, its period from the spectral centroid. Volumes are in the
-  YM's 3 dB steps. It writes `sources/ste/ym_effects.i`: 31 effects, 1,497
-  frames, 12 KB.
+  YM's 3 dB steps. It writes `binaries/ste/PCM_DAT/SZ2_YM.BIN`: 31
+  effects, 1,497 frames, 12 KB.
 - `tools/ste/ym_effects.py --preview DIR` also writes WAV files of every
   effect as sampled and as the YM plays it. `ALL.wav` has them all, each
   sampled then YM, and `ALL.txt` says where each one starts.
-- On the ST, `audio.s` recognises the effect by the sample's length and
-  first long, then writes one frame into the YM per VBL: a few hundred
-  cycles, with no visible cost. Effects the game plays at 10.4 kHz go
+- On the ST, `audio.s` writes one frame of the effect into the YM per VBL:
+  a few hundred cycles, with no visible cost. Effects the game plays at 10.4 kHz go
   1.5 times slower and lower (see the open items). As in STDL's YM service,
   registers 14 and 15 are never written, the mixer keeps the port direction
   bits, and interrupts are masked between selecting a register and writing
   it.
 
-The attract demo on an ST plays 757 effects in 6,000 frames, all of them
-recognised. A Hatari recording of an ST has sound in 276 of its 500 tenths
-of a second, and an STE's 275.
+The attract demo on an ST, with no samples at all, plays 754 effects in
+6,000 frames, every one with a YM version; its game heap holds 510 KB of
+640 KB, and the sprite cache is 1,283 KB (889 KB on an STE), so it refills
+half as often. A Hatari recording of an ST has sound in 276 of its 500
+tenths of a second, and an STE's 275.
 
 ### Text (`text.s`)
 
@@ -319,7 +337,7 @@ and its parts.
 | Checkpoints (not in the release build) | 65 |
 | Text, input script, stage counters, stack | 27 |
 | **Program** | **2,004** (1,940 release) |
-| Game heap (stack, sprite patterns, samples, tables) | 1,024 (871 used) |
+| Game heap (stack, sprite patterns, samples, tables) | 1,024 (871 used); 640 on an ST, with no samples (510 used) |
 | Kept free for TOS | 64 |
 | **Sprite arena** | **891** (955 release) |
 
@@ -429,9 +447,7 @@ The X68000's own sprite library code is already tight.
 - **Sound effects on an ST.** The YM versions are a first conversion: the
   explosions, hits and menu sounds are close, and the sweeping lasers only
   roughly. The converter's settings, or hand-made frames for single
-  effects, are the way to improve them. The ST still loads the samples
-  (370 KB of the game's heap), though the YM needs only their lengths and
-  first longs; not loading them would give the sprite cache that memory.
+  effects, are the way to improve them.
 - **Sound effects.** The effects the game plays at 10.4 kHz (four, the
   second boss's) play 1.5 times too fast on an STE: the Falcon port's
   `.sam` files were all converted as 15.6 kHz recordings. The ST's YM

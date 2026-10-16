@@ -97,6 +97,13 @@ PROGRAM_NAME=$(basename "$PROG")
 cp "$PROG" "$STAGE/$PROGRAM_NAME"
 cp -R binaries/amiga/BGM_DAT binaries/amiga/ETC_DAT binaries/amiga/XSP_DAT "$STAGE/"
 cp -R binaries/atari/PCM_DAT "$STAGE/"
+
+# Only what the machine uses: an ST plays YM versions of the effects
+# (binaries/ste/PCM_DAT/SZ2_YM.BIN), an STE or Mega STE the samples.
+if [ "$MACHINE" = "st" ]; then
+	rm -f "$STAGE"/PCM_DAT/*.sam "$STAGE"/PCM_DAT/*.SAM
+	cp binaries/ste/PCM_DAT/SZ2_YM.BIN "$STAGE/PCM_DAT/"
+fi
 if [ -n "${REPLAY:-}" ]; then
 	cp "binaries/atari/ETC_DAT/$REPLAY" "$STAGE/ETC_DAT/DEMO.REP" || exit 2
 fi

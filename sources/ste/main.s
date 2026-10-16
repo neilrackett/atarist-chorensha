@@ -27,6 +27,8 @@
 	xref machine_has_ste_hardware
 	xref ym_effects_played
 	xref ym_effects_unknown
+	xref load_ym_effects
+	xref ym_file_name
 	xref machine_is_ste
 	xref machine_is_mega_ste
 	xref set_cpu_speed
@@ -72,6 +74,7 @@
 	xref lockstep_mode
 
 HEAP_SIZE=$100000 ; The game's process area: PSP, game stack (64 KB), heap.
+HEAP_SIZE_ST=HEAP_SIZE-$60000 ; An ST loads no samples (370 KB): 640 KB.
 
 EXIT_FRAME_LIMIT=1
 EXIT_GAME=2
@@ -105,25 +108,45 @@ start:
 	addq.l	#3,d1
 	and.b	#$fc,d1
 	move.l	d1,heap_address
-	move.l	#HEAP_SIZE,heap_size
-
-	sub.l	a0,d1
-	add.l	#HEAP_SIZE,d1
-	move.l	d1,kept_size
 
 	pea		welcome_text
 	move	#9,-(sp)
 	trap	#1
 	addq.l	#6,sp
 
-	move.l	kept_size,d0
-	cmp.l	tpa_size,d0
+	; Super mode (the stack stays my_stack), and the machine.
+
+	clr.l	-(sp)
+	move	#32,-(sp)
+	trap	#1
+	addq.l	#6,sp
+	move.l	d0,old_stack_address
+
+	jsr		detect_machine
+
+	; The process area's size: smaller on an ST, which loads no samples
+	; (the YM plays its own versions of the effects).
+
+	move.l	#HEAP_SIZE,d0
+	tst.b	machine_has_ste_hardware
+	bne		.heap_size_known
+
+	move.l	#HEAP_SIZE_ST,d0
+
+.heap_size_known:
+	move.l	d0,heap_size
+	move.l	heap_address,d1
+	sub.l	basepage,d1
+	add.l	d0,d1
+	move.l	d1,kept_size
+
+	cmp.l	tpa_size,d1
 	bls		.memory_ok
 
 	lea		no_memory_text,a0
 	bsr		print_kilobytes_line
 
-	bra		.wait_and_exit_user
+	bra		.wait_and_exit
 
 .memory_ok:
 	; Free the rest of the TPA.
@@ -134,16 +157,6 @@ start:
 	move	#74,-(sp) ; Mshrink
 	trap	#1
 	lea		12(sp),sp
-
-	; Super mode (the stack stays my_stack).
-
-	clr.l	-(sp)
-	move	#32,-(sp)
-	trap	#1
-	addq.l	#6,sp
-	move.l	d0,old_stack_address
-
-	jsr		detect_machine
 
 	tst.b	machine_is_st
 	bne		.machine_ok
@@ -169,6 +182,17 @@ start:
 	move.l	(a1)+,d0
 	beq		.data_found
 
+	cmp.l	#-1,d0
+	bne		.data_file
+
+	; An ST goes on with its YM effects (an STE plays the samples).
+
+	tst.b	machine_has_ste_hardware
+	beq		.data_loop
+
+	bra		.data_found
+
+.data_file:
 	move.l	d0,a0
 	bsr		file_exists
 	bne		.data_loop
@@ -226,6 +250,20 @@ start:
 	bsr		read_frame_limit
 	bsr		read_lockstep
 
+	; An ST: its YM effects (before the sprite arena takes the rest).
+
+	tst.b	machine_has_ste_hardware
+	bne		.effects_loaded
+
+	jsr		load_ym_effects
+	bpl		.effects_loaded
+
+	lea		ym_load_failed_text,a0
+	jsr		print_text
+
+	bra		.wait_and_exit
+
+.effects_loaded:
 	jsr		initialize_display
 	jsr		initialize_renderer
 	jsr		reset_input
@@ -301,17 +339,6 @@ start:
 	move	#32,-(sp)
 	trap	#1
 	addq.l	#6,sp
-
-	clr		-(sp)
-	trap	#1
-
-.wait_and_exit_user:
-	lea		press_key_text,a0
-	jsr		print_text
-
-	move	#7,-(sp)
-	trap	#1
-	addq.l	#2,sp
 
 	clr		-(sp)
 	trap	#1
@@ -766,8 +793,9 @@ no_data_text:
 no_data_help_text:
 	dc.b	13,10,'BGM_DAT, ETC_DAT and XSP_DAT',13,10
 	dc.b	'(binaries/amiga) and PCM_DAT',13,10
-	dc.b	'(binaries/atari) go next to',13,10
-	dc.b	'the program.',13,10,0
+	dc.b	'(binaries/atari; an ST: SZ2_YM.BIN',13,10
+	dc.b	'from binaries/ste/PCM_DAT) go next',13,10
+	dc.b	'to the program.',13,10,0
 bgm_data_file_name:
 	dc.b	'BGM_DAT\SZ2_BGM.CNF',0
 etc_data_file_name:
@@ -779,7 +807,8 @@ pcm_data_file_name:
 	even
 data_files: ; Checked at start (a file the game loads from each folder).
 	dc.l	bgm_data_file_name,etc_data_file_name,xsp_data_file_name
-	dc.l	pcm_data_file_name,0
+	dc.l	pcm_data_file_name,-1
+	dc.l	ym_file_name,0 ; An ST's too.
 no_memory_text:
 	dc.b	'Not enough memory: needs ',0
 of_text:
@@ -837,6 +866,8 @@ cache_resets_text:
 	dc.b	'Sprite cache emptied (including at start): ',0
 half_switches_text:
 	dc.b	', halves switched: ',0
+ym_load_failed_text:
+	dc.b	'PCM_DAT\SZ2_YM.BIN could not be read.',13,10,0
 ym_played_text:
 	dc.b	'YM sound effects played: ',0
 ym_unknown_text:
