@@ -1,5 +1,5 @@
 
-; Measurements for the proof of concept, printed at exit (Cconws, so Hatari's
+; Measurements, printed at exit (Cconws, so Hatari's
 ; --conout 2 copies them to the host):
 ;
 ; - Time: MFP Timer D divides 2457600 Hz by 64 (38400 Hz, 26.04 us units)

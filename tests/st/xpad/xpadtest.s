@@ -6,9 +6,9 @@
 ; and an etv_timer hook still being called while the game owns the
 ; machine.
 ;
-;   vasmm68k_mot -Ftos -m68000 -I lib/xpad/src tests/ste/xpad/xpadtest.s
+;   vasmm68k_mot -Ftos -m68000 -I lib/xpad/src tests/st/xpad/xpadtest.s
 ;
-; (tests/ste/xpad_test.sh builds and runs it.)
+; (tests/st/xpad_test.sh builds and runs it.)
 
 	include "xpad.inc"
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Reference renderer for the Atari STE port: draws, from a frame dump
+"""Reference renderer for the Atari ST port: draws, from a frame dump
 (Fnnnnnnn.BIN, written by -D__ORACLE__ builds in lockstep runs), the picture
 the port should have drawn, independently of its 68000 code, and compares it
 with the port's screenshot of the same frame (Snnnnnnn.PI1): every pixel's
@@ -7,7 +7,7 @@ colour index and the 16 colours must be identical.
 
 Inputs besides the dump: the game's background as it builds it (GVRAM pages
 in a GRAPHICS.BIN 'CRSG' dump) and its sprite patterns (the same file), the
-text font (XSP_DAT/SZ_TEXT.PCG) and the colour map (sources/ste/palette_map.i).
+text font (XSP_DAT/SZ_TEXT.PCG) and the colour map (sources/st/palette_map.i).
 
 usage:
     refrender.py --graphics GRAPHICS.BIN --font SZ_TEXT.PCG --map palette_map.i

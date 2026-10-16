@@ -1,16 +1,16 @@
-# Cho Ren Sha 68k on the Atari ST, STE and Mega STE
+# Cho Ren Sha 68k: Atari ST port
 
-The game in colour on an Atari ST, STE or Mega STE with 4 MB. The game runs
-at its full speed (50 frames per second), and the pictures are drawn as
-fast as the machine allows, leaving out the rest. It builds with the
-atarist-toolkit-docker tools (`stcmd`). It has been tested in Hatari only.
+The Atari ST version, by Neil Rackett: the game in colour on an Atari ST,
+STE or Mega STE with 4 MB. The game runs at its full speed (50 frames per
+second), and the pictures are drawn as fast as the machine allows, leaving
+out the rest. It builds with the atarist-toolkit-docker tools (`stcmd`). It
+has been tested in Hatari only.
 
 One program runs on all three. It needs no BLiTTER, so a plain ST draws as
 fast as an STE. What the STE adds is DMA sound (on an ST the YM2149 plays
 versions of the sound effects made from the samples), 4,096 colours instead
 of 512 (the same colour code: an ST ignores the extra bit) and its Jaguar
 pad port; the Mega STE adds 16 MHz and its cache.
-The folder and file names still say STE (`sources/ste`, `SZ2_STE.TOS`).
 
 **Results, in short.** Measured in Hatari 2.6.1 with TOS 2.06 and 4 MB. The
 attract demo runs 6,000 frames; the full-game replays reach stages 1 to 5.
@@ -48,22 +48,22 @@ wrapper; the repository is mounted at `/tmp` in the container. It also
 needs the Xpad submodule: `git submodule update --init`.
 
 ```
-./build_ste.sh                 binaries/ste/SZ2_STE.TOS (measurements; and SZ2_DBG.TOS with symbols)
-RELEASE=1 ./build_ste.sh       binaries/ste/SZ2_REL.TOS: to play (no measurements)
-HEADLESS=1 ./build_ste.sh      binaries/ste/SZ2_HL.TOS: no rendering (game logic, checkpoints)
+./build_st.sh                 binaries/st/SZ2_ST.TOS (measurements; and SZ2_DBG.TOS with symbols)
+RELEASE=1 ./build_st.sh       binaries/st/SZ2_REL.TOS: to play (no measurements)
+HEADLESS=1 ./build_st.sh      binaries/st/SZ2_HL.TOS: no rendering (game logic, checkpoints)
 ```
 
-`build_ste.sh` also checks that the `sz2.s` changes leave the other targets
+`build_st.sh` also checks that the `sz2.s` changes leave the other targets
 alone. The X68000, Falcon and Amiga objects of `sz2.s` must be byte-identical
 to those of the `amiga-port` revision; `CHECK=0` skips the check.
 
-`tests/ste/run_hatari.sh NAME` stages the program with the game data in
+`tests/st/run_hatari.sh NAME` stages the program with the game data in
 `tmp/stage_NAME/`, which is Hatari's drive C:, and starts it in Hatari
 (`/Applications/Hatari.app`). On first use, TOS 2.06 is copied from
 `../atarist-rott/tmp/tos/` to `tmp/tos/`. To run the program elsewhere, put
 the folders `BGM_DAT`, `ETC_DAT` and `XSP_DAT` (from `binaries/amiga`) and
 `PCM_DAT` (from `binaries/atari`) next to it, with `SZ2_YM.BIN` (from
-`binaries/ste/PCM_DAT`) added to `PCM_DAT`. Each machine loads only what
+`binaries/st/PCM_DAT`) added to `PCM_DAT`. Each machine loads only what
 it plays: an ST the YM effects in `SZ2_YM.BIN` and none of the `.sam`
 samples, an STE or Mega STE the samples and not `SZ2_YM.BIN`; the run
 script stages only those. The program checks for its files at start and
@@ -71,17 +71,17 @@ says which one is missing.
 
 ```
 # Playing, in a window (MACHINE=megaste for the Mega STE).
-WINDOW=1 MACHINE=ste PROG=binaries/ste/SZ2_REL.TOS tests/ste/run_hatari.sh play
+WINDOW=1 MACHINE=ste PROG=binaries/st/SZ2_REL.TOS tests/st/run_hatari.sh play
 
 # Measurement: 6,000 frames of the attract demo, headless, fast forward.
-MACHINE=ste FRAMES=6000 tests/ste/run_hatari.sh attract
+MACHINE=ste FRAMES=6000 tests/st/run_hatari.sh attract
 python3 tests/amiga/checkpoints.py compare tests/amiga/reference/attract-6000.txt tmp/out/attract_CHECKPTS.BIN
 
 # A full-game replay from the Falcon port's set instead of the attract demo.
-MACHINE=ste FRAMES=190000 REPLAY=DEMO3.REP tests/ste/run_hatari.sh demo3
+MACHINE=ste FRAMES=190000 REPLAY=DEMO3.REP tests/st/run_hatari.sh demo3
 
 # Pixel oracle: every screenshot of a lockstep run against the reference renderer.
-tests/ste/oracle.sh
+tests/st/oracle.sh
 ```
 
 Options:
@@ -89,12 +89,12 @@ Options:
   gives TOS 1.04 (copy it from `../atarist-rott/tmp/tos/`); TOS 2.06 and
   EmuTOS run on an ST too.
 - `FRAMES`: exit after that many frames. The run writes `CHECKPTS.BIN`
-  and a PI1 screenshot every 500 frames; `tests/ste/pi1_png.py` converts
+  and a PI1 screenshot every 500 frames; `tests/st/pi1_png.py` converts
   the screenshots to PNG in `tmp/out/shots_NAME/`.
 - `REPLAY`: a `binaries/atari/ETC_DAT` replay, played as the demo.
 - `LOCKSTEP=1`.
 - `INPUT`: a frame-timed joystick script in the Amiga port's text format,
-  such as `tests/ste/input/autofire_held.txt`.
+  such as `tests/st/input/autofire_held.txt`.
 - `PROG`, `TOS`, `MEMSIZE`, `FF`, `WINDOW`, `MEGASTE8=1`. `MEGASTE8=1`
   keeps a Mega STE at 8 MHz without the cache, for comparisons.
 - `SOUND` (a rate, default off) and `RECORD=FILE.wav`: Hatari's sound, and
@@ -179,9 +179,9 @@ before that. So there are three screens: the one shown, the one presented
 and the one being drawn. Presenting waits for the picture before it to be
 on screen, which by then it nearly always is, and drawing never waits.
 
-### Colours (`palette.s`, `palette_map.i`, `tools/ste/palette_map.py`)
+### Colours (`palette.s`, `palette_map.i`, `tools/st/palette_map.py`)
 
-Every X68000 palette entry is drawn in one of the STE's 16 colours. The
+Every X68000 palette entry is drawn in one of the ST's 16 colours. The
 mapping is fixed: it is computed offline from colour usage measured over
 the attract demo and six full-game replays.
 
@@ -241,7 +241,7 @@ itself (5.7 s on an STE). Later games skip the game's builder.
   shown), drawn in buckets. Sprites outside the playfield lines are left
   out before any variant work.
 
-### Sound effects (`audio.s`, `tools/ste/ym_effects.py`, `PCM_DAT\SZ2_YM.BIN`)
+### Sound effects (`audio.s`, `tools/st/ym_effects.py`, `PCM_DAT\SZ2_YM.BIN`)
 
 The game loads its samples at start (`LOAD_PCM_SAMPLE_FILES`, from the
 list in `PCM_DAT\SZ2_PCM.CNF`) and plays one effect at a time through
@@ -251,22 +251,22 @@ list in `PCM_DAT\SZ2_PCM.CNF`) and plays one effect at a time through
   DMA sound plays them.
 - **ST:** no DMA sound, so its YM2149 plays a version made in advance from
   each sample. The program loads `PCM_DAT\SZ2_YM.BIN` at start (12 KB). In
-  the game's loader, a hook (`ifd __STE__`) asks `st_ym_effect` for each
+  the game's loader, a hook (`ifd __ST__`) asks `st_ym_effect` for each
   sample's YM version by file name instead of loading it, and
   `_ADPCMOUT` hands it over. The game's heap is 384 KB smaller, and the
   sprite cache gets it.
 
 The YM versions:
 
-- `tools/ste/ym_effects.py` cuts each `.sam` into 20 ms frames, one per
+- `tools/st/ym_effects.py` cuts each `.sam` into 20 ms frames, one per
   VBL. A frame's loudness is split between tone and noise by how tonal it
   is (its spectral flatness). The tones are the strongest spectral peak, or
   its fundamental if that is strong, on channel A, and a second peak that
   is not one of its harmonics (a chord) on channel C. The noise is on
   channel B, its period from the spectral centroid. Volumes are in the
-  YM's 3 dB steps. It writes `binaries/ste/PCM_DAT/SZ2_YM.BIN`: 31
+  YM's 3 dB steps. It writes `binaries/st/PCM_DAT/SZ2_YM.BIN`: 31
   effects, 1,497 frames, 12 KB.
-- `tools/ste/ym_effects.py --preview DIR` also writes WAV files of every
+- `tools/st/ym_effects.py --preview DIR` also writes WAV files of every
   effect as sampled and as the YM plays it. `ALL.wav` has them all, each
   sampled then YM, and `ALL.txt` says where each one starts.
 - On the ST, `audio.s` writes one frame of the effect into the YM per VBL:
@@ -294,7 +294,7 @@ of text planes:
 
 ### The game code (`sz2.s`)
 
-The STE changes are all `ifd __STE__`; `-D__STE__` also defines `__PORT__`,
+The port's changes are all `ifd __ST__`; `-D__ST__` also defines `__PORT__`,
 `__CHUNKY__` (the Amiga port's hooks) and `__PORT_CREDITS__`:
 
 | Change | What it does |
@@ -307,7 +307,7 @@ The STE changes are all `ifd __STE__`; `-D__STE__` also defines `__PORT__`,
 | Stage hook | Auto fire |
 | Other | EXIT, `PRINTF`, the rotated screen (off), the menu credits |
 
-The X68000, Falcon and Amiga objects are unchanged (`build_ste.sh` checks
+The X68000, Falcon and Amiga objects are unchanged (`build_st.sh` checks
 this).
 
 ### Timing
@@ -405,8 +405,8 @@ The X68000's own sprite library code is already tight.
 
 ## Verification
 
-- **Xpad.** `tests/ste/xpad_test.sh` builds a scripted provider
-  (`tests/ste/xpad/xpadtest.s`, a TSR for `C:\AUTO` that presses buttons
+- **Xpad.** `tests/st/xpad_test.sh` builds a scripted provider
+  (`tests/st/xpad/xpadtest.s`, a TSR for `C:\AUTO` that presses buttons
   from `etv_timer`) and runs the game with it. Its grabs show the menu
   started with A, the ship moving while it fires, and the pause. With the
   same provider idle, the attract demo still matches all its checkpoints.
@@ -418,12 +418,12 @@ The X68000's own sprite library code is already tight.
   in lockstep, and on an ST with TOS 1.04 (no cookie jar), TOS 2.06 and
   EmuTOS. The DEMO3 and DEMO8 replays give the same 2,048 checkpoints
   before and after the shot slot change.
-- **Pixels.** `tests/ste/oracle.sh` builds with a frame dump at each
-  screenshot and runs the attract demo in lockstep. `tools/ste/refrender.py`
+- **Pixels.** `tests/st/oracle.sh` builds with a frame dump at each
+  screenshot and runs the attract demo in lockstep. `tools/st/refrender.py`
   draws each picture again from the dump, independently of the 68000 code,
   and every pixel and colour must match: 12 of 12 frames, on an STE and on
   an ST.
-- **Other targets.** `build_ste.sh` checks that the other objects of `sz2.s`
+- **Other targets.** `build_st.sh` checks that the other objects of `sz2.s`
   are unchanged.
 
 ## Open items and next steps

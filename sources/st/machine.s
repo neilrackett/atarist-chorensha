@@ -1,5 +1,5 @@
 
-; Atari STE / Mega STE machine set-up, from the Falcon port's machine.s: the
+; Atari ST machine set-up, from the Falcon port's machine.s: the
 ; cookie jar, then the hardware the port takes over (shifter, DMA sound, MFP,
 ; exception and interrupt vectors) saved, set and restored at exit.
 

@@ -1,5 +1,5 @@
 
-; The background on the Atari STE / Mega STE: the game's two GVRAM pages,
+; The background on the Atari ST: the game's two GVRAM pages,
 ; composed in advance.
 ;
 ; The game builds one background for the whole game (INITIALIZE_SPRITES_AND_

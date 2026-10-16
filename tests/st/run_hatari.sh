@@ -1,9 +1,9 @@
 #!/bin/bash
 #
-# Runs the Atari STE / Mega STE proof of concept in Hatari (modelled on
+# Runs the Atari ST port in Hatari (modelled on
 # atarist-stdl/tests/hatari/run.sh).
 #
-#   tests/ste/run_hatari.sh NAME ["cmd;cmd;..."]
+#   tests/st/run_hatari.sh NAME ["cmd;cmd;..."]
 #
 # The program and the game data are staged in tmp/stage_NAME/, which Hatari
 # mounts as GEMDOS drive C: and the program starts from (the Amiga port's
@@ -13,13 +13,13 @@
 # --conout 2) goes to tmp/out/NAME.log, screenshots to tmp/out/shots_NAME/.
 #
 # Environment:
-#   MACHINE   ste (default) or megaste (the program switches the Mega STE to
+#   MACHINE   st, ste (default) or megaste (the program switches the Mega STE to
 #             16 MHz and its cache; no --cpuclock)
 #   FRAMES    a frame limit: the game exits after that many frames (the
 #             attract demo) and writes CHECKPTS.BIN, copied to tmp/out/
 #   FF        fast forward, on (default with FRAMES) or off
 #   WINDOW    1: show Hatari's window (default: headless, SDL dummy driver)
-#   PROG      the program (default binaries/ste/SZ2_STE.TOS)
+#   PROG      the program (default binaries/st/SZ2_ST.TOS)
 #   TOS       the TOS image (default tmp/tos/tos206uk.img, copied from
 #             ../atarist-rott/tmp/tos/ when missing)
 #   MEMSIZE   RAM in MB (default 4)
@@ -45,7 +45,7 @@
 #
 # Measurement runs (FRAMES) also write a screenshot every 500 frames
 # (Snnnnnnn.PI1), copied to tmp/out/shots_NAME/ and converted to PNG with a
-# montage (tests/ste/pi1_png.py).
+# montage (tests/st/pi1_png.py).
 
 set -u
 
@@ -59,7 +59,7 @@ HATARI=${HATARI:-/Applications/Hatari.app/Contents/MacOS/hatari}
 MACHINE=${MACHINE:-ste}
 FRAMES=${FRAMES:-}
 WINDOW=${WINDOW:-0}
-PROG=${PROG:-binaries/ste/SZ2_STE.TOS}
+PROG=${PROG:-binaries/st/SZ2_ST.TOS}
 TOS=${TOS:-tmp/tos/tos206uk.img}
 MEMSIZE=${MEMSIZE:-4}
 TIMEOUT=${TIMEOUT:-900}
@@ -89,7 +89,7 @@ if [ ! -f "$TOS" ]; then
 	exit 2
 fi
 if [ ! -f "$PROG" ]; then
-	echo "$0: program not found: $PROG (run ./build_ste.sh)" >&2
+	echo "$0: program not found: $PROG (run ./build_st.sh)" >&2
 	exit 2
 fi
 
@@ -99,10 +99,10 @@ cp -R binaries/amiga/BGM_DAT binaries/amiga/ETC_DAT binaries/amiga/XSP_DAT "$STA
 cp -R binaries/atari/PCM_DAT "$STAGE/"
 
 # Only what the machine uses: an ST plays YM versions of the effects
-# (binaries/ste/PCM_DAT/SZ2_YM.BIN), an STE or Mega STE the samples.
+# (binaries/st/PCM_DAT/SZ2_YM.BIN), an STE or Mega STE the samples.
 if [ "$MACHINE" = "st" ]; then
 	rm -f "$STAGE"/PCM_DAT/*.sam "$STAGE"/PCM_DAT/*.SAM
-	cp binaries/ste/PCM_DAT/SZ2_YM.BIN "$STAGE/PCM_DAT/"
+	cp binaries/st/PCM_DAT/SZ2_YM.BIN "$STAGE/PCM_DAT/"
 fi
 if [ -n "${REPLAY:-}" ]; then
 	cp "binaries/atari/ETC_DAT/$REPLAY" "$STAGE/ETC_DAT/DEMO.REP" || exit 2
@@ -206,7 +206,7 @@ if ls "$STAGE"/F*.BIN > /dev/null 2>&1; then
 fi
 if ls "$STAGE"/S*.PI1 > /dev/null 2>&1; then
 	cp "$STAGE"/S*.PI1 "$SHOTDIR/"
-	python3 tests/ste/pi1_png.py --montage "$SHOTDIR/montage.png" "$SHOTDIR"/S*.PI1
+	python3 tests/st/pi1_png.py --montage "$SHOTDIR/montage.png" "$SHOTDIR"/S*.PI1
 fi
 
 echo "=== $NAME ($MACHINE, ${MEMSIZE} MB) console output ==="

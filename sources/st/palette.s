@@ -1,5 +1,5 @@
 
-; The STE's 16 colours (see tools/ste/palette_map.py): every X68000 palette
+; The ST's 16 colours (see tools/st/palette_map.py): every X68000 palette
 ; entry is drawn in one ST colour (palette_map.i, baked into the background
 ; table and the sprites), and each ST colour shows the current value of one
 ; representative X68000 entry, read from the video controller shadow for
@@ -22,7 +22,8 @@
 	text
 ; ------------------------------------------------------------------------------
 
-; a0 = 16 words: the STE colour registers for the next picture. Preserves
+; a0 = 16 words: the colour registers for the next picture (STE levels: an
+; ST ignores their low bits). Preserves
 ; the other registers.
 
 make_hardware_palette:

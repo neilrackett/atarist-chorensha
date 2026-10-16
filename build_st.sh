@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Atari STE / Mega STE proof of concept: builds binaries/ste/SZ2_STE.TOS
+# Atari ST / STE / Mega STE port: builds binaries/st/SZ2_ST.TOS
 # (stripped) and SZ2_DBG.TOS (with symbols, for the Hatari profiler) with the
 # atarist-toolkit-docker cross tools, through "stcmd" (the repository is
 # mounted at /tmp in the container; one tool per call).
@@ -10,12 +10,12 @@
 # the base revision's sz2.s (CHECK=0 skips this; BASE=<revision>, default
 # amiga-port).
 #
-#   ./build_ste.sh                 the game
-#   HEADLESS=1 ./build_ste.sh      the game without rendering (SZ2_HL.TOS:
+#   ./build_st.sh                 the game
+#   HEADLESS=1 ./build_st.sh      the game without rendering (SZ2_HL.TOS:
 #                                  game logic, checkpoints and timing only)
-#   RELEASE=1 ./build_ste.sh       the game without the measurements (SZ2_REL.TOS:
+#   RELEASE=1 ./build_st.sh       the game without the measurements (SZ2_REL.TOS:
 #                                  no Timer D, timing, checkpoints or report)
-#   FLAGS=... NAME=... ./build_ste.sh  extra defines, another program name
+#   FLAGS=... NAME=... ./build_st.sh  extra defines, another program name
 
 set -e
 
@@ -29,7 +29,7 @@ st() {
 	STCMD_NO_TTY=1 STCMD_QUIET=1 ST_WORKING_FOLDER="$ROOT" stcmd "$@"
 }
 
-OUT=binaries/ste
+OUT=binaries/st
 mkdir -p "$OUT" tmp/check
 
 if [ ! -f lib/xpad/src/xpad.inc ]; then
@@ -41,7 +41,7 @@ fi
 # for the colour tools' data runs); NAME: the program's name.
 
 PORT_FLAGS="${FLAGS:-}"
-DEFAULT_NAME=SZ2_STE
+DEFAULT_NAME=SZ2_ST
 if [ "${HEADLESS:-0}" = "1" ]; then
 	PORT_FLAGS="$PORT_FLAGS -D__HEADLESS__"
 	DEFAULT_NAME=SZ2_HL
@@ -52,12 +52,12 @@ if [ "${RELEASE:-0}" = "1" ]; then
 fi
 NAME=${NAME:-$DEFAULT_NAME}
 
-st vasmm68k_mot /tmp/sources/sz2.s -quiet -no-opt -Faout -m68000 -D__STE__ -I/tmp/sources -o /tmp/$OUT/sz2_ste.o
+st vasmm68k_mot /tmp/sources/sz2.s -quiet -no-opt -Faout -m68000 -D__ST__ -I/tmp/sources -o /tmp/$OUT/sz2_ste.o
 
 MODULES="main machine emulator input audio measure dump display background palette text sprites mem_map"
 
 for module in $MODULES; do
-	st vasmm68k_mot /tmp/sources/ste/$module.s -quiet -Faout -m68000 -I/tmp/sources/ste -I/tmp/lib/xpad/src $PORT_FLAGS -o /tmp/$OUT/$module.o
+	st vasmm68k_mot /tmp/sources/st/$module.s -quiet -Faout -m68000 -I/tmp/sources/st -I/tmp/lib/xpad/src $PORT_FLAGS -o /tmp/$OUT/$module.o
 done
 
 OBJECTS=""
@@ -65,7 +65,7 @@ for module in main sz2_ste mem_map machine emulator input audio measure dump dis
 	OBJECTS="$OBJECTS /tmp/$OUT/$module.o"
 done
 
-if [ "$NAME" = "SZ2_STE" ]; then
+if [ "$NAME" = "SZ2_ST" ]; then
 	st vlink $OBJECTS -bataritos -tos-flags 1 -estart -o /tmp/$OUT/SZ2_DBG.TOS
 fi
 st vlink $OBJECTS -s -bataritos -tos-flags 1 -estart -o /tmp/$OUT/$NAME.TOS

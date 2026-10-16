@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Convert Degas low-resolution pictures (.PI1: the STE port's screenshots)
+"""Convert Degas low-resolution pictures (.PI1: the ST port's screenshots)
 to PNG.
 
 The STE palette's 4-bit components hold their low bit in bit 3; each

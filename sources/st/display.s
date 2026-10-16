@@ -1,6 +1,6 @@
 
-; Atari STE / Mega STE display: ST low resolution (320 x 200, 16 colours),
-; double-buffered, drawn in bitplanes:
+; Atari ST display: low resolution (320 x 200, 16 colours),
+; triple-buffered, drawn in bitplanes:
 ;
 ;   lines 0-7     the HUD band: the X68000 text layer's row 0 (score, high
 ;                 score), drawn into all three screens by text.s when the game
@@ -378,7 +378,7 @@ wait_for_flip:
 ; ------------------------------------------------------------------------------
 ;
 ; Measurement runs: d0.l = frame; the picture just presented as a Degas
-; file, Snnnnnnn.PI1, with its colours (tests/ste/pi1_png.py converts it).
+; file, Snnnnnnn.PI1, with its colours (tests/st/pi1_png.py converts it).
 ; GEMDOS, from the game's frame wait.
 
 write_screenshot:
@@ -435,7 +435,7 @@ write_screenshot:
 	ifd __ORACLE__
 
 ; Oracle builds (lockstep runs): with each screenshot, Fnnnnnnn.BIN, what
-; the picture was drawn from, for tools/ste/refrender.py: 'CRSF', the
+; the picture was drawn from, for tools/st/refrender.py: 'CRSF', the
 ; window offset (word), background shown (byte), padding (byte), the pages'
 ; scroll Y0, Y1 and R1 (words), the sprites (word), the video controller
 ; shadow ($400 bytes), the text layer's character map (32 x 32 bytes), the

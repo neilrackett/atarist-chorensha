@@ -1,5 +1,5 @@
 
-; Sprites on the Atari STE / Mega STE, in bitplanes.
+; Sprites on the Atari ST, in bitplanes.
 ;
 ; The game's sprites are 16 x 16 X68000 patterns (4 bits per pixel, 16
 ; palettes, flips), up to 512 per frame in its sprite list. A variant is a

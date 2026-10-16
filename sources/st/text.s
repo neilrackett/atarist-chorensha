@@ -1,5 +1,5 @@
 
-; The X68000 text layer on the Atari STE / Mega STE: the game draws 8x8
+; The X68000 text layer on the Atari ST: the game draws 8x8
 ; characters (DRAW_CHARACTER, its font SZ_TEXT.pcg: 4 planes, X68000
 ; sprite/text palette block 0) into a 32 x 32 window that never scrolls. The
 ; port keeps the characters in a 32 x 32 map instead of the X68000's 512 KB
@@ -325,7 +325,7 @@ amiga_clear_text_planes:
 
 	rts
 
-; The DRAW_CHARACTER hook of other ports (dead code on the STE).
+; The DRAW_CHARACTER hook of other ports (dead code on the ST).
 
 amiga_text_row_written:
 	rts

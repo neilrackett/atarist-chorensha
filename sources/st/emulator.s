@@ -1,5 +1,5 @@
 
-; Human68k / X68000 emulation layer for the Atari STE / Mega STE, from the
+; Human68k / X68000 emulation layer for the Atari ST, from the
 ; Falcon port's emulator.s, with the Amiga port's call coverage and frame
 ; scheduling. The game runs in supervisor mode with the machine taken over:
 ;

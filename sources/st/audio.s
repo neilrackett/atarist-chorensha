@@ -9,7 +9,7 @@
 ;
 ; - STE, Mega STE: DMA sound plays the samples once each.
 ; - ST (no DMA sound): no samples; the YM2149 plays versions made by
-;   tools/ste/ym_effects.py, PCM_DAT\SZ2_YM.BIN (loaded at start: see the
+;   tools/st/ym_effects.py, PCM_DAT\SZ2_YM.BIN (loaded at start: see the
 ;   tool for its format): per 50 Hz VBL a frame of two tones (channels A
 ;   and C) and noise (channel B). The game's sample loader (sz2.s) asks
 ;   st_ym_effect for each sample's effect instead of loading it, and

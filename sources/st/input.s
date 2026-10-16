@@ -1,5 +1,5 @@
 
-; Atari STE / Mega STE input, from the Falcon port's input.s: IKBD keyboard
+; Atari ST input, from the Falcon port's input.s: IKBD keyboard
 ; and joystick (MFP ACIA interrupt), the STE's enhanced joystick port (a
 ; Jaguar pad; read every VBL, STE only: the Mega STE has no such port) and
 ; Xpad pads (any provider's: read every VBL).

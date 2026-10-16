@@ -175,17 +175,17 @@ drawer.
 - The port's technical notes are in `docs/AMIGA_PORT.md`.
 
 
-## Atari ST / STE / Mega STE
+## Atari ST port
 
-The `ste-poc` work runs the game in colour on an Atari ST, STE or Mega STE
-with 4 MB of RAM, at its full game speed. It draws about 12 pictures per
+The Atari ST version, by Neil Rackett, runs the game in colour on an Atari
+ST, STE or Mega STE with 4 MB of RAM, at its full game speed. It draws about 12 pictures per
 second on an ST or STE and 17 on a Mega STE (16 MHz with the cache,
 switched on automatically), in a 192-line window that follows the ship,
 and takes Xpad gamepads. An ST plays YM2149 versions of the sound
-effects, made from the samples by `tools/ste/ym_effects.py`
-(`binaries/ste/PCM_DAT/SZ2_YM.BIN`), and loads no samples. Building it
+effects, made from the samples by `tools/st/ym_effects.py`
+(`binaries/st/PCM_DAT/SZ2_YM.BIN`), and loads no samples. Building it
 (after `git submodule update --init`, for `lib/xpad`), running it in
-Hatari, how it works and the measurements: `docs/STE_PORT.md`.
+Hatari, how it works and the measurements: `docs/ST_PORT.md`.
 
 
 ## Credits
@@ -196,5 +196,6 @@ Hatari, how it works and the measurements: `docs/STE_PORT.md`.
 - Amiga port: Adam Polkosnik.
 - Music recorded with MCDRV 0.69 by CUL (free software), played by the
   Musashi 68000 emulator and rendered with ymfm's YM2151 (Aaron Giles).
-- Controller input on the Atari STE via Xpad, Copyright (c) 2026 Neil
+- Atari ST port: Neil Rackett
+- Controller input on the Atari ST via Xpad, Copyright (c) 2026 Neil
   Rackett, BSD-2-Clause. See `lib/xpad/LICENSE`.

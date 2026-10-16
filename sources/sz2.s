@@ -14,9 +14,9 @@ __CHUNKY__ equ 1
 	endif
 
 	; __CHUNKY__: the Amiga's chunky renderer and frame scheduler, shared by the
-	; Atari STE / Mega STE port (sources/ste: the Falcon's TOS layer with it).
+	; Atari ST port (sources/st: the Falcon's TOS layer with it).
 
-	ifd __STE__
+	ifd __ST__
 __PORT__ equ 1
 __CHUNKY__ equ 1
 __PORT_CREDITS__ equ 1
@@ -48,7 +48,7 @@ __PORT_CREDITS__ equ 1
 
 	endif
 
-	ifd __STE__
+	ifd __ST__
 
 	xdef VBL_VWAIT_COUNTER
 	xdef NEW_STACK
@@ -140,7 +140,7 @@ L_0002007C:
 	movea.l LONG_000221EC(pc),A1                    ; 0002007E 227A 216C
 	adda.w  D1,A1                                   ; 00020082 D2C1
 	movea.l CURRENT_SPRITE_DATA_ENTRY(pc),A0                    ; 00020084 207A 2140
-	ifd __STE__
+	ifd __ST__
 	move.l	st_sprite_buffer_end,D0 ; Two sprite tables in turn (sprites.s).
 	else
 	move.l  #BUFF_END_ADR,D0                       ; 00020088 203C 0005 F522
@@ -2936,9 +2936,9 @@ L_00021602:
 	rts                                             ; 00021620 4E75
 
 VBL_INTERRUPT_HANDLER:
-	ifd __STE__
+	ifd __ST__
 
-	; The STE port needs only the frame counters and the game's vsync
+	; The ST port needs only the frame counters and the game's vsync
 	; function (scroll registers, palette copies, colour cycling, the bomb
 	; flash); the rest drives X68000 sprite registers and raster
 	; interrupts, which the port does not use.
@@ -4134,7 +4134,7 @@ L_000220D8:
 	move.l  #$FFFFFFFF,(A0)+                        ; 000220DE 20FC FFFF FFFF
 	move.l  #$FFFFFFFF,(A0)+                        ; 000220E4 20FC FFFF FFFF
 
-	ifd __STE__
+	ifd __ST__
 	jsr		st_sprite_tables_reset ; The game fills the first table again (sprites.s).
 	endif
 
@@ -4540,14 +4540,14 @@ SET_TEXT_GRAPHICS:
 	rts                                             ; 00022370 4E75
 
 DRAW_CHARACTER:
-	ifd __STE__
+	ifd __ST__
 
 	jmp		st_draw_character ; A character map instead of the text planes (text.s).
 
 	endif
 
 	ifd __PORT__
-	ifnd __STE__ ; Falcon text bookkeeping.
+	ifnd __ST__ ; Falcon text bookkeeping.
 
 	lea		text_bitmaps,a0
 	move	8+2(sp),d0
@@ -4784,7 +4784,7 @@ L_000225E0:
 
 CLEAR_TEXT_PLANE:
 	ifd __PORT__
-	ifnd __STE__ ; Falcon text bookkeeping.
+	ifnd __ST__ ; Falcon text bookkeeping.
 
 	lea		text_bitmaps,a0
 
@@ -9928,13 +9928,13 @@ menu_port_text2:
 
 	endif
 
-	ifd __STE__
+	ifd __ST__
 
 menu_port_text1:
 	dc.b	'atari st PORT',0
 
 menu_port_text2:
-	dc.b	'ST, STE, MEGA STE',0
+	dc.b	'BY NEIL RACKETT',0
 
 	endif
 
@@ -10040,6 +10040,28 @@ L_00024DDC:
 
 	ifd __PORT_CREDITS__
 
+	ifd __ST__
+
+	; One row higher: rows 25-27, inside the ST's 192-line window (it shows
+	; X68000 lines 32-223 here).
+
+	pea     MENU_COPYRIGHT_TEXT(pc)
+	pea     $19.w
+	pea     $5.w
+	jsr     (a3)
+
+	pea     menu_port_text1(pc)
+	pea     $1a.w
+	pea     $6.w
+	jsr     (a3)
+
+	pea     menu_port_text2(pc)
+	pea     $1b.w
+	pea     $7.w
+	jsr     (a3)
+
+	else
+
 	pea     MENU_COPYRIGHT_TEXT(pc)
 	pea     $1a.w
 	pea     $5.w
@@ -10054,6 +10076,8 @@ L_00024DDC:
 	pea     $1c.w
 	pea     $7.w
 	jsr     (a3)
+
+	endif
 
 	lea     4*3*2(sp),sp
 
@@ -10876,7 +10900,7 @@ L_000255D8:
 	move.w  WORD_0008DAFC,D0                        ; 000255EA 3039 0008 DAFC
 	addq.w  #$1,D0                                  ; 000255F0 5240
 	and.w   #%0000000000000001,D0                   ; 000255F2 C07C 0001
-	ifd __STE__
+	ifd __ST__
 
 	moveq	#0,D0 ; No rotated screen: its builder writes GVRAM's right halves, which hold the layers.
 
@@ -12335,7 +12359,7 @@ L_0002633E:
 	addq.w  #$8,A7                                  ; 00026360 504F
 
 	cmp.w   #$FFFF,D1                               ; 00026362 B27C FFFF
-	ifd __STE__
+	ifd __ST__
 	bne.w   L_000263C2
 
 	; An ST (no DMA sound) loads no samples: the YM version of the effect
@@ -13407,7 +13431,7 @@ L_00026C04:
 
     endif
 
-	ifd __STE__
+	ifd __ST__
 
 	jmp		st_exit_game
 
@@ -17806,7 +17830,7 @@ INITIALIZE_SPRITES_AND_GRAPHICS:
 
 	else
 
-	ifd __STE__
+	ifd __ST__
 
 	; The background (built once, then composed into a table: background.s)
 	; is not built again; only the XSP set-up the builder starts with.
@@ -19365,7 +19389,7 @@ JOYSTICK_DIRECTIONS_HANDLER:
 
 	endif
 
-	ifd __STE__
+	ifd __ST__
 
 	st		st_stage_frame ; This frame is in a stage: auto fire (input.s).
 
@@ -20386,7 +20410,7 @@ L_0002B3FE:
 	clr.w   (A0)                                    ; 0002B40E 4250
 
 L_0002B410:
-	ifd __STE__
+	ifd __ST__
 
 	; The shot slots, in registers: the same work as below, with
 	; L_00022D56 (the collision grid) and XSP_SET_ST inlined instruction
@@ -90029,7 +90053,7 @@ BYTE_00059E10:
 	dc.b    $04                                    ;  ; 00059F15
 
 PRINTF:
-	ifd __STE__
+	ifd __ST__
 
 	rts
 

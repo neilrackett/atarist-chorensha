@@ -27,7 +27,7 @@ and their number (word, then a padding word); then the frames, per 50 Hz
 VBL: the first tone's volume (channel A: bits 0-3) and the noise's
 (channel B: bits 4-7); the second tone's volume (channel C); the noise
 period; a padding byte; the two tone periods (words). Big-endian.
-sources/ste/audio.s plays them one effect at a time, as the game does.
+sources/st/audio.s plays them one effect at a time, as the game does.
 
 With --preview DIR, WAV files of each effect as sampled and as a YM2149
 plays the frames (rendered here: tone squares, the 17-bit noise register,
@@ -36,7 +36,7 @@ turn.
 
 usage:
     ym_effects.py [--pcm binaries/atari/PCM_DAT]
-                  [-o binaries/ste/PCM_DAT/SZ2_YM.BIN] [--preview DIR]
+                  [-o binaries/st/PCM_DAT/SZ2_YM.BIN] [--preview DIR]
 """
 
 import argparse
@@ -291,7 +291,7 @@ def write_wav(path, signal):
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--pcm", default="binaries/atari/PCM_DAT")
-    parser.add_argument("-o", "--output", default="binaries/ste/PCM_DAT/SZ2_YM.BIN")
+    parser.add_argument("-o", "--output", default="binaries/st/PCM_DAT/SZ2_YM.BIN")
     parser.add_argument("--preview")
     args = parser.parse_args()
 

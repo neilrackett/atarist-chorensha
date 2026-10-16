@@ -1,5 +1,5 @@
 
-; Data for the colour tools (tools/ste/palette_map.py), from measurement runs
+; Data for the colour tools (tools/st/palette_map.py), from measurement runs
 ; (a frame limit set):
 ;
 ; - USAGE.BIN: how many pixels of each sprite/text palette entry the game

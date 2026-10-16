@@ -1,5 +1,5 @@
 
-; Cho Ren Sha 68k: Atari ST / STE / Mega STE port, from the Falcon
+; Cho Ren Sha 68k: Atari ST port, from the Falcon
 ; port's main.s: memory set-up, machine detection, start-up and exit report.
 ;
 ; Memory: the TOS program (text, data, BSS: the X68000 shadows, GVRAM, the
@@ -761,7 +761,7 @@ welcome_text:
 	dc.b	'(c) 1995 Famibe No Yosshin (X68000).',13,10
 	dc.b	'Falcon port: Sascha Springer.',13,10
 	dc.b	'Amiga port: Adam Polkosnik.',13,10
-	dc.b	'Atari ST / STE / Mega STE port.',13,10,13,10,0
+	dc.b	'Atari ST port: Neil Rackett.',13,10,13,10,0
 st_text:
 	dc.b	'Machine: Atari ST, 8 MHz.',13,10
 	dc.b	'No DMA sound: no sound effects.',13,10,0
@@ -794,7 +794,7 @@ no_data_help_text:
 	dc.b	13,10,'BGM_DAT, ETC_DAT and XSP_DAT',13,10
 	dc.b	'(binaries/amiga) and PCM_DAT',13,10
 	dc.b	'(binaries/atari; an ST: SZ2_YM.BIN',13,10
-	dc.b	'from binaries/ste/PCM_DAT) go next',13,10
+	dc.b	'from binaries/st/PCM_DAT) go next',13,10
 	dc.b	'to the program.',13,10,0
 bgm_data_file_name:
 	dc.b	'BGM_DAT\SZ2_BGM.CNF',0
