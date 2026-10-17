@@ -15,6 +15,11 @@
 ; - The stages the game reached (the stage word, PLAYER_SCORE + 4), for the
 ;   exit report, and per stage (its low 4 bits) the frames, the 50 Hz ticks,
 ;   the pictures shown and their render time.
+; - Per second of gameplay (50 ticks, every frame in a stage): its pictures
+;   per second, in a histogram, for the exit report's worst, 10%, median,
+;   90% and best seconds (n%: n% of the seconds are at or below it), the
+;   histogram itself and the frames where the first seconds of 0 or 1
+;   picture ended.
 
 	xdef record_stage
 	xdef stage_picture
@@ -47,10 +52,15 @@
 	xref times_500
 	xref units_to_tenths_ms
 	xref total_vbl_count
+	xref in_stage
+	xref frame_count
 
 	include "st.i"
 
 STAGE_SLOTS=16
+SECOND_TICKS=50
+MAXIMUM_RATE=50 ; Pictures per second: one per tick at most.
+SLOW_SECONDS=12 ; Of 0 or 1 picture: where the first ones ended.
 
 ; ------------------------------------------------------------------------------
 	text
@@ -181,10 +191,11 @@ make_histogram:
 	endif
 
 ; At each frame end: remembers the stage word's low byte, counts the frame
-; and the ticks since the last one for the stage. Preserves all registers.
+; and the ticks since the last one for the stage; ends a gameplay second
+; when its ticks are done. Preserves all registers.
 
 record_stage:
-	movem.l	d0-d2/a0,-(sp)
+	movem.l	d0-d3/a0,-(sp)
 
 	moveq	#0,d0
 	move.b	PLAYER_SCORE+5,d0
@@ -206,7 +217,62 @@ record_stage:
 	lea		stage_ticks,a0
 	add.l	d1,(a0,d0.w)
 
-	movem.l	(sp)+,d0-d2/a0
+	; The second (d2 = ticks now).
+
+	tst.b	in_stage
+	bne		.in_stage
+
+	sf		second_clean ; A frame out of a stage: not gameplay.
+
+.in_stage:
+	move.l	d2,d1
+	sub.l	second_start,d1
+	cmp.l	#SECOND_TICKS,d1
+	bcs		.second_open
+
+	tst.b	second_clean
+	beq		.next_second
+
+	cmp.l	#SECOND_TICKS*2,d1
+	bcc		.next_second ; (A long stop, not a second of play.)
+
+	moveq	#0,d0 ; Pictures * 50 / ticks, rounded.
+	move	second_pictures,d0
+	mulu	#SECOND_TICKS,d0
+	move	d1,d3
+	lsr		#1,d3
+	add		d3,d0
+	divu	d1,d0
+	cmp		#MAXIMUM_RATE,d0
+	bls		.rate_ok
+
+	moveq	#MAXIMUM_RATE,d0
+
+.rate_ok:
+	cmp		#1,d0
+	bhi		.not_slow
+
+	move	slow_count,d3
+	cmp		#SLOW_SECONDS,d3
+	beq		.not_slow
+
+	addq	#1,slow_count
+	lsl		#2,d3
+	lea		slow_frames,a0
+	move.l	frame_count,(a0,d3.w)
+
+.not_slow:
+	lsl		#2,d0
+	lea		rate_histogram,a0
+	addq.l	#1,(a0,d0.w)
+
+.next_second:
+	move.l	d2,second_start
+	clr		second_pictures
+	st		second_clean
+
+.second_open:
+	movem.l	(sp)+,d0-d3/a0
 
 	rts
 
@@ -222,6 +288,7 @@ stage_picture:
 	addq.l	#1,(a0,d1.w)
 	lea		stage_render,a0
 	add.l	d0,(a0,d1.w)
+	addq	#1,second_pictures
 
 	movem.l	(sp)+,d1/a0
 
@@ -329,9 +396,152 @@ print_stages:
 	cmp		#STAGE_SLOTS,d2
 	bne		.slot_loop
 
+	bsr		print_rates
+
 	movem.l	(sp)+,d0-d2/a0-a1
 
 	rts
+
+; Exit report: the gameplay seconds' pictures per second. Preserves all
+; registers.
+
+print_rates:
+	movem.l	d0-d4/a0-a1,-(sp)
+
+	lea		rate_histogram,a1 ; d2.l = seconds, d3.l = their pictures.
+	moveq	#0,d1
+	moveq	#0,d2
+	moveq	#0,d3
+
+.sum_loop:
+	move.l	(a1)+,d0
+	add.l	d0,d2
+	mulu	d1,d0
+	add.l	d0,d3
+	addq	#1,d1
+	cmp		#MAXIMUM_RATE,d1
+	bls		.sum_loop
+
+	tst.l	d2
+	beq		.done
+
+	lea		rates_text,a0
+	jsr		print_text
+	move.l	d2,d0
+	jsr		print_number
+
+	lea		rates_worst_text,a0
+	moveq	#0,d0 ; (1 second.)
+	bsr		.percentile
+	lea		rates_10_text,a0
+	moveq	#10,d0
+	bsr		.percentile
+	lea		rates_median_text,a0
+	moveq	#50,d0
+	bsr		.percentile
+	lea		rates_90_text,a0
+	moveq	#90,d0
+	bsr		.percentile
+	lea		rates_best_text,a0
+	moveq	#100,d0
+	bsr		.percentile
+
+	lea		rates_mean_text,a0
+	jsr		print_text
+	move.l	d3,d0 ; Tenths: pictures * 10 / seconds.
+	add.l	d0,d0
+	move.l	d0,d1
+	lsl.l	#2,d0
+	add.l	d1,d0
+	move.l	d2,d1
+	jsr		divide_unsigned
+	jsr		print_tenths
+
+	lea		line_end_text,a0
+	jsr		print_text
+
+	; The histogram: rate:seconds for each rate seen.
+
+	lea		rate_seconds_text,a0
+	jsr		print_text
+	lea		rate_histogram,a1
+	moveq	#0,d4
+
+.histogram_loop:
+	move.l	(a1)+,d3
+	beq		.next_rate
+
+	lea		space_text,a0
+	jsr		print_text
+	move.l	d4,d0
+	jsr		print_number
+	lea		colon_text,a0
+	jsr		print_text
+	move.l	d3,d0
+	jsr		print_number
+
+.next_rate:
+	addq	#1,d4
+	cmp		#MAXIMUM_RATE,d4
+	bls		.histogram_loop
+
+	lea		line_end_text,a0
+	jsr		print_text
+
+	move	slow_count,d4
+	beq		.done
+
+	lea		slow_frames_text,a0
+	jsr		print_text
+	lea		slow_frames,a1
+	subq	#1,d4
+
+.slow_loop:
+	lea		space_text,a0
+	jsr		print_text
+	move.l	(a1)+,d0
+	jsr		print_number
+	dbf		d4,.slow_loop
+
+	lea		line_end_text,a0
+	jsr		print_text
+
+.done:
+	movem.l	(sp)+,d0-d4/a0-a1
+
+	rts
+
+; a0 = label, d0 = percent: prints the lowest rate that percent of the
+; d2.l seconds (at least one of them) are at or below.
+
+.percentile:
+	jsr		print_text
+
+	mulu	d2,d0
+	add.l	#99,d0
+	divu	#100,d0
+	and.l	#$ffff,d0
+	bne		.count_ok
+
+	moveq	#1,d0
+
+.count_ok:
+	lea		rate_histogram,a1
+	moveq	#0,d1
+	moveq	#0,d4
+
+.count_loop:
+	add.l	(a1)+,d1
+	cmp.l	d0,d1
+	bcc		.found
+
+	addq	#1,d4
+	cmp		#MAXIMUM_RATE,d4
+	bcs		.count_loop
+
+.found:
+	move.l	d4,d0
+	jmp		print_number
 
 	ifd __USAGE__
 
@@ -431,6 +641,28 @@ stage_render_text:
 	dc.b	'), render ',0
 stage_end_text:
 	dc.b	' ms',13,10,0
+rates_text:
+	dc.b	'Gameplay seconds: ',0
+rates_worst_text:
+	dc.b	', pictures per second: worst ',0
+rates_10_text:
+	dc.b	', 10% ',0
+rates_median_text:
+	dc.b	', median ',0
+rates_90_text:
+	dc.b	', 90% ',0
+rates_best_text:
+	dc.b	', best ',0
+rates_mean_text:
+	dc.b	', mean ',0
+rate_seconds_text:
+	dc.b	'Gameplay seconds per rate (pictures:seconds):',0
+slow_frames_text:
+	dc.b	'Seconds of 0 or 1 picture, ending at frames:',0
+space_text:
+	dc.b	' ',0
+colon_text:
+	dc.b	':',0
 
 	even
 
@@ -452,6 +684,19 @@ stage_pictures:
 	ds.l	STAGE_SLOTS
 stage_render:
 	ds.l	STAGE_SLOTS
+rate_histogram: ; Per pictures per second (0-50): gameplay seconds.
+	ds.l	MAXIMUM_RATE+1
+second_start: ; Ticks.
+	ds.l	1
+second_pictures:
+	ds.w	1
+second_clean: ; Every frame so far in a stage.
+	ds.b	1
+	even
+slow_count:
+	ds.w	1
+slow_frames: ; Frame counts.
+	ds.l	SLOW_SECONDS
 	ifd __USAGE__
 usage_frames:
 	ds.l	1

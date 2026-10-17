@@ -14,10 +14,10 @@ pad port; the Mega STE adds 16 MHz and its cache.
 
 **Results, in short.** Measured in Hatari 2.6.1 with TOS 2.06 and 4 MB. The
 attract demo runs 6,000 frames; the full-game replays reach stages 1 to 5.
-A plain ST (4 MB, TOS 1.04) draws a little faster than an STE: 12.3
-pictures per second in the attract demo, 12.6 with the release build. It
-loads no samples, so its sprite cache is bigger (1,347 KB in the release
-build, against the STE's 953 KB).
+A plain ST (4 MB, TOS 1.04) draws a little faster than an STE: 12.7
+pictures per second in the attract demo (12.9 with the release build) and
+12.0 and 12.9 in the full-game replays. It loads no samples, so its sprite
+cache is bigger (1,347 KB in the release build, against the STE's 953 KB).
 
 | | STE (8 MHz) | Mega STE (16 MHz, cache) |
 |---|---|---|
@@ -27,7 +27,8 @@ build, against the STE's 953 KB).
 | Game logic per frame: median / 95% / mean (attract demo) | 5.9 / 11.8 / 6.9 ms | 3.9 / 7.9 / 4.5 ms |
 | Render per picture (attract demo) | 47.7 ms | 36.4 ms |
 | **Pictures per second, attract demo** | **12.1** (12.4 release build) | **17.1** (17.4 release build) |
-| **Pictures per second, full-game replays** (DEMO3, DEMO8) | **11.5, 12.4** (8.7-14.4 by stage) | **16.2, 16.9** (13.3-18.8 by stage) |
+| **Pictures per second, full-game replays** (DEMO3, DEMO8) | **11.8, 12.7** (9.0-15.8 by stage) | **16.5, 17.1** (13.6-19.8 by stage) |
+| **Per second of gameplay** (both replays): median, 10% / 90% | **11** (4 / 25) | **17** (8 / 25) |
 | First game start (the background is composed once) | 5.7 s | 3.4 s |
 
 - **It fits, with room for a sprite cache.** The X68000's GVRAM and text
@@ -368,19 +369,47 @@ set it, for COMpad.)
 
 ### Pictures per second by stage (full-game replays, 190,000 frames)
 
-| Stage | STE DEMO3 | STE DEMO8 | Mega STE DEMO3 | Mega STE DEMO8 |
-|---|---|---|---|---|
-| 1 | 13.0 | 14.4 | 17.8 | 18.8 |
-| 2 | 13.3 | 14.1 | 18.0 | 18.5 |
-| 3 | 10.3 | 11.5 | 15.2 | 16.2 |
-| 4 | 8.7 | 10.3 | 13.3 | 14.8 |
-| 5 (part) | 15.7 | 10.2 | 19.7 | 14.7 |
-| **All** | **11.5** | **12.4** | **16.2** | **16.9** |
+| Stage | ST DEMO3 | ST DEMO8 | STE DEMO3 | STE DEMO8 | Mega STE DEMO3 | Mega STE DEMO8 |
+|---|---|---|---|---|---|---|
+| 1 | 13.5 | 14.9 | 13.3 | 14.7 | 18.1 | 19.1 |
+| 2 | 13.8 | 14.6 | 13.5 | 14.5 | 18.1 | 18.7 |
+| 3 | 10.8 | 12.0 | 10.5 | 11.9 | 15.5 | 16.4 |
+| 4 | 9.2 | 10.9 | 9.0 | 10.6 | 13.6 | 15.1 |
+| 5 (part) | 15.8 | 10.4 | 15.8 | 10.3 | 19.8 | 14.9 |
+| **All** | **12.0** | **12.9** | **11.8** | **12.7** | **16.5** | **17.1** |
 
-Game logic over the replays, median / 95%: STE 7.4 / 14.8 ms (DEMO3) and
-6.4 / 14.3 ms (DEMO8); Mega STE 4.9 / 9.4 and 4.4 / 9.4 ms. The stages
-are the low 4 bits of the game's stage word; DEMO3 ends early in stage 5,
-DEMO8 later.
+Game logic over the replays, median / 95%: ST and STE 6.9 / 14.3 ms
+(DEMO3) and 6.4 / 13.8 ms (DEMO8); Mega STE 4.9 / 9.4 and 4.4 / 8.9 ms.
+The stages are the low 4 bits of the game's stage word; DEMO3 ends early
+in stage 5, DEMO8 later.
+
+### Pictures per second, second by second
+
+The exit report also counts each second of gameplay (50 ticks, every
+frame in a stage) by the pictures it showed. Over both replays (about
+7,300 seconds per machine):
+
+| Pictures per second | ST | STE | Mega STE |
+|---|---|---|---|
+| 25 (the most) | 14.9% | 15.0% | 23.9% |
+| 20-24 | 6.0% | 5.8% | 14.8% |
+| 15-19 | 13.5% | 13.1% | 22.1% |
+| 10-14 | 24.7% | 23.6% | 24.1% |
+| 5-9 | 28.7% | 28.6% | 13.6% |
+| Under 5 | 12.2% | 13.9% | 1.4% |
+| **Median (25% / 75%)** | **11** (7 / 17) | **11** (6 / 17) | **17** (12 / 24) |
+| Mean | 12.6 | 12.3 | 16.9 |
+
+- **25 is the ceiling on every machine.** A picture shows when the game is
+  on time after it, so 50 per second would need the game logic and a whole
+  picture within one 20 ms tick. The background copy alone takes 13.5-14.4
+  ms (bound by the bus, so the Mega STE's 16 MHz barely helps), so every
+  picture spans at least two ticks.
+- **The slowest seconds** (0 or 1 picture: 2-3% of the seconds on an ST
+  or STE, 0.1% on a Mega STE) are the heaviest scenes: screens full of
+  explosions, the bosses, walls of shots. There the game itself can fall
+  behind for a moment: over each replay it ran about 2 s behind real time
+  on an ST or STE, besides the first game start.
 
 ### Where a picture's time goes
 
