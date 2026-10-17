@@ -13,6 +13,7 @@
 	xdef machine_is_mega_ste
 	xdef machine_has_ste_hardware
 	xdef set_cpu_speed
+	xdef restore_cpu_speed
 	xdef force_8mhz
 	xdef mega_ste_control
 
@@ -22,7 +23,7 @@
 	xref trap_f_handler
 	xref vbl_handler
 	xref ikbd_handler
-	xref timer_d_handler
+	xref timer_a_handler
 	xref exception_bus_error
 	xref exception_address_error
 	xref exception_illegal
@@ -153,8 +154,8 @@ initialize_machine:
 	move.b	$fffffa13.w,old_fa13
 	move.b	$fffffa15.w,old_fa15
 	move.b	$fffffa17.w,old_fa17
-	move.b	$fffffa1d.w,old_fa1d
-	move.b	$fffffa25.w,old_fa25
+	move.b	$fffffa19.w,old_fa19
+	move.b	$fffffa1f.w,old_fa1f
 
 	; Vectors.
 
@@ -211,8 +212,7 @@ initialize_machine:
 	movem.l	st_palette,d0-d7
 	movem.l	d0-d7,$ffff8240.w
 
-	; IKBD (ACIA) and Timer D (measurements, 150 Hz overflows; not in the
-	; release build).
+	; IKBD (ACIA).
 
 	bset	#6,$fffffa09.w
 	bset	#6,$fffffa15.w
@@ -240,11 +240,14 @@ initialize_machine:
 
 .no_xpad:
 	ifnd __RELEASE__
-	and.b	#$f0,$fffffa1d.w ; Timer D stopped.
-	clr.b	$fffffa25.w ; 256.
-	or.b	#5,$fffffa1d.w ; Divide by 64: 38400 Hz.
-	bset	#4,$fffffa09.w
-	bset	#4,$fffffa15.w
+	; Timer A for the measurements (150 Hz overflows), not Timer D: that is
+	; the serial port's baud rate clock, which COMpad needs as TOS set it.
+
+	clr.b	$fffffa19.w ; Stopped.
+	clr.b	$fffffa1f.w ; 256.
+	move.b	#5,$fffffa19.w ; Divide by 64: 38400 Hz.
+	bset	#5,$fffffa07.w
+	bset	#5,$fffffa13.w
 	endif
 
 	bclr	#3,$fffffa17.w ; Automatic end of interrupt.
@@ -275,19 +278,25 @@ set_cpu_speed:
 
 	rts
 
+; A Mega STE back to the speed and cache it had before set_cpu_speed.
+
+restore_cpu_speed:
+	tst.b	machine_is_mega_ste ; (set_cpu_speed ran.)
+	beq		.done
+
+	move.b	old_8e21,$ffff8e21.w
+
+.done:
+	rts
+
 ; ------------------------------------------------------------------------------
 
 release_machine:
 	move	#$2700,sr
 
 	jsr		audio_silence
+	bsr		restore_cpu_speed
 
-	tst.b	machine_is_mega_ste ; (set_cpu_speed ran.)
-	beq		.speed_restored
-
-	move.b	old_8e21,$ffff8e21.w
-
-.speed_restored:
 	tst.b	machine_has_ste_hardware
 	beq		.no_sound_restored
 
@@ -301,9 +310,9 @@ release_machine:
 	move.b	old_fa13,$fffffa13.w
 	move.b	old_fa15,$fffffa15.w
 	move.b	old_fa17,$fffffa17.w
-	and.b	#$f0,$fffffa1d.w
-	move.b	old_fa25,$fffffa25.w
-	move.b	old_fa1d,$fffffa1d.w
+	clr.b	$fffffa19.w
+	move.b	old_fa1f,$fffffa1f.w
+	move.b	old_fa19,$fffffa19.w
 
 	lea		vector_list,a0
 	lea		old_vectors,a1
@@ -375,8 +384,8 @@ vector_list:
 	dc.w	$70
 	dc.l	vbl_handler
 	ifnd __RELEASE__
-	dc.w	$110
-	dc.l	timer_d_handler ; (Measurements.)
+	dc.w	$134
+	dc.l	timer_a_handler ; (Measurements.)
 	endif
 	dc.w	$118
 	dc.l	ikbd_handler
@@ -431,9 +440,9 @@ old_fa15:
 	ds.b	1
 old_fa17:
 	ds.b	1
-old_fa1d:
+old_fa19:
 	ds.b	1
-old_fa25:
+old_fa1f:
 	ds.b	1
 
 	even

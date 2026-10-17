@@ -17,6 +17,8 @@ MACHINE=${MACHINE:-ste}
 FRAMES=${FRAMES:-6500}
 NAME=oracle_$MACHINE
 
+mkdir -p tmp/out
+
 FLAGS="-D__ORACLE__ -D__DUMP__" NAME=SZ2_ORC CHECK=0 ./build_st.sh > /dev/null
 
 PROG=binaries/st/SZ2_ORC.TOS LOCKSTEP=1 MACHINE=$MACHINE FRAMES=$FRAMES TIMEOUT=3600 \

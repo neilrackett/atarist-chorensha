@@ -17,7 +17,7 @@ cd "$ROOT"
 MACHINE=${MACHINE:-ste}
 PROG=${PROG:-binaries/st/SZ2_REL.TOS}
 
-mkdir -p tmp/xpadtest
+mkdir -p tmp/xpadtest tmp/out
 STCMD_NO_TTY=1 STCMD_QUIET=1 ST_WORKING_FOLDER="$ROOT" stcmd vasmm68k_mot \
 	/tmp/tests/st/xpad/xpadtest.s -quiet -Ftos -m68000 -I/tmp/lib/xpad/src \
 	-o /tmp/tmp/xpadtest/XPADTEST.PRG

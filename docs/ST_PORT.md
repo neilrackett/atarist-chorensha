@@ -318,9 +318,10 @@ The 50 Hz VBL is the game's frame tick, so the game runs at 50 instead of
 - If it is late, the frame is not drawn and the game catches up, with up to
   64 frames of debt.
 
-Measurement builds time everything with MFP Timer D (38,400 Hz,
+Measurement builds time everything with MFP Timer A (38,400 Hz,
 independent of the CPU speed): game logic per frame, render per picture,
-and its parts.
+and its parts. (Timer D, the serial port's baud rate clock, stays as TOS
+set it, for COMpad.)
 
 ## Memory
 

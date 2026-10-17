@@ -208,6 +208,7 @@ def ym_frames(analysis, reference):
 
 YM_ENTRY_SIZE = 20
 YM_FRAME_SIZE = 8
+YM_MAXIMUM_FRAMES = 255  # audio.s keeps the position in 1/256 frames in a word.
 
 
 def write_effects(path, effects):
@@ -216,6 +217,8 @@ def write_effects(path, effects):
     directory = b""
     frames_data = b""
     for name, frames in effects:
+        if len(frames) > YM_MAXIMUM_FRAMES:
+            raise SystemExit("%s: %d frames, at most %d play" % (name, len(frames), YM_MAXIMUM_FRAMES))
         directory += struct.pack(">12sLHH", name.encode("ascii")[:12], offset + len(frames_data),
                                  len(frames), 0)
         for volume_a, noise_volume, volume_c, noise_period, period_a, period_c in frames:

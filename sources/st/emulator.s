@@ -1277,8 +1277,8 @@ exception_vector:
 	ds.w	1
 last_sprite_count:
 	ds.w	1
-unimplemented_dos: ; Opcodes, 0 = free.
-	ds.w	MAXIMUM_UNIMPLEMENTED_DOS
+unimplemented_dos: ; Opcodes, 0 = free (then a 0: the report's end).
+	ds.w	MAXIMUM_UNIMPLEMENTED_DOS+1
 unimplemented_iocs: ; Per function: non-zero if called.
 	ds.b	256
 

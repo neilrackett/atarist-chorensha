@@ -32,6 +32,7 @@
 	xref machine_is_ste
 	xref machine_is_mega_ste
 	xref set_cpu_speed
+	xref restore_cpu_speed
 	xref force_8mhz
 	xref mega_ste_control
 	xref initialize_display
@@ -254,6 +255,17 @@ start:
 .effects_loaded:
 	jsr		initialize_display
 	jsr		initialize_renderer
+
+	tst.l	arena_size
+	bne		.arena_ok ; (Without one no sprite would be drawn.)
+
+	lea		no_arena_text,a0
+	jsr		print_text
+	jsr		restore_cpu_speed
+
+	bra		.wait_and_exit
+
+.arena_ok:
 	jsr		reset_input
 	jsr		load_input_script
 
@@ -791,6 +803,8 @@ data_files: ; Checked at start (a file the game loads from each folder).
 	dc.l	pcm_data_file_name,0
 no_memory_text:
 	dc.b	'Not enough memory: needs ',0
+no_arena_text:
+	dc.b	'Not enough memory for the sprites.',13,10,0
 of_text:
 	dc.b	' KB of ',0
 tpa_text:

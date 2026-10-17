@@ -92,12 +92,25 @@ ikbd_handler:
 
 .next_byte:
 	btst	#0,$fffffc00.w ; Receiver full?
-	beq		.done
+	beq		.midi
 
 	moveq	#0,d0
 	move.b	$fffffc02.w,d0
 	move.l	ikbd_state,a0
 	jsr		(a0)
+
+	bra		.next_byte
+
+.midi:
+	; The MIDI ACIA shares the interrupt line: a byte it holds (or an
+	; overrun) keeps the line low, and no keyboard interrupt would come
+	; again. Its bytes are dropped.
+
+	moveq	#%00100001,d0 ; Overrun, receiver full.
+	and.b	$fffffc04.w,d0
+	beq		.done
+
+	tst.b	$fffffc06.w
 
 	bra		.next_byte
 
@@ -361,6 +374,8 @@ input_tick:
 	beq		.done
 
 	movem.l	d0-d1,-(sp)
+	move	sr,-(sp)
+	or		#$0700,sr ; (A provider's Timer C poll selects rows too.)
 
 	moveq	#-1,d1
 
@@ -385,6 +400,7 @@ input_tick:
 	bclr	#X68_TRIGGER_B,d1
 
 .b_up:
+	move	(sp)+,sr
 	move.b	d1,pad_joystick_state
 
 	movem.l	(sp)+,d0-d1

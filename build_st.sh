@@ -14,7 +14,7 @@
 #   HEADLESS=1 ./build_st.sh      the game without rendering (SZ2_HL.TOS:
 #                                  game logic, checkpoints and timing only)
 #   RELEASE=1 ./build_st.sh       the game without the measurements (SZ2_REL.TOS:
-#                                  no Timer D, timing, checkpoints or report)
+#                                  no Timer A, timing, checkpoints or report)
 #   FLAGS=... NAME=... ./build_st.sh  extra defines, another program name
 
 set -e

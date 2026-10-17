@@ -2,7 +2,7 @@
 ; Measurements, printed at exit (Cconws, so Hatari's
 ; --conout 2 copies them to the host):
 ;
-; - Time: MFP Timer D divides 2457600 Hz by 64 (38400 Hz, 26.04 us units)
+; - Time: MFP Timer A divides 2457600 Hz by 64 (38400 Hz, 26.04 us units)
 ;   and overflows every 256 counts (150 Hz); the overflows are counted, so
 ;   read_timer gives a 32-bit clock independent of the CPU speed.
 ; - Game logic per frame (from the end of one frame wait to the start of the
@@ -15,7 +15,7 @@
 ;   CHECKPTS.BIN in the Amiga port's checkpoints.bin format (compared with
 ;   tests/amiga/checkpoints.py against tests/amiga/reference/).
 
-	xdef timer_d_handler
+	xdef timer_a_handler
 	xdef read_timer
 	xdef measure_logic
 	xdef measure_picture
@@ -60,12 +60,12 @@ BUCKET_UNITS=19 ; 0.495 ms.
 	text
 ; ------------------------------------------------------------------------------
 
-timer_d_handler:
+timer_a_handler:
 	addq.l	#1,timer_overflows
 
 	rte
 
-; d0.l = time in Timer D units (26.04 us). Preserves the other registers.
+; d0.l = time in Timer A units (26.04 us). Preserves the other registers.
 
 read_timer:
 	move.l	d1,-(sp)
@@ -77,12 +77,12 @@ read_timer:
 	; before the check is in the counted period.
 
 	moveq	#0,d0
-	move.b	$fffffa25.w,d0 ; Counts down from 256 (reads 0 just after a reload).
+	move.b	$fffffa1f.w,d0 ; Counts down from 256 (reads 0 just after a reload).
 	move.l	timer_overflows,d1
-	btst	#4,$fffffa0d.w
+	btst	#5,$fffffa0b.w
 	beq		.counted
 
-	move.b	$fffffa25.w,d0
+	move.b	$fffffa1f.w,d0
 	addq.l	#1,d1
 
 .counted:
@@ -445,7 +445,7 @@ print_measurements:
 
 ; ------------------------------------------------------------------------------
 ;
-; d0.l = Timer D units -> d0.l = tenths of a millisecond (units * 25 / 96).
+; d0.l = Timer A units -> d0.l = tenths of a millisecond (units * 25 / 96).
 ; Preserves the other registers.
 
 units_to_tenths_ms:
