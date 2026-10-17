@@ -6,8 +6,9 @@ second), and the pictures are drawn as fast as the machine allows, leaving
 out the rest. It builds with the atarist-toolkit-docker tools (`stcmd`). It
 has been tested in Hatari only.
 
-One program runs on all three. It needs no BLiTTER, so a plain ST draws as
-fast as an STE. What the STE adds is DMA sound (on an ST the YM2149 plays
+One program runs on all three. It needs no BLiTTER (an STE uses its
+BLiTTER for the background copy only), so a plain ST draws nearly as fast
+as an STE. What the STE adds is DMA sound (on an ST the YM2149 plays
 versions of the sound effects made from the samples), 4,096 colours instead
 of 512 (the same colour code: an ST ignores the extra bit) and its Jaguar
 pad port; the Mega STE adds 16 MHz and its cache.
@@ -215,8 +216,17 @@ bitplanes, which replaces GVRAM:
 
 For playfield line g, a = (g + Y0) & 255 and s = ((g + Y1) − a) & 31. Since
 s is the same all the way down, a picture's background is one block of the
-table, wrapping at most once. It is copied with `movem` (192 lines x 128
-bytes, about 14 ms on an STE).
+table, wrapping at most once (192 lines x 128 bytes):
+- **An STE** copies it with the BLiTTER, in HOG mode 8 lines at a time
+  (each about 0.5 ms with the interrupts held, well inside an IKBD byte):
+  12.2 ms, the bus's limit.
+- **A plain ST and the Mega STE** copy it with `movem`, four lines a pass
+  (entered part-way for the remainder): 13.6 ms on an ST, 13.0 on a Mega
+  STE, whose copy is bound by the 8 MHz bus. The Mega STE does not use the
+  BLiTTER: every BLiTTER operation empties its cache. (Hatari times its
+  BLiTTER at 16 MHz, about twice as fast as the bus allows.) A fully
+  unrolled copy was slower there: its 5.8 KB of code left the cache and
+  was fetched again every picture.
 
 The table is built at the first game, from the GVRAM the game builds
 itself (5.7 s on an STE). Later games skip the game's builder.
@@ -402,7 +412,7 @@ frame in a stage) by the pictures it showed. Over both replays (about
 
 - **25 is the ceiling on every machine.** A picture shows when the game is
   on time after it, so 50 per second would need the game logic and a whole
-  picture within one 20 ms tick. The background copy alone takes 13.5-14.4
+  picture within one 20 ms tick. The background copy alone takes 12.2-13.6
   ms (bound by the bus, so the Mega STE's 16 MHz barely helps), so every
   picture spans at least two ticks.
 - **The slowest seconds** (0 or 1 picture: 2-3% of the seconds on an ST
@@ -479,9 +489,13 @@ The X68000's own sprite library code is already tight.
     game (500 on a Mega STE, which draws more pictures). More memory would
     help: samples at 6.25 kHz would free 185 KB, at some cost in sound. So
     would keeping recently used copies when a half is emptied.
-  - The background copy is at the bus limit. Drawing from the table
-    directly with save-under sprites would need raster splits of the video
-    address and more memory.
+  - The background copy is at the bus limit. On an STE or a Mega STE the
+    table could be shown directly, with no copy: the video address
+    switched mid-frame (at line 8, and where the table wraps), sprites
+    drawn into the table with what they cover saved and put back once the
+    picture has left the screen. That needs 160-byte table lines (256 KB
+    more) and a raster split on time every frame. A plain ST cannot write
+    its video address mid-frame.
 - **Music.** MCDRV (YM2151 FM) is not emulated. A YM2149 conversion of the
   songs, or DMA samples streamed from disk, would be needed.
 - **Sound effects on an ST.** The YM versions are a first conversion: the

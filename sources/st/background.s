@@ -35,6 +35,7 @@
 	xref L_00C00000
 	xref L_00E80000
 	xref graphics_dither
+	xref machine_is_ste
 
 	ifd __DUMP__
 	xref write_graphics_dump
@@ -49,7 +50,10 @@ PAGE0_LINES=256
 PAGE1_LINES=32
 GROUPS=16 ; 16-pixel groups in the 256-pixel picture.
 PAGE0_LINE=GROUPS*10 ; Mask and four plane words per group.
-PAGE1_LINE=GROUPS*8 ; (And a table line.)
+PAGE1_LINE=GROUPS*8
+TABLE_LINE=GROUPS*8
+COPY_BLOCK_SIZE=30 ; Three movem.l (a0)+ (4 bytes) and three to d16(a1) (6).
+BLIT_LINES=8
 
 ; ------------------------------------------------------------------------------
 	text
@@ -323,8 +327,11 @@ compose_table:
 ;
 ; a1 = the picture's first playfield line (its first pixel, 32 pixels into
 ; the screen line), d0.w = the first playfield line's X68000 line (8 + the
-; window offset): copies the PLAYFIELD_LINES lines of the background there.
-; Uses all registers but a7.
+; window offset): copies the PLAYFIELD_LINES lines of the background there,
+; in two parts if the table wraps. The STE's BLiTTER copies at the bus's
+; speed; the CPU (a plain ST, and the Mega STE, where every BLiTTER
+; operation empties the cache) copies four lines a pass. Uses all registers
+; but a7.
 
 copy_background:
 	move	d0,d1
@@ -358,35 +365,128 @@ copy_background:
 	move	#PLAYFIELD_LINES,d6
 	sub		d7,d6 ; Lines after it.
 
-	subq	#1,d7
+	tst.b	machine_is_ste
+	bne		blit_background
+
+	move	d7,d0
+	move.l	a1,-(sp)
+	movem.w	d6-d7,-(sp)
 	move.l	a6,-(sp) ; (The copy uses every other register.)
-	move	d6,-(sp)
-	bsr		.copy_lines
-	move	(sp)+,d6
+	bsr		copy_lines
 	move.l	(sp)+,a0 ; T[s][0]
+	movem.w	(sp)+,d0/d7 ; Lines after the wrap, before it.
+	move.l	(sp)+,a1
 
-	subq	#1,d6
-	bmi		.done
+	tst		d0
+	beq		.done
 
-	move	d6,d7
-	bsr		.copy_lines
+	mulu	#SCREEN_LINE,d7
+	add.l	d7,a1
+	bsr		copy_lines
 
 .done:
 	rts
 
-; d7 = lines - 1: copies 128 bytes per line from (a0)+ to (a1), next line
-; (about 602 cycles a line; the bus allows 512).
+; a0 = source (TABLE_LINE bytes a line, one after the other), a1 =
+; destination, d0 = lines (1 to PLAYFIELD_LINES): four lines a pass (small
+; enough to stay in a Mega STE's cache, where fully unrolled code would be
+; fetched over the bus again every picture), entered part-way for the
+; remainder. Block n of a pass writes at n * SCREEN_LINE, n = 1-4: never 0,
+; so every block has the same size. About 588 cycles a line (the bus allows
+; 512). Uses all registers but a7.
 
-.copy_lines:
+copy_lines:
+	moveq	#3,d1
+	and		d0,d1
+	neg		d1
+	and		#3,d1 ; Blocks skipped in the first pass.
+	add		d1,d0
+	lsr		#2,d0
+	subq	#1,d0
+	move	d0,d7 ; Passes - 1.
+	move	d1,d2
+	mulu	#COPY_BLOCK_SIZE,d2
+	lea		.pass(pc),a2
+	add		d2,a2
+	addq	#1,d1
+	mulu	#SCREEN_LINE,d1
+	sub.l	d1,a1
+
+	jmp		(a2)
+
+.pass:
+BLOCK set 1
+	rept	4
 	movem.l	(a0)+,d0-d6/a2-a6 ; 48 bytes.
-	movem.l	d0-d6/a2-a6,(a1)
+	movem.l	d0-d6/a2-a6,BLOCK*SCREEN_LINE(a1)
 	movem.l	(a0)+,d0-d6/a2-a6
-	movem.l	d0-d6/a2-a6,48(a1)
+	movem.l	d0-d6/a2-a6,BLOCK*SCREEN_LINE+48(a1)
 	movem.l	(a0)+,d0-d6/a2 ; 32 bytes.
-	movem.l	d0-d6/a2,96(a1)
-	lea		SCREEN_LINE(a1),a1
+	movem.l	d0-d6/a2,BLOCK*SCREEN_LINE+96(a1)
+BLOCK set BLOCK+1
+	endr
+.pass_end:
+	lea		4*SCREEN_LINE(a1),a1
 
-	dbf		d7,.copy_lines
+	dbf		d7,.pass
+
+	rts
+
+	ifne	.pass_end-.pass-4*COPY_BLOCK_SIZE
+	fail	"copy_lines: the blocks are not all COPY_BLOCK_SIZE bytes"
+	endif
+
+; The STE: the BLiTTER, in HOG mode BLIT_LINES lines at a time (about
+; 0.5 ms each with the interrupts held, well inside an IKBD byte's 1.3 ms).
+; Continues copy_background (a0 = T[s][a], a6 = T[s][0], a1, d7 lines
+; before the wrap, d6 after it).
+
+blit_background:
+	move	#2,$ffff8a20.w ; Source x increment.
+	move	#2,$ffff8a22.w ; Source y increment: its lines are contiguous.
+	moveq	#-1,d0
+	move	d0,$ffff8a28.w
+	move.l	d0,$ffff8a2a.w ; End masks.
+	move	#2,$ffff8a2e.w ; Destination x increment.
+	move	#SCREEN_LINE-(TABLE_LINE-2),$ffff8a30.w
+	move	#TABLE_LINE/2,$ffff8a36.w ; Words a line.
+	move	#$0203,$ffff8a3a.w ; HOP: source; OP: source.
+	clr.b	$ffff8a3d.w ; No skew.
+	move.l	a0,$ffff8a24.w
+	move.l	a1,$ffff8a32.w
+	move	d7,d0
+	bsr		.blit
+
+	tst		d6
+	beq		.done
+
+	move.l	a6,$ffff8a24.w ; (The destination carries on.)
+	move	d6,d0
+	bsr		.blit
+
+.done:
+	rts
+
+; d0 = lines.
+
+.blit:
+	moveq	#BLIT_LINES,d1
+	cmp		d1,d0
+	bcc		.chunk
+
+	move	d0,d1
+
+.chunk:
+	move	d1,$ffff8a38.w
+	move.b	#$c0,$ffff8a3c.w ; Busy, HOG.
+	nop
+
+.wait:
+	tst.b	$ffff8a3c.w
+	bmi		.wait
+
+	sub		d1,d0
+	bne		.blit
 
 	rts
 
