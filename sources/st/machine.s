@@ -15,6 +15,7 @@
 	xdef set_cpu_speed
 	xdef restore_cpu_speed
 	xdef force_8mhz
+	xdef machine_type
 	xdef mega_ste_control
 
 	xref line_f_handler
@@ -23,7 +24,7 @@
 	xref trap_f_handler
 	xref vbl_handler
 	xref ikbd_handler
-	xref timer_a_handler
+	xref measure_timer_handler
 	xref ikbd_mouse_off
 	xref ikbd_mouse_on
 	xref ikbd_synchronise
@@ -39,6 +40,8 @@
 	xref xpad_block
 	xref audio_silence
 	xref st_palette
+
+	include "st.i"
 
 MACHINE_STE=$00010000
 MACHINE_MEGA_STE=$00010010
@@ -172,6 +175,29 @@ initialize_machine:
 	move.b	$fffffa17.w,old_fa17
 	move.b	$fffffa19.w,old_fa19
 	move.b	$fffffa1f.w,old_fa1f
+	ifd __OVERSCAN__
+	ifnd __RELEASE__
+	; Timer D (the measurement clock here): its control, and its reload
+	; value, which only shows as the largest count read (its data
+	; register reads the count; TOS's baud rates reload it with 1-12).
+
+	move.b	$fffffa1d.w,old_fa1d
+	moveq	#0,d1
+	move	#255,d2
+
+.timer_d_reload:
+	move.b	$fffffa25.w,d0
+	cmp.b	d1,d0
+	bls		.not_larger
+
+	move.b	d0,d1
+
+.not_larger:
+	dbf		d2,.timer_d_reload
+
+	move.b	d1,old_fa25
+	endif
+	endif
 
 	; Vectors.
 
@@ -206,22 +232,26 @@ initialize_machine:
 	bra		.install_vectors
 
 .vectors_installed:
-	; Display: low resolution, 50 Hz, the port's screen (on an STE its
-	; address's low byte 0 from now on: the screens are 256-aligned), all
-	; colours black.
+	; Display: low resolution, 50 Hz, the port's screen's page (on an STE
+	; its address's low byte 0 from now on: the pages are 256-aligned),
+	; all colours black.
 
 	clr.b	$ffff8260.w
 	move.b	#2,$ffff820a.w
 
-	move.b	display_screen_address+1,$ffff8201.w
-	move.b	display_screen_address+2,$ffff8203.w
+	move.l	display_screen_address,d0
+	sub.l	#SCREEN_TOP*SCREEN_LINE,d0 ; Its page.
+	lsr.l	#8,d0
+	move.b	d0,$ffff8203.w
+	lsr.w	#8,d0
+	move.b	d0,$ffff8201.w
 
 	tst.b	machine_has_ste_hardware
 	beq		.st_display
 
 	clr.b	$ffff820f.w
 	clr.b	$ffff8265.w
-	move.b	display_screen_address+3,$ffff820d.w
+	clr.b	$ffff820d.w
 
 .st_display:
 
@@ -256,14 +286,21 @@ initialize_machine:
 
 .no_xpad:
 	ifnd __RELEASE__
-	; Timer A for the measurements (150 Hz overflows), not Timer D: that is
-	; the serial port's baud rate clock, which COMpad needs as TOS set it.
+	; The measurement clock (st.i), 150 Hz overflows: Timer A, not Timer
+	; D, the serial port's baud rate clock, which COMpad needs as TOS set
+	; it; but Timer D with the borders open, whose code needs Timer A.
 
-	clr.b	$fffffa19.w ; Stopped.
+	ifd __OVERSCAN__
+	and.b	#$f0,$fffffa1d.w ; Timer D stopped (Timer C kept).
+	clr.b	$fffffa25.w ; 256.
+	or.b	#5,$fffffa1d.w ; Divide by 64: 38400 Hz.
+	else
+	clr.b	$fffffa19.w ; Timer A stopped.
 	clr.b	$fffffa1f.w ; 256.
 	move.b	#5,$fffffa19.w ; Divide by 64: 38400 Hz.
-	bset	#5,$fffffa07.w
-	bset	#5,$fffffa13.w
+	endif
+	bset	#MEASURE_BIT,MEASURE_ENABLE.w
+	bset	#MEASURE_BIT,MEASURE_MASK.w
 	endif
 
 	bclr	#3,$fffffa17.w ; Automatic end of interrupt.
@@ -332,6 +369,13 @@ release_machine:
 	clr.b	$fffffa19.w
 	move.b	old_fa1f,$fffffa1f.w
 	move.b	old_fa19,$fffffa19.w
+	ifd __OVERSCAN__
+	ifnd __RELEASE__
+	and.b	#$f0,$fffffa1d.w
+	move.b	old_fa25,$fffffa25.w
+	move.b	old_fa1d,$fffffa1d.w
+	endif
+	endif
 
 	lea		vector_list,a0
 	lea		old_vectors,a1
@@ -403,8 +447,8 @@ vector_list:
 	dc.w	$70
 	dc.l	vbl_handler
 	ifnd __RELEASE__
-	dc.w	$134
-	dc.l	timer_a_handler ; (Measurements.)
+	dc.w	MEASURE_VECTOR
+	dc.l	measure_timer_handler ; (Measurements.)
 	endif
 	dc.w	$118
 	dc.l	ikbd_handler
@@ -462,6 +506,10 @@ old_fa17:
 old_fa19:
 	ds.b	1
 old_fa1f:
+	ds.b	1
+old_fa1d:
+	ds.b	1
+old_fa25:
 	ds.b	1
 
 	even

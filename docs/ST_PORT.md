@@ -47,12 +47,15 @@ cache is bigger (1,347 KB in the release build, against the STE's 953 KB).
 
 The build needs Docker running for `stcmd`, the atarist-toolkit-docker
 wrapper; the repository is mounted at `/tmp` in the container. It also
-needs the Xpad submodule: `git submodule update --init`.
+needs the submodules (Xpad, and STDL for the full-height version): `git
+submodule update --init`.
 
 ```
 ./build_st.sh                 binaries/st/SZ2_ST.TOS (measurements; and SZ2_DBG.TOS with symbols)
 RELEASE=1 ./build_st.sh       binaries/st/SZ2_REL.TOS: to play (no measurements)
 HEADLESS=1 ./build_st.sh      binaries/st/SZ2_HL.TOS: no rendering (game logic, checkpoints)
+OVERSCAN=1 ./build_st.sh      binaries/st/SZ2_OVS.TOS: the full height (see below), measurements
+OVERSCAN=1 RELEASE=1 ./build_st.sh   binaries/st/SZ2_OVR.TOS: the full height, to play
 ```
 
 `build_st.sh` also checks that the `sz2.s` changes leave the other targets
@@ -183,6 +186,52 @@ only two VBLs later, and the screen shown until then cannot be drawn into
 before that. So there are three screens: the one shown, the one presented
 and the one being drawn. Presenting waits for the picture before it to be
 on screen, which by then it nearly always is, and drawing never waits.
+
+### Full height (`OVERSCAN=1`: `SZ2_OVS.TOS`, `SZ2_OVR.TOS`)
+
+With the top and bottom borders open the screen shows 273 lines, enough
+for the X68000's whole picture: the HUD band and the playfield's 248 lines
+(the X68000's lines 8-255; its lines 0-7 are under the HUD), so the window
+no longer moves. The 256 lines are centred, the 17 others black.
+
+- **The borders are STDL's code**, `lib/stdl/src/overscan.c` (the
+  atarist-stdl submodule, as in the Flashback port), compiled unchanged
+  with the toolkit's gcc and linked with the port's objects and libgcc.
+  `sources/st/stdl_glue.c` supplies the few parts of STDL it reaches for,
+  and opens and closes the borders for `main.s`: after the take-over, with
+  the interrupts on (the first opening calibrates against the display and
+  then finds the GLUE's bottom border test: a third of a second of
+  flickering border), and before the release.
+- **What it uses:** MFP Timer A and Timer B, a prefix on the VBL (and on
+  TOS's Timer C handler, which runs only with an Xpad provider). The
+  measurement clock moves to Timer D (st.i), so an overscan measurement
+  build does not work with COMpad; release builds have no measurement
+  clock.
+- **The port's screens** are pages of 274 lines (row 0 hidden), each drawn
+  from 9 lines in, so the drawing code is unchanged but for the
+  playfield's height. STDL is given the first page as its own and never
+  flips; `display.s` flips the port's three pages itself and keeps the
+  page addresses STDL's interrupts compare the video counter with up to
+  date (the page shown, and the next one from the VBL that names it).
+- **The background is copied by the CPU** on every machine: a BLiTTER in
+  HOG mode would hold off the borders' interrupts.
+- **Screenshots** (PI1) hold the first 200 lines; the pixel oracle is for
+  the normal height only.
+
+Results in Hatari (attract demo, 6,000 frames): the borders open on an ST
+(TOS 1.04), an STE and a Mega STE, with no frame missing a border, also
+over 30,000 frames of DEMO8, with an Xpad provider (TOS's Timer C
+running) and with keys pressed. The checkpoints match: the game runs at
+full speed, its logic 0.2 ms a frame slower (the borders' interrupts).
+The desktop comes back intact after the exit.
+
+| Pictures per gameplay second, mean (median) | ST | STE | Mega STE |
+|---|---|---|---|
+| Normal height | 13.2 (12) | 13.1 (12) | 17.6 (17) |
+| Full height | 10.9 (10) | 10.7 (10) | 14.9 (14) |
+
+A picture costs more: 248 lines of background instead of 192 (17.9 ms on
+an ST, from 13.6) and more of the sprites visible (31.5 ms, from 27.1).
 
 ### Colours (`palette.s`, `palette_map.i`, `tools/st/palette_map.py`)
 
@@ -448,6 +497,10 @@ The X68000's own sprite library code is already tight.
 
 ## Verification
 
+- **Full height.** `tests/st/overscan_test.sh` builds `SZ2_OVS.TOS` and
+  runs the attract demo on an ST (TOS 1.04), an STE and a Mega STE: the
+  borders must open (273 lines), never miss a frame, and the checkpoints
+  must match.
 - **Xpad.** `tests/st/xpad_test.sh` builds a scripted provider
   (`tests/st/xpad/xpadtest.s`, a TSR for `C:\AUTO` that presses buttons
   from `etv_timer`) and runs the game with it. Its grabs show the menu
@@ -511,4 +564,7 @@ The X68000's own sprite library code is already tight.
 - **Timers.** Timer C (the TOS 200 Hz timer) is stopped while the game
   runs. That is fine with Hatari's GEMDOS drive; it is untested with
   floppies and hard disks on real hardware.
-- **Testing.** The port is tested in Hatari only.
+- **Testing.** The port is tested in Hatari only. The full height's
+  border code is STDL's, proven on real STs, STEs and a Mega STE (the
+  Flashback port), but how the port drives it is tested in Hatari only,
+  which does not show every way a border can fail on hardware.

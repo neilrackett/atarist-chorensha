@@ -365,8 +365,10 @@ copy_background:
 	move	#PLAYFIELD_LINES,d6
 	sub		d7,d6 ; Lines after it.
 
-	tst.b	machine_is_ste
+	ifnd __OVERSCAN__ ; (A BLiTTER in HOG mode would hold off the borders'
+	tst.b	machine_is_ste ; interrupts.)
 	bne		blit_background
+	endif
 
 	move	d7,d0
 	move.l	a1,-(sp)

@@ -15,6 +15,9 @@
 #                                  game logic, checkpoints and timing only)
 #   RELEASE=1 ./build_st.sh       the game without the measurements (SZ2_REL.TOS:
 #                                  no Timer A, timing, checkpoints or report)
+#   OVERSCAN=1 ./build_st.sh      the full height, both borders open with STDL's
+#                                  overscan code (lib/stdl): SZ2_OVS.TOS, or
+#                                  SZ2_OVR.TOS with RELEASE=1
 #   FLAGS=... NAME=... ./build_st.sh  extra defines, another program name
 
 set -e
@@ -50,6 +53,15 @@ if [ "${RELEASE:-0}" = "1" ]; then
 	PORT_FLAGS="$PORT_FLAGS -D__RELEASE__"
 	DEFAULT_NAME=SZ2_REL
 fi
+if [ "${OVERSCAN:-0}" = "1" ]; then
+	PORT_FLAGS="$PORT_FLAGS -D__OVERSCAN__"
+	DEFAULT_NAME=SZ2_OVS
+	[ "${RELEASE:-0}" = "1" ] && DEFAULT_NAME=SZ2_OVR
+	if [ ! -f lib/stdl/src/overscan.c ]; then
+		echo "$0: lib/stdl is missing: git submodule update --init" >&2
+		exit 1
+	fi
+fi
 NAME=${NAME:-$DEFAULT_NAME}
 
 st vasmm68k_mot /tmp/sources/sz2.s -quiet -no-opt -Faout -m68000 -D__ST__ -I/tmp/sources -o /tmp/$OUT/sz2_st.o
@@ -65,6 +77,19 @@ OBJECTS=""
 for module in main sz2_st $MODULES; do
 	OBJECTS="$OBJECTS /tmp/$OUT/$module.o"
 done
+
+# Overscan: STDL's border code, compiled unchanged, and the glue that gives
+# it what it needs from STDL (sources/st/stdl_glue.c), with libgcc for its
+# arithmetic.
+if [ "${OVERSCAN:-0}" = "1" ]; then
+	CFLAGS="-O2 -fomit-frame-pointer -std=gnu99 -Wall -Wno-unused-parameter"
+	CFLAGS="$CFLAGS -I/tmp/lib/stdl/include -I/tmp/lib/stdl/include/compat"
+	CFLAGS="$CFLAGS -I/tmp/lib/stdl/src -I/tmp/lib/xpad/src"
+	st m68k-atari-mint-gcc $CFLAGS -c /tmp/lib/stdl/src/overscan.c -o /tmp/$OUT/overscan.o
+	st m68k-atari-mint-gcc $CFLAGS -c /tmp/sources/st/stdl_glue.c -o /tmp/$OUT/stdl_glue.o
+	LIBGCC=$(st m68k-atari-mint-gcc -print-libgcc-file-name | tr -d '\r')
+	OBJECTS="$OBJECTS /tmp/$OUT/overscan.o /tmp/$OUT/stdl_glue.o $LIBGCC"
+fi
 
 if [ "$NAME" = "SZ2_ST" ]; then
 	st vlink $OBJECTS -bataritos -tos-flags 1 -estart -o /tmp/$OUT/SZ2_DBG.TOS

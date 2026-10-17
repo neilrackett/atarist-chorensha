@@ -48,6 +48,14 @@
 	xref start_render_parts
 	xref mark_render_part
 
+	ifd __OVERSCAN__
+	xref _stdl_ovsc_bhi ; (stdl_glue.c, lib/stdl/src/overscan.c)
+	xref _stdl_ovsc_bmid
+	xref _stdl_ovsc_bhi2
+	xref _stdl_ovsc_bmid2
+	xref _stdl_ovsc_l262mid
+	endif
+
 	ifd __ORACLE__
 	xref L_00E80000
 	xref character_map
@@ -61,6 +69,11 @@ MAXIMUM_WINDOW=256-8-PLAYFIELD_LINES ; 56: the window shows X68000 lines 8+w..19
 DEFAULT_WINDOW=24 ; Lines 32-223.
 SHIP_LINE=130 ; The ship's line in the playfield window.
 WINDOW_STEP=2 ; Lines per frame.
+PI1_SIZE=32000 ; A screenshot's picture (the first 200 lines with the
+               ; borders open).
+	ifd __OVERSCAN__
+OVERSCAN_LINE_262=228 ; The page's row on the frame's line 262 (STDL's).
+	endif
 
 ; ------------------------------------------------------------------------------
 	text
@@ -69,14 +82,15 @@ WINDOW_STEP=2 ; Lines per frame.
 initialize_display:
 	movem.l	d0-d1/a0,-(sp)
 
-	move.l	#screen_memory+255,d0 ; 256-byte aligned.
+	move.l	#screen_memory+255,d0 ; 256-byte aligned pages.
 	clr.b	d0
+	add.l	#SCREEN_TOP*SCREEN_LINE,d0 ; Their screens' origins.
 	move.l	d0,display_screen_address
 	move.l	d0,screen_buffers
-	add.l	#SCREEN_SIZE,d0
+	add.l	#PAGE_SIZE,d0
 	move.l	d0,work_screen_address
 	move.l	d0,screen_buffers+4
-	add.l	#SCREEN_SIZE,d0
+	add.l	#PAGE_SIZE,d0
 	move.l	d0,spare_screen_address
 	move.l	d0,screen_buffers+8
 
@@ -99,15 +113,46 @@ display_vbl:
 	cmp.b	#2,flip_pending
 	bne		.colours
 
-	move.b	display_screen_address+1,$ffff8201.w
-	move.b	display_screen_address+2,$ffff8203.w
+	; Its page (256-aligned: an STE's low byte stays 0). With the borders
+	; open, their top interrupt accepts it too (bhi2, bmid2) from now on:
+	; next frame shows it, this one still the page before.
 
-	bra		.flipped ; (The screens are 256-aligned: an STE's low byte stays 0.)
+	move.l	d0,-(sp)
+	move.l	display_screen_address,d0
+	sub.l	#SCREEN_TOP*SCREEN_LINE,d0
+	ifd __OVERSCAN__
+	move.l	d0,flip_page
+	endif
+	lsr.l	#8,d0
+	move.b	d0,$ffff8203.w
+	ifd __OVERSCAN__
+	move.b	d0,_stdl_ovsc_bmid2
+	endif
+	lsr.w	#8,d0
+	move.b	d0,$ffff8201.w
+	ifd __OVERSCAN__
+	move.b	d0,_stdl_ovsc_bhi2
+	endif
+	move.l	(sp)+,d0
+
+	bra		.flipped
 
 .colours:
 	movem.l	d0-d7,-(sp)
 	movem.l	flip_palette,d0-d7
 	movem.l	d0-d7,$ffff8240.w
+
+	ifd __OVERSCAN__
+	; The page is shown from this frame: the borders' interrupts compare
+	; the video counter with it (the bottom one at its line 262).
+
+	move.b	_stdl_ovsc_bhi2,_stdl_ovsc_bhi
+	move.b	_stdl_ovsc_bmid2,_stdl_ovsc_bmid
+	move.l	flip_page,d0
+	add.l	#OVERSCAN_LINE_262*SCREEN_LINE,d0
+	lsr.w	#8,d0
+	move.b	d0,_stdl_ovsc_l262mid
+	endif
 	movem.l	(sp)+,d0-d7
 
 .flipped:
@@ -271,7 +316,7 @@ update_window:
 
 clear_playfield:
 	move.l	work_screen_address,a0
-	lea		(PLAYFIELD_TOP+PLAYFIELD_LINES)*SCREEN_LINE(a0),a0
+	add.l	#(PLAYFIELD_TOP+PLAYFIELD_LINES)*SCREEN_LINE,a0
 	bsr		zero_registers
 	move	#PLAYFIELD_LINES*SCREEN_LINE/40-1,d7
 
@@ -387,7 +432,7 @@ write_screenshot:
 	bmi		.done
 
 	move.l	display_screen_address,a1
-	move.l	#SCREEN_SIZE,d1
+	move.l	#PI1_SIZE,d1
 	jsr		write_more
 	jsr		close_file
 
@@ -497,6 +542,11 @@ frame_header:
 	ds.b	16
 	endif
 
+	ifd __OVERSCAN__
+flip_page: ; The presented picture's page.
+	ds.l	1
+	endif
+
 flip_pending: ; 2: a new picture to show at the next VBL, 1: its colours next.
 	ds.b	1
 crop_mode: ; F2: the window does not follow the ship.
@@ -505,7 +555,7 @@ crop_mode: ; F2: the window does not follow the ship.
 	even
 
 screen_memory:
-	ds.b	SCREEN_SIZE*SCREENS+256
+	ds.b	PAGE_SIZE*SCREENS+256
 
 ; ------------------------------------------------------------------------------
 	end

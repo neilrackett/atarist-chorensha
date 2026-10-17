@@ -121,6 +121,7 @@ start_emulator:
 	move.l	a0,a3
 	lea		_start,a4
 
+	st		game_running
 	move	#$2300,sr ; Supervisor, the VBL and the MFP enabled.
 
 	jmp		(a4)
@@ -130,6 +131,7 @@ start_emulator:
 
 st_exit_game:
 	move	#$2700,sr
+	sf		game_running ; (The VBL no longer runs the game's handler.)
 
 	move.l	saved_stack_address,sp
 	movem.l	(sp)+,d0-d7/a0-a6
@@ -144,6 +146,9 @@ vbl_handler:
 	movem.l	d0-d1/a0-a1,-(sp)
 
 	addq.l	#1,total_vbl_count
+	ifd __OVERSCAN__
+	addq.l	#1,$466.w ; TOS's frame counter: STDL's border code waits on it.
+	endif
 
 	jsr		display_vbl
 	jsr		input_tick
@@ -153,6 +158,9 @@ vbl_handler:
 
 	tst.b	lockstep_mode
 	bne		.done ; The frame waits run the game's handler.
+
+	tst.b	game_running
+	beq		.done
 
 	bsr		run_game_vbl
 
@@ -1287,6 +1295,8 @@ lockstep_mode:
 lockstep_active:
 	ds.b	1
 in_tick:
+	ds.b	1
+game_running: ; From the game's start to its exit: the VBL runs its handler.
 	ds.b	1
 rendering:
 	ds.b	1

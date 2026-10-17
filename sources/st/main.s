@@ -23,6 +23,13 @@
 	xref detect_machine
 	xref initialize_machine
 	xref release_machine
+	ifd __OVERSCAN__
+	xref machine_type
+	xref _port_overscan_open ; (stdl_glue.c)
+	xref _port_overscan_close
+	xref _port_overscan_misses
+	xref screen_buffers
+	endif
 	xref machine_is_st
 	xref machine_has_ste_hardware
 	xref ym_effects_played
@@ -292,7 +299,19 @@ start:
 
 	jsr		initialize_machine
 
+	ifd __OVERSCAN__
+	move	#$2300,sr ; (Opening the borders watches frames.)
+	bsr		open_overscan
+	endif
+
 	jsr		start_emulator
+
+	ifd __OVERSCAN__
+	move	#$2300,sr ; (Closing them waits for frames.)
+	jsr		_port_overscan_close
+	jsr		_port_overscan_misses
+	move.l	d0,overscan_misses
+	endif
 
 	jsr		release_machine
 
@@ -488,6 +507,68 @@ print_cpu_speed:
 
 ; ------------------------------------------------------------------------------
 
+	ifd __OVERSCAN__
+
+; Both borders open (STDL's code, in stdl_glue.c), after the take-over with
+; the interrupts on: the screens' pages 274 lines tall, 273 of them shown.
+; On a machine where they do not open, the pages show their first 200
+; lines. The first opening calibrates (a frame or two) and finds the
+; GLUE's bottom border test (a third of a second of flickering border).
+
+open_overscan:
+	movem.l	d0-d1/a0-a1,-(sp)
+
+	pea		overscan_error
+	move.l	machine_type,d0
+	bpl		.cookie
+
+	moveq	#0,d0 ; No _MCH: an ST.
+
+.cookie:
+	move.l	d0,-(sp)
+	move	#3,-(sp) ; Logbase: TOS's screen, given back at the close.
+	trap	#14
+	addq.l	#2,sp
+	move.l	d0,-(sp)
+	move.l	screen_buffers,d0
+	sub.l	#SCREEN_TOP*SCREEN_LINE,d0 ; The first screen's page.
+	move.l	d0,-(sp)
+	jsr		_port_overscan_open
+	lea		16(sp),sp
+	move.l	d0,overscan_lines
+
+	movem.l	(sp)+,d0-d1/a0-a1
+
+	rts
+
+; Exit report: the borders, and the frames that showed them closed.
+
+print_overscan:
+	lea		overscan_text,a0
+	jsr		print_text
+	move.l	overscan_lines,d0
+	beq		.closed
+
+	jsr		print_number
+	lea		overscan_lines_text,a0
+	jsr		print_text
+	move.l	overscan_misses,d0
+	jsr		print_number
+	lea		line_end_text,a0
+	jmp		print_text
+
+.closed:
+	lea		overscan_closed_text,a0
+	jsr		print_text
+	move.l	overscan_error,a0
+	jsr		print_text
+	lea		line_end_text,a0
+	jmp		print_text
+
+	endif
+
+; ------------------------------------------------------------------------------
+
 print_memory:
 	lea		tpa_text,a0
 	move.l	tpa_size,d0
@@ -621,6 +702,10 @@ print_report:
 
 	jsr		print_measurements
 	jsr		print_stages
+
+	ifd __OVERSCAN__
+	bsr		print_overscan
+	endif
 
 	; Heap high-water mark: the area was cleared at start.
 
@@ -832,6 +917,14 @@ starting_text:
 	dc.b	'seconds to build)...',13,10,0
 run_end_text:
 	dc.b	'End of the run.',13,10,0
+	ifd __OVERSCAN__
+overscan_text:
+	dc.b	'Overscan: ',0
+overscan_lines_text:
+	dc.b	' lines, frames with a border missed: ',0
+overscan_closed_text:
+	dc.b	'not open: ',0
+	endif
 press_key_text:
 	dc.b	13,10,'Press a key.',13,10,0
 exit_text:
@@ -883,6 +976,14 @@ unimplemented_iocs_text:
 
 basepage:
 	ds.l	1
+	ifd __OVERSCAN__
+overscan_lines: ; Shown, or 0: the borders did not open.
+	ds.l	1
+overscan_misses:
+	ds.l	1
+overscan_error: ; STDL's message.
+	ds.l	1
+	endif
 text_base:
 	ds.l	1
 tpa_size:

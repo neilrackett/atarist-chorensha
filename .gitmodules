@@ -1,3 +1,6 @@
 [submodule "lib/xpad"]
 	path = lib/xpad
 	url = https://github.com/neilrackett/atarist-xpad.git
+[submodule "lib/stdl"]
+	path = lib/stdl
+	url = https://github.com/neilrackett/atarist-stdl.git
