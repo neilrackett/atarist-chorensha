@@ -24,6 +24,9 @@
 	xref vbl_handler
 	xref ikbd_handler
 	xref timer_a_handler
+	xref ikbd_mouse_off
+	xref ikbd_mouse_on
+	xref ikbd_synchronise
 	xref exception_bus_error
 	xref exception_address_error
 	xref exception_illegal
@@ -121,6 +124,19 @@ detect_machine:
 ; ------------------------------------------------------------------------------
 
 initialize_machine:
+	; IKBD: the mouse reporting off, then two VBLs for TOS to read any
+	; packet already on its way.
+
+	jsr		ikbd_mouse_off
+
+	moveq	#2-1,d7
+
+.wait_for_ikbd:
+	move	#37,-(sp) ; Vsync
+	trap	#14
+	addq.l	#2,sp
+	dbf		d7,.wait_for_ikbd
+
 	move	#$2700,sr
 
 	; Shifter: resolution, sync, palette, screen address, STE fine scroll.
@@ -252,6 +268,8 @@ initialize_machine:
 
 	bclr	#3,$fffffa17.w ; Automatic end of interrupt.
 
+	jsr		ikbd_synchronise ; (The IKBD interrupt enabled: no edge missed.)
+
 	jmp		audio_silence ; (An ST: the YM plays the effects.)
 
 ; ------------------------------------------------------------------------------
@@ -304,6 +322,7 @@ release_machine:
 	move.b	old_sound_mode,$ffff8921.w
 
 .no_sound_restored:
+	jsr		ikbd_synchronise ; TOS's handler starts at a packet.
 
 	move.b	old_fa07,$fffffa07.w
 	move.b	old_fa09,$fffffa09.w
@@ -345,7 +364,7 @@ release_machine:
 	movem.l	old_palette,d0-d7
 	movem.l	d0-d7,$ffff8240.w
 
-	rts
+	jmp		ikbd_mouse_on
 
 ; ------------------------------------------------------------------------------
 	data

@@ -36,6 +36,9 @@
 ; reads released every other AUTOFIRE_FRAMES frames.
 
 	xdef ikbd_handler
+	xdef ikbd_mouse_off
+	xdef ikbd_mouse_on
+	xdef ikbd_synchronise
 	xdef input_tick
 	xdef find_xpad
 	xdef xpad_block
@@ -76,6 +79,11 @@ SCRIPT_JOYSTICK=0
 XPAD_TRIGGER_A_BUTTONS=XPAD_SOUTH|XPAD_WEST|XPAD_TR|XPAD_TR2
 XPAD_TRIGGER_B_BUTTONS=XPAD_EAST|XPAD_NORTH|XPAD_TL|XPAD_TL2
 X68_ESC_GROUP_0_BIT=1 ; The X68000's ESC: scancode $01.
+
+IKBD_RELATIVE_MOUSE=$08 ; (TOS's mode.)
+IKBD_MOUSE_OFF=$12
+IKBD_QUIET=120 ; Timer C counts (26.04 us): 3.1 ms, over two bytes' time.
+IKBD_SYNCHRONISE_LIMIT=3840 ; 100 ms.
 
 AUTOFIRE_SHIFT=1
 AUTOFIRE_FRAMES=1<<AUTOFIRE_SHIFT ; Pressed for 2 frames, released for 2.
@@ -118,6 +126,77 @@ ikbd_handler:
 	movem.l	(sp)+,d0-d4/a0-a2
 
 	rte
+
+; The mouse reporting off for the game (the port reads no mouse; the
+; joystick 0 port then reports as a joystick) and back on at exit. Uses d0.
+
+ikbd_mouse_off:
+	moveq	#IKBD_MOUSE_OFF,d0
+
+	bra		ikbd_command
+
+ikbd_mouse_on:
+	moveq	#IKBD_RELATIVE_MOUSE,d0
+
+ikbd_command: ; d0.b
+	btst	#1,$fffffc00.w ; Transmitter empty?
+	beq		ikbd_command
+
+	move.b	d0,$fffffc02.w
+
+	rts
+
+; At a handler change, interrupts masked: the IKBD's bytes are dropped
+; until it has been quiet for IKBD_QUIET (it sends a packet's bytes back to
+; back, so the next byte starts a packet), the MIDI ACIA's too (the two
+; share the interrupt line, whose next falling edge is the next byte's).
+; Timer C (TOS's: 38400 Hz counts) times it, IKBD_SYNCHRONISE_LIMIT at
+; most (nothing done if it is stopped). Preserves all registers.
+
+ikbd_synchronise:
+	movem.l	d0-d3,-(sp)
+
+	moveq	#$70,d0
+	and.b	$fffffa1d.w,d0
+	beq		.done ; Timer C stopped: no time to count.
+
+	move	#IKBD_SYNCHRONISE_LIMIT,d3
+	move.b	$fffffa23.w,d2
+
+.restart:
+	moveq	#IKBD_QUIET,d1
+
+.poll:
+	btst	#0,$fffffc00.w
+	beq		.no_byte
+
+	tst.b	$fffffc02.w
+
+	bra		.restart
+
+.no_byte:
+	moveq	#%00100001,d0 ; Overrun, receiver full.
+	and.b	$fffffc04.w,d0
+	beq		.no_midi
+
+	tst.b	$fffffc06.w
+
+.no_midi:
+	move.b	$fffffa23.w,d0
+	cmp.b	d0,d2
+	beq		.poll
+
+	move.b	d0,d2
+	subq	#1,d3
+	beq		.done
+
+	subq	#1,d1
+	bne		.poll
+
+.done:
+	movem.l	(sp)+,d0-d3
+
+	rts
 
 ; d0.b = the first byte of a packet, or a key code.
 

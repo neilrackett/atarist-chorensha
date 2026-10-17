@@ -153,7 +153,10 @@ on a port layer:
 - IOCS through trap #15.
 - The 50 Hz VBL as the game's frame tick.
 - Sound effects through DMA sound.
-- IKBD input.
+- IKBD input. The mouse reporting is off while the game runs, and back in
+  relative mode at exit. At both handler changes the IKBD's bytes are
+  dropped until it has been quiet for 3 ms, so the new handler starts at a
+  packet, not in the middle of one.
 
 The layer is taken from the Falcon port, with the Amiga port's frame
 scheduler, its extra DOS and IOCS calls, checkpoints and input scripts.
