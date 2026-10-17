@@ -11,10 +11,11 @@ usage:
                                        also a montage (4 per row)
 """
 
-import struct
 import sys
 
 from PIL import Image
+
+from crs_formats import read_pi1
 
 
 def component(value):
@@ -22,32 +23,14 @@ def component(value):
     return level * 17
 
 
-def read_pi1(path):
-    data = open(path, "rb").read()
-    resolution = struct.unpack(">H", data[:2])[0]
-    if resolution != 0 or len(data) < 34 + 32000:
-        raise SystemExit(f"{path}: not a low-resolution Degas picture")
-
-    palette = []
-    for index in range(16):
-        word = struct.unpack(">H", data[2 + 2 * index:4 + 2 * index])[0]
-        palette.append((component(word >> 8), component(word >> 4), component(word)))
-
+def read_pi1_image(path):
+    screen, words = read_pi1(path)
+    palette = [(component(w >> 8), component(w >> 4), component(w)) for w in words]
     image = Image.new("RGB", (320, 200))
     pixels = image.load()
-    screen = data[34:34 + 32000]
-
-    for y in range(200):
-        for group in range(20):
-            offset = y * 160 + group * 8
-            planes = struct.unpack(">4H", screen[offset:offset + 8])
-            for bit in range(16):
-                colour = 0
-                for plane in range(4):
-                    if planes[plane] & (0x8000 >> bit):
-                        colour |= 1 << plane
-                pixels[group * 16 + bit, y] = palette[colour]
-
+    for y, row in enumerate(screen):
+        for x, colour in enumerate(row):
+            pixels[x, y] = palette[colour]
     return image
 
 
@@ -59,7 +42,7 @@ def main(arguments):
 
     images = []
     for path in arguments:
-        image = read_pi1(path)
+        image = read_pi1_image(path)
         image.save(path.rsplit(".", 1)[0] + ".png")
         images.append(image)
 

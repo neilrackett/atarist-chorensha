@@ -13,8 +13,8 @@ __PORT__ equ 1
 __CHUNKY__ equ 1
 	endif
 
-	; __CHUNKY__: the Amiga's chunky renderer and frame scheduler, shared by the
-	; Atari ST port (sources/st: the Falcon's TOS layer with it).
+	; __CHUNKY__: the Amiga port's renderer hooks and frame scheduler, shared
+	; by the Atari ST port (sources/st: the Falcon's TOS layer with it).
 
 	ifd __ST__
 __PORT__ equ 1
@@ -51,7 +51,6 @@ __PORT_CREDITS__ equ 1
 	ifd __ST__
 
 	xdef VBL_VWAIT_COUNTER
-	xdef NEW_STACK
 	xdef PLAYER_SCORE
 	xdef PLAYER_INFO_STRUCT
 	xdef WORD_00088E6C ; Random table index.

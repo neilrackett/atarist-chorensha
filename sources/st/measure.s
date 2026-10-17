@@ -8,8 +8,9 @@
 ; - Game logic per frame (from the end of one frame wait to the start of the
 ;   next one: the game's own work, the interrupts included, no rendering):
 ;   median, 95th percentile, maximum, mean.
-; - Rendering (composition into the chunky buffer) and presentation (C2P)
-;   per picture: mean and maximum; pictures per second.
+; - Rendering (drawing the picture into the hidden screen, and its parts)
+;   and presentation (handing it to the VBL) per picture: mean and maximum;
+;   pictures per second.
 ; - Game state checkpoints every CHECKPOINT_INTERVAL frames, written to
 ;   CHECKPTS.BIN in the Amiga port's checkpoints.bin format (compared with
 ;   tests/amiga/checkpoints.py against tests/amiga/reference/).
@@ -22,7 +23,12 @@
 	xdef mark_render_part
 	xdef record_checkpoint
 	xdef write_checkpoints
+	xdef create_and_write
+	xdef write_more
+	xdef close_file
 	xdef print_text
+	xdef line_end_text
+	xdef space_dollar_text
 	xdef print_number
 	xdef print_tenths
 	xdef print_hex
@@ -118,7 +124,7 @@ measure_logic:
 
 	rts
 
-; d0.l = render time, d1.l = presentation (C2P) time of a picture (units).
+; d0.l = render time, d1.l = presentation time of a picture (units).
 ; Preserves all registers.
 
 measure_picture:
@@ -217,42 +223,72 @@ record_checkpoint:
 write_checkpoints:
 	movem.l	d0-d3/a0-a2,-(sp)
 
-	clr		-(sp)
-	pea		checkpoints_file_name
-	move	#60,-(sp) ; Fcreate
-	trap	#1
-	addq.l	#8,sp
-	tst.l	d0
-	bmi		.done
-
-	move	d0,d3
-
 	move.l	#'CRSC',checkpoints_header
 	move.l	checkpoint_count,checkpoints_header+4
 
-	pea		checkpoints_header
-	move.l	#8,-(sp)
+	lea		checkpoints_file_name,a0
+	lea		checkpoints_header,a1
+	moveq	#8,d1
+	bsr		create_and_write
+	bmi		.done
+
+	lea		checkpoints,a1
+	move.l	checkpoint_count,d1
+	lsl.l	#5,d1 ; CHECKPOINT_SIZE
+	bsr		write_more
+	bsr		close_file
+
+.done:
+	movem.l	(sp)+,d0-d3/a0-a2
+
+	rts
+
+; ------------------------------------------------------------------------------
+;
+; Files (GEMDOS).
+
+; a0 = name, a1 = data, d1.l = size: creates the file (handle in d3) and
+; writes the data. N set if it could not be created.
+
+create_and_write:
+	movem.l	d1/a1,-(sp)
+
+	clr		-(sp)
+	move.l	a0,-(sp)
+	move	#60,-(sp) ; Fcreate
+	trap	#1
+	addq.l	#8,sp
+
+	movem.l	(sp)+,d1/a1
+
+	move	d0,d3
+	tst.l	d0
+	bmi		.failed
+
+	bsr		write_more
+
+	moveq	#0,d0 ; N clear.
+
+.failed:
+	rts
+
+; a1 = data, d1.l = size, d3 = handle.
+
+write_more:
+	pea		(a1)
+	move.l	d1,-(sp)
 	move	d3,-(sp)
 	move	#64,-(sp) ; Fwrite
 	trap	#1
 	lea		12(sp),sp
 
-	pea		checkpoints
-	move.l	checkpoint_count,d0
-	lsl.l	#5,d0
-	move.l	d0,-(sp)
-	move	d3,-(sp)
-	move	#64,-(sp)
-	trap	#1
-	lea		12(sp),sp
+	rts
 
+close_file:
 	move	d3,-(sp)
 	move	#62,-(sp) ; Fclose
 	trap	#1
 	addq.l	#4,sp
-
-.done:
-	movem.l	(sp)+,d0-d3/a0-a2
 
 	rts
 
@@ -601,6 +637,8 @@ close_line_text:
 	dc.b	')'
 line_end_text:
 	dc.b	13,10,0
+space_dollar_text:
+	dc.b	' $',0
 point_text:
 	dc.b	'.',0
 
@@ -637,7 +675,6 @@ part_start:
 render_parts:
 	ds.l	RENDER_PARTS
 
-	xdef pictures_measured
 
 checkpoint_count:
 	ds.l	1

@@ -81,9 +81,7 @@
 	xref divide_unsigned
 	xref write_screenshot
 
-EXIT_FRAME_LIMIT=1
-EXIT_GAME=2
-EXIT_EXCEPTION=3
+	include "st.i"
 
 ; 64 ticks (1.3 s): a picture on an 8 MHz ST takes about 25 ticks; it is
 ; caught up by skipping pictures, and only real pauses such as loading reset
@@ -156,23 +154,15 @@ vbl_handler:
 	tst.b	lockstep_mode
 	bne		.done ; The frame waits run the game's handler.
 
-	; The game's VBL handler ends with RTE: give it an exception frame.
-
-	st		in_tick
-	pea		.return(pc)
-	move	sr,-(sp)
-	move.l	L_00000118,-(sp)
-	rts
-
-.return:
-	sf		in_tick
+	bsr		run_game_vbl
 
 .done:
 	rte
 
-; Lockstep: one run of the game's VBL handler, from a frame wait.
+; One run of the game's VBL handler (from the VBL, or in lockstep from a
+; frame wait). It ends with RTE: it gets an exception frame.
 
-lockstep_vbl:
+run_game_vbl:
 	st		in_tick
 	pea		.return(pc)
 	move	sr,-(sp)
@@ -182,6 +172,40 @@ lockstep_vbl:
 .return:
 	sf		in_tick
 
+	rts
+
+; Real time, the frame's ticks added to frame_schedule: N set if the game is
+; on time (ahead of the VBLs). Late by more than MAXIMUM_FRAME_DEBT ticks,
+; the schedule starts over. Uses d0.
+
+check_schedule:
+	move.l	total_vbl_count,d0
+	sub.l	frame_schedule,d0
+	bmi		.on_time
+
+	cmp.l	#MAXIMUM_FRAME_DEBT,d0
+	bls		.late
+
+	move.l	total_vbl_count,frame_schedule ; Too far behind: start over.
+
+.late:
+	moveq	#0,d0 ; N clear.
+
+.on_time:
+	rts
+
+; Waits until the schedule's tick. Uses d0.
+
+wait_for_schedule:
+	move.l	total_vbl_count,d0
+	cmp.l	frame_schedule,d0
+	bcc		.done
+
+	bsr		wait_for_tick
+
+	bra		wait_for_schedule
+
+.done:
 	rts
 
 ; Waits for the next interrupt (the VBL or the MFP).
@@ -229,7 +253,7 @@ amiga_wait_vbl:
 	bmi		.done
 
 .lockstep_loop:
-	bsr		lockstep_vbl
+	bsr		run_game_vbl
 	dbf		d7,.lockstep_loop
 
 	bra		.done
@@ -244,16 +268,9 @@ amiga_wait_vbl:
 .ticks_ok:
 	add.l	d7,frame_schedule
 
-	move.l	total_vbl_count,d0
-	sub.l	frame_schedule,d0
+	bsr		check_schedule
 	bmi		.on_time
 
-	cmp.l	#MAXIMUM_FRAME_DEBT,d0
-	bls		.late
-
-	move.l	total_vbl_count,frame_schedule ; Too far behind: start over.
-
-.late:
 	tst.l	screenshot_due ; Late: no picture, except for a screenshot.
 	beq		.done
 
@@ -263,15 +280,7 @@ amiga_wait_vbl:
 
 .on_time:
 	bsr		render_and_present
-
-.wait_loop:
-	move.l	total_vbl_count,d0
-	cmp.l	frame_schedule,d0
-	bcc		.done
-
-	bsr		wait_for_tick
-
-	bra		.wait_loop
+	bsr		wait_for_schedule
 
 .done:
 	bsr		frame_wait_end
@@ -305,35 +314,22 @@ amiga_xsp_vsync:
 	bmi		.due
 
 .lockstep_loop:
-	bsr		lockstep_vbl
+	bsr		run_game_vbl
 	dbf		d7,.lockstep_loop
 
 	bra		.due
 
 .real_time:
-	move.l	total_vbl_count,d0
-	sub.l	frame_schedule,d0
-	bmi		.wait_loop ; On time.
+	bsr		check_schedule
+	bpl		.late
 
-	cmp.l	#MAXIMUM_FRAME_DEBT,d0
-	bls		.late
+	bsr		wait_for_schedule
 
-	move.l	total_vbl_count,frame_schedule ; Too far behind: start over.
+	bra		.due
 
 .late:
 	tst.l	screenshot_due ; Late: no picture, except for a screenshot.
-	bne		.due
-
-	bra		.done
-
-.wait_loop:
-	move.l	total_vbl_count,d0
-	cmp.l	frame_schedule,d0
-	bcc		.due
-
-	bsr		wait_for_tick
-
-	bra		.wait_loop
+	beq		.done
 
 .due:
 	bsr		render_and_present
@@ -1180,12 +1176,11 @@ screenshot_countdown:
 	dc.w	SCREENSHOT_INTERVAL
 
 ; IOCS calls the game makes that need nothing here (zero-terminated):
-; _CRTMOD, _B_PUTC, _B_COLOR, _B_LOCATE, _SKEY_MOD, _B_WPOKE, _G_CLR_ON,
-; _OS_CURON, _OS_CUROFF, _APAGE, _VPAGE, _HOME, _WINDOW, _WIPE, _SP_ON,
-; _SP_OFF, _BGCTRLST.
+; _CRTMOD, _B_PUTC, _B_COLOR, _B_LOCATE, _SKEY_MOD, _B_WPOKE, _OS_CURON,
+; _OS_CUROFF, _APAGE, _HOME, _WINDOW, _SP_ON, _SP_OFF, _BGCTRLST.
 
 known_iocs_calls:
-	dc.b	$10,$20,$22,$23,$7d,$87,$90,$ae,$af,$b1,$b2,$b3,$b4,$b5,$c1,$c2,$ca
+	dc.b	$10,$20,$22,$23,$7d,$87,$ae,$af,$b1,$b3,$b4,$c1,$c2,$ca
 	dc.b	0
 
 	even

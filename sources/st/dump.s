@@ -35,6 +35,11 @@
 	xref L_00E82000
 	xref PLAYER_SCORE
 	xref print_text
+	xref create_and_write
+	xref write_more
+	xref close_file
+	xref line_end_text
+	xref space_dollar_text
 	xref print_hex
 	xref print_number
 	xref print_tenths
@@ -43,7 +48,8 @@
 	xref units_to_tenths_ms
 	xref total_vbl_count
 
-PCG_PATTERNS=$75e
+	include "st.i"
+
 STAGE_SLOTS=16
 
 ; ------------------------------------------------------------------------------
@@ -399,63 +405,20 @@ write_graphics_dump:
 
 	endif
 
-; a0 = name, a1 = data, d1.l = size: creates the file (handle in d3) and
-; writes the data. N set if it could not be created.
-
-create_and_write:
-	movem.l	d1/a1,-(sp)
-
-	clr		-(sp)
-	move.l	a0,-(sp)
-	move	#60,-(sp) ; Fcreate
-	trap	#1
-	addq.l	#8,sp
-
-	movem.l	(sp)+,d1/a1
-
-	move	d0,d3
-	tst.l	d0
-	bmi		.failed
-
-	bsr		write_more
-
-	moveq	#0,d0 ; N clear.
-
-.failed:
-	rts
-
-; a1 = data, d1.l = size, d3 = handle.
-
-write_more:
-	pea		(a1)
-	move.l	d1,-(sp)
-	move	d3,-(sp)
-	move	#64,-(sp) ; Fwrite
-	trap	#1
-	lea		12(sp),sp
-
-	rts
-
-close_file:
-	move	d3,-(sp)
-	move	#62,-(sp) ; Fclose
-	trap	#1
-	addq.l	#4,sp
-
-	rts
-
 ; ------------------------------------------------------------------------------
 	data
 ; ------------------------------------------------------------------------------
 
+	ifd __USAGE__
 usage_file_name:
 	dc.b	'USAGE.BIN',0
+	endif
+	ifd __DUMP__
 graphics_file_name:
 	dc.b	'GRAPHICS.BIN',0
+	endif
 stages_text:
 	dc.b	'Stages reached:',0
-space_dollar_text:
-	dc.b	' $',0
 stage_text:
 	dc.b	'Stage $',0
 stage_frames_text:
@@ -468,8 +431,6 @@ stage_render_text:
 	dc.b	'), render ',0
 stage_end_text:
 	dc.b	' ms',13,10,0
-line_end_text:
-	dc.b	13,10,0
 
 	even
 
@@ -477,10 +438,6 @@ line_end_text:
 	bss
 ; ------------------------------------------------------------------------------
 
-usage_header:
-	ds.l	2
-usage_frames:
-	ds.l	1
 stages_seen:
 	ds.b	32
 current_stage:
@@ -496,6 +453,8 @@ stage_pictures:
 stage_render:
 	ds.l	STAGE_SLOTS
 	ifd __USAGE__
+usage_frames:
+	ds.l	1
 usage_counts: ; Per sprite/text palette entry: pixels shown.
 	ds.l	256
 histogram_made:
@@ -505,9 +464,22 @@ histograms:
 	ds.b	PCG_PATTERNS*16
 	endif
 
+	; Both data runs' files.
+
+	ifd __USAGE__
+USAGE_OR_DUMP set 1
+	endif
+	ifd __DUMP__
+USAGE_OR_DUMP set 1
+	endif
+
+	ifd USAGE_OR_DUMP
 	even
+usage_header:
+	ds.l	2
 pattern_palettes: ; Per pattern: the palettes it was drawn with.
 	ds.w	2048
+	endif
 
 ; ------------------------------------------------------------------------------
 	end

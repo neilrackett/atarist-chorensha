@@ -26,15 +26,12 @@
 	xref sprite_colour_map
 	xref screen_buffers
 
+	include "st.i"
+
 COLUMNS=32
 ROWS=32
 CHARACTERS=128
 SPACE=$20
-
-SCREEN_LINE=160
-PICTURE_X_BYTES=16 ; The picture starts 32 pixels into the line.
-PLAYFIELD_TOP=8 ; ST lines: 0-7 the HUD band, 8-199 the playfield.
-PLAYFIELD_BOTTOM=199
 HUD_ROWS=4 ; Rows 0-3: score (the band), lives and bombs (pinned).
 
 ; ------------------------------------------------------------------------------
@@ -45,34 +42,36 @@ HUD_ROWS=4 ; Rows 0-3: score (the band), lives and bombs (pinned).
 ; a jump at its start (sz2.s), so it returns to the game itself.
 
 st_draw_character:
-	movem.l	d0-d3/a0-a2,-(sp)
+	movem.l	d0-d4/a0-a3,-(sp)
 
-	move	7*4+4+2(sp),d0 ; Column.
+	move	9*4+4+2(sp),d0 ; Column.
 	and		#$7f,d0
 	cmp		#COLUMNS,d0
 	bcc		.done
 
-	move	7*4+8+2(sp),d1 ; Row.
+	move	9*4+8+2(sp),d1 ; Row.
 	and		#$7f,d1
 	cmp		#ROWS,d1
 	bcc		.done
 
-	move.l	7*4+12(sp),d2 ; Code.
+	move.l	9*4+12(sp),d2 ; Code.
 	and		#CHARACTERS-1,d2
-
-	; The glyph, converted now if new (blank glyphs are not drawn).
-
-	movem.l	d0-d1,-(sp)
-	bsr		character_lines
-	movem.l	(sp)+,d0-d1
 
 	move	d1,d3
 	lsl		#5,d3
 	add		d0,d3
-	lea		character_map,a0
-	add		d3,a0
+	lea		character_map,a3
+	add		d3,a3
+	cmp.b	(a3),d2
+	beq		.done ; Already there (the score's unchanged digits).
 
-	move.b	d2,(a0)
+	move.b	d2,(a3)
+
+	; The glyph, converted now if new (blank glyphs are not drawn).
+
+	move	d0,d4
+	bsr		character_lines ; a0 = its lines.
+	move	d4,d0 ; The column.
 
 	; The row's characters with pixels (bit 31 - column), the only ones
 	; drawn.
@@ -82,7 +81,6 @@ st_draw_character:
 	lsl		#2,d3
 	add		d3,a1
 	move.l	(a1),d3
-	movem.l	d4,-(sp)
 	moveq	#31,d4
 	sub		d0,d4
 	bclr	d4,d3
@@ -93,31 +91,23 @@ st_draw_character:
 	bset	d4,d3
 
 .blank:
-	movem.l	(sp)+,d4
 	move.l	d3,(a1)
 
 	tst		d1
 	bne		.done
 
-	; The HUD: the band of all three screens, opaque on colour 0.
+	; The HUD: the band of every screen, opaque on colour 0.
 
-	bsr		character_lines ; a0 = its lines.
-	move.l	screen_buffers,a1
-	bsr		.band_character
-	move.l	screen_buffers+4,a1
-	bsr		.band_character
-	move.l	screen_buffers+8,a1
-	bsr		.band_character
+	lea		column_offsets,a1
+	add		d0,d0
+	move	(a1,d0.w),d0
+	add		#PICTURE_X_BYTES,d0 ; The column's first byte in line 0.
+	lea		screen_buffers,a3
+	moveq	#SCREENS-1,d4
 
-.done:
-	movem.l	(sp)+,d0-d3/a0-a2
-
-	rts
-
-; a0 = character lines, d0 = column, a1 = screen.
-
-.band_character:
-	bsr		column_address
+.screen_loop:
+	move.l	(a3)+,a1
+	add		d0,a1
 	move.l	a0,a2
 
 	rept	8
@@ -127,34 +117,21 @@ st_draw_character:
 	lea		SCREEN_LINE(a1),a1
 	endr
 
-	rts
+	dbf		d4,.screen_loop
 
-; d0 = column, a1 = screen -> a1 = the column's first byte in line 0.
-; Uses d1.
-
-column_address:
-	move	d0,d1
-	lsr		#1,d1
-	lsl		#3,d1 ; Group * 8.
-	add		#PICTURE_X_BYTES,d1
-	btst	#0,d0
-	beq		.even
-
-	addq	#1,d1 ; The groups' low bytes: pixels 8-15.
-
-.even:
-	add		d1,a1
+.done:
+	movem.l	(sp)+,d0-d4/a0-a3
 
 	rts
 
 ; d2 = code -> a0 = its 8 lines (planes long, mask long), converted on first
-; use. Uses d3.
+; use. Uses d0/a1.
 
 character_lines:
-	move	d2,d3
-	lsl		#6,d3 ; 64 bytes per character.
 	lea		character_data,a0
-	add		d3,a0
+	move	d2,d0
+	lsl		#6,d0 ; 64 bytes per character.
+	add		d0,a0
 
 	lea		character_ready,a1
 	tst.b	(a1,d2.w)
@@ -276,7 +253,7 @@ font_offsets:
 ; CLEAR_TEXT_PLANE: an empty map and HUD band. Preserves all registers.
 
 amiga_clear_text_planes:
-	movem.l	d0-d7/a0-a1,-(sp)
+	movem.l	d0-d7/a0-a2,-(sp)
 
 	lea		character_map,a0
 	move.l	#SPACE<<24|SPACE<<16|SPACE<<8|SPACE,d0
@@ -304,14 +281,15 @@ amiga_clear_text_planes:
 
 	suba.l	a1,a1
 
-	move.l	screen_buffers,a0
-	bsr		.clear_band
-	move.l	screen_buffers+4,a0
-	bsr		.clear_band
-	move.l	screen_buffers+8,a0
-	bsr		.clear_band
+	lea		screen_buffers,a2
 
-	movem.l	(sp)+,d0-d7/a0-a1
+.screen_loop:
+	move.l	(a2)+,a0
+	bsr		.clear_band
+	cmp.l	#screen_buffers+SCREENS*4,a2
+	bne		.screen_loop
+
+	movem.l	(sp)+,d0-d7/a0-a2
 
 	rts
 
@@ -438,19 +416,7 @@ draw_text_rows:
 
 	moveq	#0,d2
 	move.b	(a2,d1.w),d2
-	move	d2,d0
-	lsl		#6,d0 ; 64 bytes per character.
-	lea		character_data,a0
-	add		d0,a0
-
-	lea		character_ready,a1
-	tst.b	(a1,d2.w)
-	bne		.ready
-
-	st		(a1,d2.w)
-	bsr		convert_character
-
-.ready:
+	bsr		character_lines
 	add		d3,a0
 	move	d1,d0
 	add		d0,d0

@@ -328,7 +328,6 @@ ym_play:
 	move	YM_ENTRY_COUNT(a1),ym_frame_count
 	clr		ym_position
 	move	#POSITION_STEP,ym_step
-	sf		ym_slow
 
 	move	d1,d0
 	lsr		#8,d0
@@ -337,7 +336,6 @@ ym_play:
 	bne		.rate_known
 
 	move	#POSITION_STEP_SLOW,ym_step
-	st		ym_slow
 
 .rate_known:
 	st		ym_start_pending
@@ -358,6 +356,31 @@ ym_play:
 YM_WRITE macro
 	move.b	#\1,YM_SELECT.w
 	move.b	\2,YM_DATA.w
+	endm
+
+; The mixer = \1 (tones and noises: 1 = off), keeping the I/O ports'
+; direction bits; \2 = a data register to use.
+
+YM_SET_MIXER macro
+	move.b	#YM_MIXER,YM_SELECT.w
+	move.b	YM_SELECT.w,\2
+	and.b	#$c0,\2
+	or.b	#\1,\2
+	YM_WRITE YM_MIXER,\2
+	endm
+
+; Period \1 (a data register) 1.5 times longer, at most \2. Uses d4.
+
+YM_SLOWER macro
+	move	\1,d4
+	lsr		#1,d4
+	add		d4,\1
+	cmp		#\2,\1
+	bls		.short_enough\@
+
+	move	#\2,\1
+
+.short_enough\@:
 	endm
 
 audio_tick:
@@ -396,36 +419,14 @@ audio_tick:
 	move	6(a0),d2 ; Tone C period.
 	moveq	#0,d3
 	move.b	2(a0),d3 ; Noise period.
-	tst.b	ym_slow
+	cmp		#POSITION_STEP,ym_step
 	beq		.periods_known
 
-	; 10.4 kHz: 1.5 times lower.
+	; A 10.4 kHz effect: 1.5 times lower.
 
-	move	d1,d4
-	lsr		#1,d4
-	add		d4,d1
-	move	d2,d4
-	lsr		#1,d4
-	add		d4,d2
-	move	d3,d4
-	lsr		#1,d4
-	add		d4,d3
-	cmp		#4095,d1
-	bls		.a_ok
-
-	move	#4095,d1
-
-.a_ok:
-	cmp		#4095,d2
-	bls		.c_ok
-
-	move	#4095,d2
-
-.c_ok:
-	cmp		#31,d3
-	bls		.periods_known
-
-	moveq	#31,d3
+	YM_SLOWER d1,4095
+	YM_SLOWER d2,4095
+	YM_SLOWER d3,31
 
 .periods_known:
 	move	#$2700,sr ; (Select and write together.)
@@ -434,11 +435,7 @@ audio_tick:
 	beq		.mixer_set
 
 	sf		ym_start_pending
-	move.b	#YM_MIXER,YM_SELECT.w
-	move.b	YM_SELECT.w,d4
-	and.b	#$c0,d4 ; The I/O ports' directions.
-	or.b	#YM_MIXER_EFFECT,d4
-	YM_WRITE YM_MIXER,d4
+	YM_SET_MIXER YM_MIXER_EFFECT,d4
 
 .mixer_set:
 	YM_WRITE 0,d1
@@ -489,11 +486,7 @@ audio_silence:
 	YM_WRITE 8,d0
 	YM_WRITE 9,d0
 	YM_WRITE 10,d0
-	move.b	#YM_MIXER,YM_SELECT.w
-	move.b	YM_SELECT.w,d0
-	and.b	#$c0,d0
-	or.b	#YM_MIXER_OFF,d0
-	YM_WRITE YM_MIXER,d0
+	YM_SET_MIXER YM_MIXER_OFF,d0
 
 	move	(sp)+,sr
 	move.l	(sp)+,d0
@@ -528,11 +521,9 @@ ym_frame_count:
 	ds.w	1
 ym_position: ; Frames, in 1/256.
 	ds.w	1
-ym_step: ; Per VBL.
+ym_step: ; Per VBL (POSITION_STEP_SLOW: 1.5 times slower and lower).
 	ds.w	1
 ym_playing:
-	ds.b	1
-ym_slow: ; A 10.4 kHz effect: 1.5 times slower and lower.
 	ds.b	1
 ym_start_pending: ; The mixer to set at the next VBL.
 	ds.b	1

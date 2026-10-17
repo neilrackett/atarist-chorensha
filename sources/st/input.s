@@ -53,7 +53,7 @@
 
 	xref machine_is_ste
 	xref lockstep_mode
-	xref display_mode_changed
+	xref find_cookie
 	xref crop_mode
 
 	include "xpad.inc"
@@ -271,7 +271,6 @@ process_key:
 
 .not_lockstep:
 	not.b	crop_mode
-	st		display_mode_changed
 
 	rts
 
@@ -287,24 +286,11 @@ find_xpad:
 	movem.l	d0-d3/a0-a1,-(sp)
 
 	clr.l	xpad_block
-	move.l	XPAD_JAR.w,d0 ; The cookie jar, or 0.
+	move.l	#XPAD_COOKIE,d0
+	jsr		find_cookie
 	beq		.done
 
-	move.l	d0,a1
-
-.next_cookie:
-	move.l	(a1),d0
-	beq		.done ; The end of the jar.
-
-	cmp.l	#XPAD_COOKIE,d0
-	beq		.found
-
-	addq.l	#8,a1
-
-	bra		.next_cookie
-
-.found:
-	move.l	4(a1),d0
+	tst.l	d0
 	beq		.done
 
 	btst	#0,d0
@@ -664,7 +650,7 @@ reset_input:
 	clr.l	autofire_frames
 
 	lea		keyboard_matrix,a0
-	moveq	#(16+128+8)/4-1,d0 ; keyboard_matrix ... joystick_bit_counts
+	moveq	#(joystick_bit_counts+8-keyboard_matrix)/4-1,d0
 
 .clear:
 	clr.l	(a0)+

@@ -59,6 +59,8 @@
 	xref unimplemented_dos
 	xref unimplemented_iocs
 	xref print_text
+	xref line_end_text
+	xref space_dollar_text
 	xref print_number
 	xref print_tenths
 	xref print_hex
@@ -76,9 +78,7 @@
 HEAP_SIZE=$100000 ; The game's process area: PSP, game stack (64 KB), heap.
 HEAP_SIZE_ST=HEAP_SIZE-$60000 ; An ST loads no samples (370 KB): 640 KB.
 
-EXIT_FRAME_LIMIT=1
-EXIT_GAME=2
-EXIT_EXCEPTION=3
+	include "st.i"
 
 ; ------------------------------------------------------------------------------
 	text
@@ -161,10 +161,7 @@ start:
 	tst.b	machine_is_st
 	bne		.machine_ok
 
-	tst.b	machine_is_ste
-	bne		.machine_ok
-
-	tst.b	machine_is_mega_ste
+	tst.b	machine_has_ste_hardware ; An STE or a Mega STE.
 	bne		.machine_ok
 
 	lea		wrong_machine_text,a0
@@ -182,21 +179,13 @@ start:
 	move.l	(a1)+,d0
 	beq		.data_found
 
-	cmp.l	#-1,d0
-	bne		.data_file
-
-	; An ST goes on with its YM effects (an STE plays the samples).
-
-	tst.b	machine_has_ste_hardware
-	beq		.data_loop
-
-	bra		.data_found
-
-.data_file:
 	move.l	d0,a0
 	bsr		file_exists
 	bne		.data_loop
 
+	; a0 = the missing file's name.
+
+.data_missing:
 	move.l	a0,-(sp)
 	lea		no_data_text,a0
 	jsr		print_text
@@ -258,10 +247,9 @@ start:
 	jsr		load_ym_effects
 	bpl		.effects_loaded
 
-	lea		ym_load_failed_text,a0
-	jsr		print_text
+	lea		ym_file_name,a0
 
-	bra		.wait_and_exit
+	bra		.data_missing
 
 .effects_loaded:
 	jsr		initialize_display
@@ -323,6 +311,8 @@ start:
 	jsr		write_usage
 	endif
 
+	lea		run_end_text,a0 ; (Its files are written: tests stop here.)
+	jsr		print_text
 
 	bra		.exit
 
@@ -413,18 +403,9 @@ read_frame_limit:
 ; LOCKSTEP.TXT present: lockstep mode from the start.
 
 read_lockstep:
-	clr		-(sp)
-	pea		lockstep_file_name
-	move	#61,-(sp) ; Fopen
-	trap	#1
-	addq.l	#8,sp
-	tst.l	d0
-	bmi		.done
-
-	move	d0,-(sp)
-	move	#62,-(sp) ; Fclose
-	trap	#1
-	addq.l	#4,sp
+	lea		lockstep_file_name,a0
+	bsr		file_exists
+	beq		.done
 
 	st		lockstep_mode
 
@@ -764,7 +745,7 @@ welcome_text:
 	dc.b	'Atari ST port: Neil Rackett.',13,10,13,10,0
 st_text:
 	dc.b	'Machine: Atari ST, 8 MHz.',13,10
-	dc.b	'No DMA sound: no sound effects.',13,10,0
+	dc.b	'No DMA sound: YM sound effects.',13,10,0
 ste_text:
 	dc.b	'Machine: Atari STE, 8 MHz.',13,10,0
 mega_ste_text:
@@ -807,8 +788,7 @@ pcm_data_file_name:
 	even
 data_files: ; Checked at start (a file the game loads from each folder).
 	dc.l	bgm_data_file_name,etc_data_file_name,xsp_data_file_name
-	dc.l	pcm_data_file_name,-1
-	dc.l	ym_file_name,0 ; An ST's too.
+	dc.l	pcm_data_file_name,0
 no_memory_text:
 	dc.b	'Not enough memory: needs ',0
 of_text:
@@ -836,6 +816,8 @@ lockstep_text:
 starting_text:
 	dc.b	'Starting (the background takes a few',13,10
 	dc.b	'seconds to build)...',13,10,0
+run_end_text:
+	dc.b	'End of the run.',13,10,0
 press_key_text:
 	dc.b	13,10,'Press a key.',13,10,0
 exit_text:
@@ -866,8 +848,6 @@ cache_resets_text:
 	dc.b	'Sprite cache emptied (including at start): ',0
 half_switches_text:
 	dc.b	', halves switched: ',0
-ym_load_failed_text:
-	dc.b	'PCM_DAT\SZ2_YM.BIN could not be read.',13,10,0
 ym_played_text:
 	dc.b	'YM sound effects played: ',0
 ym_unknown_text:
@@ -880,10 +860,6 @@ unimplemented_dos_text:
 	dc.b	'Unimplemented DOS calls:',0
 unimplemented_iocs_text:
 	dc.b	'Unimplemented IOCS calls:',0
-space_dollar_text:
-	dc.b	' $',0
-line_end_text:
-	dc.b	13,10,0
 
 	even
 

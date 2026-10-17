@@ -232,10 +232,10 @@ def ym_volume(level):
     return 0.0 if level == 0 else 2.0 ** ((level - 15) / 2.0)
 
 
-def render(frames, slow=False):
+def render(frames):
     """The frames as a YM2149 plays them (A and C tones, B noise), at
     PREVIEW_RATE."""
-    per_frame = int(PREVIEW_RATE / FRAMES_PER_SECOND * (1.5 if slow else 1.0))
+    per_frame = int(PREVIEW_RATE / FRAMES_PER_SECOND)
     out = np.zeros(per_frame * len(frames))
     phase_a = phase_c = 0.0
     noise_phase = 0.0
@@ -243,10 +243,6 @@ def render(frames, slow=False):
     noise_bit = 1
     for i, (volume_a, noise_volume, volume_c, noise_period, period_a,
             period_c) in enumerate(frames):
-        if slow:
-            period_a = min(4095, period_a * 3 // 2)
-            period_c = min(4095, period_c * 3 // 2)
-            noise_period = min(31, noise_period * 3 // 2)
         step_a = TONE_UNIT / max(1, period_a) / PREVIEW_RATE
         step_c = TONE_UNIT / max(1, period_c) / PREVIEW_RATE
         noise_step = TONE_UNIT / max(1, noise_period) / PREVIEW_RATE
@@ -301,16 +297,15 @@ def main():
 
     sounds = []
     for path in paths:
-        raw = open(path, "rb").read()
         samples = read_sam(path)
-        sounds.append((os.path.basename(path).upper(), raw, samples, analyse(samples)))
+        sounds.append((os.path.basename(path).upper(), samples, analyse(samples)))
 
     # The loudest frames of all the effects: volume 15.
-    all_power = np.array([a[0] for _, _, _, analysis in sounds for a in analysis])
+    all_power = np.array([a[0] for _, _, analysis in sounds for a in analysis])
     reference = float(np.percentile(all_power[all_power > 0], 99.5))
 
     effects = []
-    for name, raw, samples, analysis in sounds:
+    for name, samples, analysis in sounds:
         frames = ym_frames(analysis, reference)
         effects.append((name, frames))
         chords = sum(1 for f in frames if f[2])
@@ -318,7 +313,7 @@ def main():
         both = sum(1 for f in frames if f[0] and f[1])
         noises = sum(1 for f in frames if f[1] and not f[0])
         print("%-14s %6d bytes %3d frames: tone %3d, both %3d, noise %3d, chord %3d, loudest %2d"
-              % (name, len(raw), len(frames), tones, both, noises, chords,
+              % (name, len(samples), len(frames), tones, both, noises, chords,
                  max([max(f[0], f[1], f[2]) for f in frames] or [0])))
 
     size = write_effects(args.output, effects)
@@ -331,7 +326,7 @@ def main():
         gap = np.zeros(int(0.3 * PREVIEW_RATE))
         index = []
         position = 0.0
-        for (name, raw, samples, _), (_, frames) in zip(sounds, effects):
+        for (name, samples, _), (_, frames) in zip(sounds, effects):
             original = resampled(samples)
             ym = render(frames)
             stem = os.path.join(args.preview, os.path.splitext(name)[0])

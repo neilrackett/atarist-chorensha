@@ -7,8 +7,7 @@
 	xdef initialize_machine
 	xdef release_machine
 
-	xdef machine_type
-	xdef machine_cpu
+	xdef find_cookie
 	xdef machine_is_st
 	xdef machine_is_ste
 	xdef machine_is_mega_ste
@@ -46,36 +45,51 @@ MACHINE_MEGA_STE=$00010010
 
 _p_cookies=$5a0
 
+; d0.l = a cookie's tag -> d0.l = its value and Z clear, or Z set if there
+; is no such cookie (or no jar: TOS 1.00-1.04). Supervisor mode. Preserves
+; the other registers.
+
+find_cookie:
+	movem.l	d1/a0,-(sp)
+
+	move.l	d0,d1
+	move.l	_p_cookies.w,d0
+	beq		.none
+
+	move.l	d0,a0
+
+.cookie_loop:
+	move.l	(a0)+,d0
+	beq		.none ; The jar's end.
+
+	cmp.l	d1,d0
+	beq		.found
+
+	addq.l	#4,a0
+
+	bra		.cookie_loop
+
+.found:
+	move.l	(a0),d0
+	movem.l	(sp)+,d1/a0
+	and		#$fb,ccr ; Z clear (the value may be 0).
+
+	rts
+
+.none:
+	movem.l	(sp)+,d1/a0
+	moveq	#0,d0 ; Z set.
+
+	rts
+
 detect_machine:
-	move.l	_p_cookies,d0
-	beq		.exit
+	move.l	#'_MCH',d0
+	bsr		find_cookie
+	beq		.no_mch
 
-	move.l	d0,a6
+	move.l	d0,machine_type
 
-	move.l	(a6)+,d0
-	beq		.exit
-
-.cookies_loop:
-	move.l	(a6)+,d1
-
-	cmp.l	#'_MCH',d0
-	bne		.skip_mch
-
-	move.l	d1,machine_type
-
-	bra		.next_cookie
-
-.skip_mch:
-	cmp.l	#'_CPU',d0
-	bne		.next_cookie
-
-	move.l	d1,machine_cpu
-
-.next_cookie:
-	move.l	(a6)+,d0
-	bne		.cookies_loop
-
-.exit:
+.no_mch:
 	move.l	machine_type,d0
 	cmp.l	#MACHINE_STE,d0
 	seq		machine_is_ste
@@ -175,7 +189,9 @@ initialize_machine:
 	bra		.install_vectors
 
 .vectors_installed:
-	; Display: low resolution, 50 Hz, the port's screen and grey palette.
+	; Display: low resolution, 50 Hz, the port's screen (on an STE its
+	; address's low byte 0 from now on: the screens are 256-aligned), all
+	; colours black.
 
 	clr.b	$ffff8260.w
 	move.b	#2,$ffff820a.w
@@ -241,15 +257,11 @@ initialize_machine:
 ; without the cache if force_8mhz is set (MEGASTE8.TXT, for comparisons).
 ; The register is read back into mega_ste_control (the start-up text and
 ; the exit report show it); release_machine puts the old value back.
-; Supervisor mode, before the take-over.
+; A Mega STE only; supervisor mode, before the take-over.
 
 set_cpu_speed:
-	tst.b	machine_is_mega_ste
-	beq		.done
-
 	move.b	$ffff8e21.w,d0
 	move.b	d0,old_8e21
-	st		cpu_speed_set
 
 	and.b	#$fc,d0
 	tst.b	force_8mhz
@@ -261,7 +273,6 @@ set_cpu_speed:
 	move.b	d0,$ffff8e21.w
 	move.b	$ffff8e21.w,mega_ste_control
 
-.done:
 	rts
 
 ; ------------------------------------------------------------------------------
@@ -271,7 +282,7 @@ release_machine:
 
 	jsr		audio_silence
 
-	tst.b	cpu_speed_set
+	tst.b	machine_is_mega_ste ; (set_cpu_speed ran.)
 	beq		.speed_restored
 
 	move.b	old_8e21,$ffff8e21.w
@@ -331,10 +342,7 @@ release_machine:
 	data
 ; ------------------------------------------------------------------------------
 
-machine_type:
-	dc.l	-1
-
-machine_cpu:
+machine_type: ; _MCH, -1 without one.
 	dc.l	-1
 
 ; Vector address (word), handler: saved, installed and restored in order.
@@ -366,13 +374,16 @@ vector_list:
 	dc.l	trap_f_handler ; IOCS.
 	dc.w	$70
 	dc.l	vbl_handler
+	ifnd __RELEASE__
 	dc.w	$110
-	dc.l	timer_d_handler
+	dc.l	timer_d_handler ; (Measurements.)
+	endif
 	dc.w	$118
 	dc.l	ikbd_handler
+vector_list_end:
 	dc.w	0
 
-NUMBER_OF_VECTORS=15
+NUMBER_OF_VECTORS=(vector_list_end-vector_list)/6
 
 ; ------------------------------------------------------------------------------
 	bss
@@ -404,8 +415,6 @@ old_fine_scroll:
 old_sound_mode:
 	ds.b	1
 old_8e21:
-	ds.b	1
-cpu_speed_set:
 	ds.b	1
 force_8mhz:
 	ds.b	1

@@ -45,7 +45,7 @@
 #
 # Measurement runs (FRAMES) also write a screenshot every 500 frames
 # (Snnnnnnn.PI1), copied to tmp/out/shots_NAME/ and converted to PNG with a
-# montage (tests/st/pi1_png.py).
+# montage (tools/st/pi1_png.py).
 
 set -u
 
@@ -187,9 +187,8 @@ if [ -n "$SCRIPT" ]; then
 fi
 
 if [ -n "$FRAMES" ]; then
-	# The exit report ends with the heap line; then Hatari is stopped.
-	wait_for "Game heap used" || echo "$0: no exit report (timeout or Hatari ended)" >&2
-	sleep 1
+	# The program prints this last, once its files are written.
+	wait_for "End of the run." || echo "$0: no end of the run (timeout or Hatari ended)" >&2
 	kill $HPID 2>/dev/null
 elif [ -n "$SCRIPT" ]; then
 	sleep 1
@@ -206,7 +205,7 @@ if ls "$STAGE"/F*.BIN > /dev/null 2>&1; then
 fi
 if ls "$STAGE"/S*.PI1 > /dev/null 2>&1; then
 	cp "$STAGE"/S*.PI1 "$SHOTDIR/"
-	python3 tests/st/pi1_png.py --montage "$SHOTDIR/montage.png" "$SHOTDIR"/S*.PI1
+	python3 tools/st/pi1_png.py --montage "$SHOTDIR/montage.png" "$SHOTDIR"/S*.PI1
 fi
 
 echo "=== $NAME ($MACHINE, ${MEMSIZE} MB) console output ==="

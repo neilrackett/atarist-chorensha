@@ -52,16 +52,17 @@ if [ "${RELEASE:-0}" = "1" ]; then
 fi
 NAME=${NAME:-$DEFAULT_NAME}
 
-st vasmm68k_mot /tmp/sources/sz2.s -quiet -no-opt -Faout -m68000 -D__ST__ -I/tmp/sources -o /tmp/$OUT/sz2_ste.o
+st vasmm68k_mot /tmp/sources/sz2.s -quiet -no-opt -Faout -m68000 -D__ST__ -I/tmp/sources -o /tmp/$OUT/sz2_st.o
 
-MODULES="main machine emulator input audio measure dump display background palette text sprites mem_map"
+# The port's modules, in link order after main and the game core.
+MODULES="mem_map machine emulator input audio measure dump display background palette text sprites"
 
-for module in $MODULES; do
+for module in main $MODULES; do
 	st vasmm68k_mot /tmp/sources/st/$module.s -quiet -Faout -m68000 -I/tmp/sources/st -I/tmp/lib/xpad/src $PORT_FLAGS -o /tmp/$OUT/$module.o
 done
 
 OBJECTS=""
-for module in main sz2_ste mem_map machine emulator input audio measure dump display background palette text sprites; do
+for module in main sz2_st $MODULES; do
 	OBJECTS="$OBJECTS /tmp/$OUT/$module.o"
 done
 

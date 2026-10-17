@@ -30,7 +30,8 @@ replays), the text's from fixed weights (the HUD is always shown).
 usage:
     palette_map.py --palette SZ_PALET.PAL --graphics GRAPHICS.BIN
                    --usage USAGE.BIN [...] -o palette_map.i [--preview DIR]
-                   [--no-dither]
+                   [--bg-colours N] [--bg-representatives XX,...]
+                   [--weight-power P] [--no-dither]
 """
 
 import argparse
@@ -39,6 +40,8 @@ import os
 import struct
 
 import numpy as np
+
+from crs_formats import gvram_line, pattern_pixel, read_graphics
 
 # Cycling entries: the red ramp (graphics $B1, sprites 10:1 and 11:1; graphics
 # $A1's slower red pulse shares it), the green ramp (sprites 1:1 ... 9:1).
@@ -96,22 +99,7 @@ def read_palette(path):
     # L_000294FA: text colours 1-15 (sprite block 0) come from block 2.
     for c in range(1, 16):
         sprites[c] = words[2 * 16 + c]
-    sprites[0] = words[0]
     return graphics, sprites
-
-
-def read_graphics(path):
-    data = open(path, "rb").read()
-    if data[:4] != b"CRSG":
-        raise SystemExit(f"{path}: not a CRSG dump")
-    gvram = data[4:4 + 0x100000]
-    patterns = data[4 + 0x100000 + 0x400 + 4096:]
-    return gvram, patterns
-
-
-def gvram_line(gvram, page, line):
-    base = page * 0x80000 + line * 1024
-    return gvram[base + 1:base + 512:2]  # Low bytes of the left 256 words.
 
 
 def read_usage(paths):
@@ -300,8 +288,7 @@ def preview(directory, gvram, patterns, graphics, sprites, graphics_map, sprite_
         ox, oy = (n % columns) * 18, (n // columns) * 18
         for y in range(16):
             for x in range(16):
-                base = (64 if x >= 8 else 0) + y * 4 + (x & 7) // 2
-                nibble = (data[base] >> 4) if (x & 1) == 0 else (data[base] & 15)
+                nibble = pattern_pixel(data, y, x)
                 if not nibble:
                     continue
                 entry = palette * 16 + nibble

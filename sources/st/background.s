@@ -40,6 +40,8 @@
 	xref write_graphics_dump
 	endif
 
+	include "st.i"
+
 GVRAM_LINE=1024
 GVRAM_PAGE_SIZE=$80000
 
@@ -47,15 +49,7 @@ PAGE0_LINES=256
 PAGE1_LINES=32
 GROUPS=16 ; 16-pixel groups in the 256-pixel picture.
 PAGE0_LINE=GROUPS*10 ; Mask and four plane words per group.
-PAGE1_LINE=GROUPS*8
-TABLE_LINE=GROUPS*8
-TABLE_STRIP=PAGE0_LINES*TABLE_LINE ; 32 KB.
-
-PLAYFIELD_LINES=192
-SCREEN_LINE=160
-
-CRTC_PAGE0_Y=$1a
-CRTC_PAGE1_Y=$22
+PAGE1_LINE=GROUPS*8 ; (And a table line.)
 
 ; ------------------------------------------------------------------------------
 	text
@@ -365,29 +359,31 @@ copy_background:
 	sub		d7,d6 ; Lines after it.
 
 	subq	#1,d7
+	move.l	a6,-(sp) ; (The copy uses every other register.)
+	move	d6,-(sp)
 	bsr		.copy_lines
+	move	(sp)+,d6
+	move.l	(sp)+,a0 ; T[s][0]
 
 	subq	#1,d6
 	bmi		.done
 
-	move.l	a6,a0
 	move	d6,d7
 	bsr		.copy_lines
 
 .done:
 	rts
 
-; d7 = lines - 1: copies 128 bytes per line from (a0)+ to (a1), next line.
+; d7 = lines - 1: copies 128 bytes per line from (a0)+ to (a1), next line
+; (about 602 cycles a line; the bus allows 512).
 
 .copy_lines:
-	movem.l	(a0)+,d0-d5/a2-a5 ; 40 bytes.
-	movem.l	d0-d5/a2-a5,(a1)
-	movem.l	(a0)+,d0-d5/a2-a5
-	movem.l	d0-d5/a2-a5,40(a1)
-	movem.l	(a0)+,d0-d5/a2-a5
-	movem.l	d0-d5/a2-a5,80(a1)
-	movem.l	(a0)+,d0-d1
-	movem.l	d0-d1,120(a1)
+	movem.l	(a0)+,d0-d6/a2-a6 ; 48 bytes.
+	movem.l	d0-d6/a2-a6,(a1)
+	movem.l	(a0)+,d0-d6/a2-a6
+	movem.l	d0-d6/a2-a6,48(a1)
+	movem.l	(a0)+,d0-d6/a2 ; 32 bytes.
+	movem.l	d0-d6/a2,96(a1)
 	lea		SCREEN_LINE(a1),a1
 
 	dbf		d7,.copy_lines

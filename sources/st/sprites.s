@@ -59,12 +59,12 @@
 	xref count_sprite_usage
 	endif
 
-PCG_PATTERNS=$75e
+	include "st.i"
+
 MAXIMUM_SPRITES=512
 PRIORITY_BUCKETS=64
 FIRST_SHOWN_PRIORITY=$10
 
-EMPTY_KEY=$ffff ; No variant (last_key).
 
 ; Variant record: first row (word), row count (word), the opaque pixels of
 ; all rows (word, OR), 16 shifted copies (pointers, 0 = not made), the
@@ -91,11 +91,8 @@ ARENA_MAXIMUM=$180000
 ARENA_MINIMUM=$20000
 ARENA_RESERVE=$10000 ; Left free for TOS.
 
-SCREEN_LINE=160
-PLAYFIELD_TOP=8
-PLAYFIELD_BOTTOM=199
-FIRST_PICTURE_GROUP=2
-LAST_PICTURE_GROUP=17
+FIRST_PICTURE_GROUP=PICTURE_X_BYTES/8 ; The picture's first 16-pixel group,
+LAST_PICTURE_GROUP=FIRST_PICTURE_GROUP+15 ; and its last.
 
 ; ------------------------------------------------------------------------------
 	text
@@ -347,7 +344,6 @@ reset_cache:
 	dbf		d1,.clear
 
 	addq.l	#1,cache_resets
-	move	#EMPTY_KEY,last_key
 
 	movem.l	(sp)+,d0-d1/a0
 
@@ -396,6 +392,11 @@ switch_half:
 	move.l	d6,arena_next
 	move.l	d7,arena_end
 
+	; Only pattern_tables can point into the half emptied: a pointer is
+	; stored when what it points at is made, so everything in the arena
+	; points only at what was made after it, and the half kept is the newer
+	; one. A pattern's table there goes, and with it its records and copies.
+
 	lea		pattern_tables,a0
 	move	#PCG_PATTERNS-1,d5
 
@@ -404,60 +405,16 @@ switch_half:
 	beq		.next_pattern
 
 	cmp.l	d6,d0
-	bcs		.table_kept
+	bcs		.next_pattern
 
 	cmp.l	d7,d0
-	bcc		.table_kept
+	bcc		.next_pattern
 
-	clr.l	-4(a0) ; The table goes (its records in the other half too).
-
-	bra		.next_pattern
-
-.table_kept:
-	move.l	d0,a1
-	moveq	#32-1,d4
-
-.variant_loop:
-	move.l	(a1)+,d0
-	beq		.next_variant
-
-	cmp.l	d6,d0
-	bcs		.record_kept
-
-	cmp.l	d7,d0
-	bcc		.record_kept
-
-	clr.l	-4(a1)
-
-	bra		.next_variant
-
-.record_kept:
-	move.l	d0,a2
-	lea		RECORD_SHIFTS(a2),a2
-	moveq	#16-1,d3
-
-.shift_loop:
-	move.l	(a2)+,d0
-	beq		.next_shift
-
-	cmp.l	d6,d0
-	bcs		.next_shift
-
-	cmp.l	d7,d0
-	bcc		.next_shift
-
-	clr.l	-4(a2)
-
-.next_shift:
-	dbf		d3,.shift_loop
-
-.next_variant:
-	dbf		d4,.variant_loop
+	clr.l	-4(a0)
 
 .next_pattern:
 	dbf		d5,.pattern_loop
 
-	move	#EMPTY_KEY,last_key
 	addq.l	#1,half_switches
 
 	movem.l	(sp)+,d0-d7/a0-a3
@@ -527,10 +484,8 @@ draw_one_sprite:
 	cmp		#272,d0
 	bhi		.nothing
 
-	cmp		#272,d1
-	bhi		.nothing
-
-	; Outside the playfield lines: nothing (before any variant work).
+	; Outside the playfield lines: nothing (before any variant work; so is
+	; a y beyond the X68000's 272).
 
 	sub		d6,d1 ; ST line of pattern row 0.
 	cmp		#PLAYFIELD_BOTTOM,d1
@@ -539,29 +494,8 @@ draw_one_sprite:
 	cmp		#PLAYFIELD_TOP-15,d1
 	blt		.nothing
 
-	; Variant key: pattern (bits 0-10), palette (11-14), horizontal flip
-	; (15).
-
-	move	d3,d4
-	and		#$0f00,d4
-	lsl		#3,d4
-	or		d2,d4
-	btst	#14,d3
-	beq		.no_flip
-
-	bset	#15,d4
-
-.no_flip:
-	cmp		last_key,d4 ; The same variant as the sprite before?
-	bne		.find
-
-	move.l	last_record,a4
-
-	bra		.variant_found
-
-.find:
-	; Its record, through the pattern's table of 32 variants (palette,
-	; horizontal flip: key bits 15-11).
+	; Its variant's record, through the pattern's table of 32 (palette,
+	; horizontal flip: the slot from the attributes' high byte).
 
 	move	d2,d5
 	add		d5,d5
@@ -571,19 +505,14 @@ draw_one_sprite:
 	beq		.make
 
 	move.l	d5,a0
-	move	d4,d5
-	rol		#5,d5
-	and		#31,d5
-	add		d5,d5
-	add		d5,d5
+	moveq	#0,d5
+	move.b	6(a5),d5
+	lea		variant_slots,a4
+	move.b	(a4,d5.w),d5
 	move.l	(a0,d5.w),d5
 	beq		.make
 
 	move.l	d5,a4
-
-.found:
-	move	d4,last_key
-	move.l	a4,last_record
 
 .variant_found:
 	move	RECORD_ROW_COUNT(a4),d5
@@ -769,17 +698,16 @@ draw_one_sprite:
 	rts
 
 .make:
-	; A new variant (find_variant makes it).
+	; A new variant: made now.
 
 	movem.l	d0-d4/d6,-(sp)
-	move	d4,d0 ; Key.
 	move	d2,d1 ; Pattern.
 	move	d3,d4 ; Attributes.
-	bsr		find_variant
+	bsr		make_variant
 	movem.l	(sp)+,d0-d4/d6
 	bmi		.full
 
-	bra		.found
+	bra		.variant_found
 
 .make_shifted:
 	movem.l	d0-d1/d3,-(sp)
@@ -802,11 +730,12 @@ draw_one_sprite:
 
 ; ------------------------------------------------------------------------------
 ;
-; d0.w = variant key, d1.w = pattern, d4.w = attributes -> a4 = its record
-; (made if new). N set if the arena is full. Two levels: per pattern a table
-; (in the arena) of its 32 variants' records (palette, horizontal flip).
+; d1.w = pattern, d4.w = attributes -> a4 = the variant's record, made now
+; (and its pattern's table, if it has none yet). N set if the arena is full.
+; Two levels: per pattern a table (in the arena) of its 32 variants'
+; records (variant_slots: palette, horizontal flip).
 
-find_variant:
+make_variant:
 	lea		pattern_tables,a0
 	move	d1,d5
 	add		d5,d5
@@ -835,11 +764,10 @@ find_variant:
 
 .table:
 	move.l	d6,a1 ; The pattern's table.
-	move	d0,d5
-	rol		#5,d5 ; Horizontal flip and palette (key bits 15-11).
-	and		#31,d5
-	add		d5,d5
-	add		d5,d5
+	move	d4,d5
+	lsr		#8,d5 ; The attributes' high byte.
+	lea		variant_slots,a0
+	move.b	(a0,d5.w),d5
 	move.l	(a1,d5.w),d6
 	beq		.new
 
@@ -1300,6 +1228,16 @@ game_sprite_table: ; The table the game fills now.
 st_sprite_buffer_end:
 	dc.l	BUFF_END_ADR
 
+; Per attributes' high byte (vertical and horizontal flips, palette): the
+; variant's offset in its pattern's table (palette, horizontal flip).
+
+variant_slots:
+SLOT set 0
+	rept	256
+	dc.b	((SLOT&15)|((SLOT>>2)&16))*4
+SLOT set SLOT+1
+	endr
+
 ; ------------------------------------------------------------------------------
 	bss
 ; ------------------------------------------------------------------------------
@@ -1316,14 +1254,10 @@ margin_bottom:
 	ds.w	1
 active_half:
 	ds.w	1
-last_key: ; The variant of the sprite before (EMPTY_KEY: none).
-	ds.w	1
 cache_reset_pending:
 	ds.b	1
 	even
 
-last_record:
-	ds.l	1
 arena:
 	ds.l	1
 arena_size:

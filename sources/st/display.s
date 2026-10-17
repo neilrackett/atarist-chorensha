@@ -23,17 +23,14 @@
 	xdef initialize_display
 	xdef render_frame
 	xdef present_frame
-	xdef wait_for_flip
 	xdef display_vbl
 	xdef display_screen_address
 	xdef screen_buffers
 	xdef st_palette
 	xdef write_screenshot
 	xdef crop_mode
-	xdef display_mode_changed
 
 	xref L_00E82000
-	xref machine_has_ste_hardware
 	xref WORD_00098864
 	xref background_visible
 	xref copy_background
@@ -45,6 +42,9 @@
 	xref in_stage
 	xref frame_count
 	xref divide_unsigned
+	xref create_and_write
+	xref write_more
+	xref close_file
 	xref start_render_parts
 	xref mark_render_part
 
@@ -55,19 +55,12 @@
 	xref render_sprite_count
 	endif
 
-SCREEN_LINES=200
-SCREEN_LINE=160
-SCREEN_SIZE=SCREEN_LINES*SCREEN_LINE
-PICTURE_X_BYTES=16
-PLAYFIELD_TOP=8
-PLAYFIELD_LINES=192
+	include "st.i"
+
 MAXIMUM_WINDOW=256-8-PLAYFIELD_LINES ; 56: the window shows X68000 lines 8+w..199+w.
 DEFAULT_WINDOW=24 ; Lines 32-223.
 SHIP_LINE=130 ; The ship's line in the playfield window.
 WINDOW_STEP=2 ; Lines per frame.
-
-VC_PRIORITY=$500
-SCREENS=3
 
 ; ------------------------------------------------------------------------------
 	text
@@ -108,12 +101,8 @@ display_vbl:
 
 	move.b	display_screen_address+1,$ffff8201.w
 	move.b	display_screen_address+2,$ffff8203.w
-	tst.b	machine_has_ste_hardware
-	beq		.flipped ; (An ST has no low byte: the screens are 256-aligned.)
 
-	move.b	display_screen_address+3,$ffff820d.w
-
-	bra		.flipped
+	bra		.flipped ; (The screens are 256-aligned: an STE's low byte stays 0.)
 
 .colours:
 	movem.l	d0-d7,-(sp)
@@ -130,6 +119,15 @@ display_vbl:
 ; ------------------------------------------------------------------------------
 ;
 ; Draws the current X68000 screen into the hidden screen.
+
+; Measurement builds: the render's part \1 has ended (its time added up).
+
+RENDER_PART macro
+	ifnd __RELEASE__
+	moveq	#\1,d0
+	jsr		mark_render_part
+	endif
+	endm
 
 render_frame:
 	movem.l	d0-d7/a0-a6,-(sp)
@@ -157,10 +155,7 @@ render_frame:
 	bsr		clear_playfield
 
 .layers:
-	ifnd __RELEASE__
-	moveq	#0,d0 ; Background.
-	jsr		mark_render_part
-	endif
+	RENDER_PART 0 ; Background.
 
 	; R1 bits 13-12 = sprite priority, 11-10 = text priority (0 = front).
 
@@ -190,10 +185,7 @@ render_frame:
 	lea		picture_palette,a0
 	jsr		make_hardware_palette
 
-	ifnd __RELEASE__
-	moveq	#3,d0 ; Borders and colours.
-	jsr		mark_render_part
-	endif
+	RENDER_PART 3 ; Borders and colours.
 
 	movem.l	(sp)+,d0-d7/a0-a6
 
@@ -202,24 +194,18 @@ render_frame:
 .sprites:
 	move.l	work_screen_address,a1
 	move	window_offset,d0
-	ifd __RELEASE__
-	jmp		draw_sprites
-	else
 	jsr		draw_sprites
-	moveq	#1,d0 ; Sprites.
-	jmp		mark_render_part
-	endif
+	RENDER_PART 1
+
+	rts
 
 .text:
 	move.l	work_screen_address,a1
 	move	window_offset,d0
-	ifd __RELEASE__
-	jmp		draw_text_rows
-	else
 	jsr		draw_text_rows
-	moveq	#2,d0 ; Text.
-	jmp		mark_render_part
-	endif
+	RENDER_PART 2
+
+	rts
 
 ; The window: in a stage, toward the ship (two thirds down the playfield),
 ; else (or with F2) the default.
@@ -378,7 +364,7 @@ wait_for_flip:
 ; ------------------------------------------------------------------------------
 ;
 ; Measurement runs: d0.l = frame; the picture just presented as a Degas
-; file, Snnnnnnn.PI1, with its colours (tests/st/pi1_png.py converts it).
+; file, Snnnnnnn.PI1, with its colours (tools/st/pi1_png.py converts it).
 ; GEMDOS, from the game's frame wait.
 
 write_screenshot:
@@ -394,34 +380,16 @@ write_screenshot:
 	move.b	d1,-(a0)
 	dbf		d3,.digit_loop
 
-	clr		-(sp)
-	pea		screenshot_name
-	move	#60,-(sp) ; Fcreate
-	trap	#1
-	addq.l	#8,sp
-	tst.l	d0
+	lea		screenshot_name,a0
+	lea		screenshot_header,a1
+	moveq	#2+16*2,d1 ; Resolution, palette.
+	jsr		create_and_write
 	bmi		.done
 
-	move	d0,d3
-
-	pea		screenshot_header
-	move.l	#2+16*2,-(sp) ; Resolution, palette.
-	move	d3,-(sp)
-	move	#64,-(sp) ; Fwrite
-	trap	#1
-	lea		12(sp),sp
-
-	move.l	display_screen_address,-(sp)
-	move.l	#SCREEN_SIZE,-(sp)
-	move	d3,-(sp)
-	move	#64,-(sp)
-	trap	#1
-	lea		12(sp),sp
-
-	move	d3,-(sp)
-	move	#62,-(sp) ; Fclose
-	trap	#1
-	addq.l	#4,sp
+	move.l	display_screen_address,a1
+	move.l	#SCREEN_SIZE,d1
+	jsr		write_more
+	jsr		close_file
 
 	ifd __ORACLE__
 	bsr		write_frame_dump
@@ -453,40 +421,29 @@ write_frame_dump:
 	move	window_offset,(a1)+
 	move.b	background_visible,(a1)+
 	clr.b	(a1)+
-	move	L_00E80000+$1a,(a1)+
-	move	L_00E80000+$22,(a1)+
+	move	L_00E80000+CRTC_PAGE0_Y,(a1)+
+	move	L_00E80000+CRTC_PAGE1_Y,(a1)+
 	move	L_00E82000+VC_PRIORITY,(a1)+
 	move	render_sprite_count,(a1)+
 
-	clr		-(sp)
-	pea		screenshot_name
-	move	#60,-(sp) ; Fcreate
-	trap	#1
-	addq.l	#8,sp
-	tst.l	d0
+	lea		screenshot_name,a0
+	lea		frame_header,a1
+	moveq	#16,d1
+	jsr		create_and_write
 	bmi		.restore
 
-	move	d0,d3
-
-	lea		frame_header,a0
-	moveq	#16,d1
-	bsr		.write
-	lea		L_00E82000,a0
+	lea		L_00E82000,a1
 	move.l	#$400,d1
-	bsr		.write
-	lea		character_map,a0
+	jsr		write_more
+	lea		character_map,a1
 	move.l	#32*32,d1
-	bsr		.write
-	move.l	sprite_list,a0
+	jsr		write_more
+	move.l	sprite_list,a1
 	moveq	#0,d1
 	move	render_sprite_count,d1
 	lsl.l	#3,d1
-	bsr		.write
-
-	move	d3,-(sp)
-	move	#62,-(sp) ; Fclose
-	trap	#1
-	addq.l	#4,sp
+	jsr		write_more
+	jsr		close_file
 
 .restore:
 	lea		screenshot_name,a0
@@ -494,16 +451,6 @@ write_frame_dump:
 	move.b	#'P',9(a0)
 	move.b	#'I',10(a0)
 	move.b	#'1',11(a0)
-
-	rts
-
-.write:
-	pea		(a0)
-	move.l	d1,-(sp)
-	move	d3,-(sp)
-	move	#64,-(sp) ; Fwrite
-	trap	#1
-	lea		12(sp),sp
 
 	rts
 
@@ -554,13 +501,11 @@ flip_pending: ; 2: a new picture to show at the next VBL, 1: its colours next.
 	ds.b	1
 crop_mode: ; F2: the window does not follow the ship.
 	ds.b	1
-display_mode_changed:
-	ds.b	1
 
 	even
 
 screen_memory:
-	ds.b	SCREEN_SIZE*3+256
+	ds.b	SCREEN_SIZE*SCREENS+256
 
 ; ------------------------------------------------------------------------------
 	end

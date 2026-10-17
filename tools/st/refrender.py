@@ -23,6 +23,8 @@ import re
 import struct
 import sys
 
+from crs_formats import gvram_line, pattern_pixel, read_graphics, read_pi1
+
 SPACE = 0x20
 BAYER = [0, 2, 3, 1]  # (y & 1) * 2 + (x & 1)
 PCG_PATTERNS = 0x75E
@@ -58,15 +60,6 @@ def read_map(path):
     return [dither[i * 4:i * 4 + 3] for i in range(256)], sprite_map, representatives
 
 
-def read_graphics(path):
-    data = open(path, "rb").read()
-    if data[:4] != b"CRSG":
-        raise SystemExit(f"{path}: not a CRSG dump")
-    gvram = data[4:4 + 0x100000]
-    patterns = data[4 + 0x100000 + 0x400 + 4096:]
-    return gvram, patterns
-
-
 def layers(gvram, dither):
     """Page 0 (256 lines, None = transparent) and page 1 (32 lines), as ST
     colour indices with the ordered dither."""
@@ -76,13 +69,11 @@ def layers(gvram, dither):
 
     page0, page1 = [], []
     for y in range(256):
-        base = y * 1024
-        page0.append([colour(gvram[base + 2 * x + 1], x, y) if gvram[base + 2 * x + 1] else None
-                      for x in range(256)])
+        line = gvram_line(gvram, 0, y)
+        page0.append([colour(line[x], x, y) if line[x] else None for x in range(256)])
     for y in range(32):
-        base = 0x80000 + y * 1024
-        page1.append([colour(gvram[base + 2 * x + 1], x, y) if gvram[base + 2 * x + 1] else 0
-                      for x in range(256)])
+        line = gvram_line(gvram, 1, y)
+        page1.append([colour(line[x], x, y) if line[x] else 0 for x in range(256)])
     return page0, page1
 
 
@@ -105,6 +96,8 @@ def font_pixel(font, code, row, x):
 
 def render(dump, page0, page1, patterns, font, sprite_map, representatives):
     (magic, window, visible, _, y0, y1, r1, count) = struct.unpack(">4sHBBhhHH", dump[:16])
+    if magic != b"CRSF":
+        raise SystemExit("not a CRSF frame dump")
     vc = struct.unpack(">512H", dump[16:16 + 0x400])
     characters = dump[16 + 0x400:16 + 0x400 + 1024]
     sprites = [struct.unpack(">HHHH", dump[16 + 0x400 + 1024 + 8 * i:16 + 0x400 + 1024 + 8 * i + 8])
@@ -151,8 +144,7 @@ def render(dump, page0, page1, patterns, font, sprite_map, representatives):
                     row = 15 - py if info & 0x8000 else py
                     for px in range(16):
                         column = 15 - px if info & 0x4000 else px
-                        base = (64 if column >= 8 else 0) + row * 4 + (column & 7) // 2
-                        nibble = (data[base] >> 4) if (column & 1) == 0 else (data[base] & 15)
+                        nibble = pattern_pixel(data, row, column)
                         if nibble:
                             screen[sy][x + 16 + px] = sprite_map[palette * 16 + nibble]
 
@@ -187,20 +179,6 @@ def render(dump, page0, page1, patterns, font, sprite_map, representatives):
     palette = [ste_word(vc[offset // 2]) for offset in representatives]
     if visible:
         palette[0] = 0
-    return screen, palette
-
-
-def read_pi1(path):
-    data = open(path, "rb").read()
-    palette = list(struct.unpack(">16H", data[2:34]))
-    screen = []
-    for y in range(200):
-        row = []
-        for group in range(20):
-            planes = struct.unpack(">4H", data[34 + y * 160 + group * 8:34 + y * 160 + group * 8 + 8])
-            for bit in range(16):
-                row.append(sum(1 << p for p in range(4) if planes[p] & (0x8000 >> bit)))
-        screen.append(row)
     return screen, palette
 
 

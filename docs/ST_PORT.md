@@ -89,7 +89,7 @@ Options:
   gives TOS 1.04 (copy it from `../atarist-rott/tmp/tos/`); TOS 2.06 and
   EmuTOS run on an ST too.
 - `FRAMES`: exit after that many frames. The run writes `CHECKPTS.BIN`
-  and a PI1 screenshot every 500 frames; `tests/st/pi1_png.py` converts
+  and a PI1 screenshot every 500 frames; `tools/st/pi1_png.py` converts
   the screenshots to PNG in `tmp/out/shots_NAME/`.
 - `REPLAY`: a `binaries/atari/ETC_DAT` replay, played as the demo.
 - `LOCKSTEP=1`.
