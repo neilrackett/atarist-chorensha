@@ -414,6 +414,13 @@ The X68000's own sprite library code is already tight.
   from `etv_timer`) and runs the game with it. Its grabs show the menu
   started with A, the ship moving while it fires, and the pause. With the
   same provider idle, the attract demo still matches all its checkpoints.
+- **Mouse.** `tests/st/mouse_test.sh` needs EmuMD's Hatari, whose
+  `--cmd-fifo` can move the mouse (`../emumd/hatari/build-hatari.sh`
+  builds it). It starts the game 40 times with the mouse moving all
+  through the start. A handler taking over part-way through a mouse packet
+  would read one of its bytes as F1 and turn lockstep on. Before the
+  take-over drained the IKBD, 5 of 80 starts did; now none of 120 do. It
+  then checks that the desktop's pointer moves after the exit.
 
 - **Checkpoints.** Every 60 frames: score, random table index, scroll,
   sprite count and player state. They are compared with
