@@ -26,7 +26,7 @@ def component(value):
 def read_pi1_image(path):
     screen, words = read_pi1(path)
     palette = [(component(w >> 8), component(w >> 4), component(w)) for w in words]
-    image = Image.new("RGB", (320, 200))
+    image = Image.new("RGB", (320, len(screen)))
     pixels = image.load()
     for y, row in enumerate(screen):
         for x, colour in enumerate(row):
@@ -49,9 +49,10 @@ def main(arguments):
     if montage and images:
         columns = min(4, len(images))
         rows = (len(images) + columns - 1) // columns
-        sheet = Image.new("RGB", (320 * columns, 200 * rows))
+        height = max(image.height for image in images)
+        sheet = Image.new("RGB", (320 * columns, height * rows))
         for index, image in enumerate(images):
-            sheet.paste(image, ((index % columns) * 320, (index // columns) * 200))
+            sheet.paste(image, ((index % columns) * 320, (index // columns) * height))
         sheet.save(montage)
 
 

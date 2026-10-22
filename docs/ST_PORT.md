@@ -284,8 +284,9 @@ a measurement build's exit report shows it), the game plays in crop.
   date (the page shown, and the next one from the VBL that names it).
 - **The background is copied by the CPU** on every machine at full
   height: a BLiTTER in HOG mode would hold off the borders' interrupts.
-- **Screenshots** (PI1) hold the first 200 lines; the pixel oracle is for
-  crop only.
+- **Screenshots** hold the whole 256-line picture (a PI1 longer than
+  Degas's 200 lines, which `tools/st/pi1_png.py` reads); the pixel oracle
+  is for crop only.
 
 Results in Hatari (attract demo, 6,000 frames): the borders open on an ST
 (TOS 1.04), an STE and a Mega STE, with no frame missing a border, also

@@ -75,8 +75,9 @@ MAXIMUM_WINDOW=256-8-CROP_PLAYFIELD_LINES ; 56: the window shows X68000 lines 8+
 DEFAULT_WINDOW=24 ; Lines 32-223.
 SHIP_LINE=130 ; The ship's line in the playfield window.
 WINDOW_STEP=2 ; Lines per frame.
-PI1_SIZE=32000 ; A screenshot's picture (the first 200 lines at full
-               ; height).
+PI1_SIZE=CROP_SCREEN_LINES*SCREEN_LINE ; A screenshot's picture: 200 lines,
+FULL_PI1_SIZE=256*SCREEN_LINE ; or the whole 256 at full height (a longer
+                              ; PI1 than Degas's).
 OVERSCAN_LINE_262=228 ; The page's row on the frame's line 262 (STDL's).
 
 ; ------------------------------------------------------------------------------
@@ -537,6 +538,12 @@ write_screenshot:
 
 	move.l	display_screen_address,a1
 	move.l	#PI1_SIZE,d1
+	tst.b	full_height
+	beq		.size_known
+
+	move.l	#FULL_PI1_SIZE,d1
+
+.size_known:
 	jsr		write_more
 	jsr		close_file
 

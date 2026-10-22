@@ -45,15 +45,16 @@ def pattern_pixel(pattern, row, column):
 
 
 def read_pi1(path):
-    """A low-resolution Degas picture: (200 lines of 320 colour indices, the
-    16 colour words)."""
+    """A low-resolution Degas picture: (its lines of 320 colour indices, the
+    16 colour words). 200 lines, or more in the ST port's full-height
+    screenshots (256: a longer picture than Degas's)."""
     data = open(path, "rb").read()
     resolution = struct.unpack(">H", data[:2])[0]
     if resolution != 0 or len(data) < 34 + 32000:
         raise SystemExit(f"{path}: not a low-resolution Degas picture")
     palette = list(struct.unpack(">16H", data[2:34]))
     screen = []
-    for y in range(200):
+    for y in range((len(data) - 34) // 160):
         row = []
         for group in range(20):
             offset = 34 + y * 160 + group * 8
