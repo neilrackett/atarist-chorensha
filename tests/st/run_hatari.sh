@@ -7,6 +7,7 @@
 #
 # The program and the game data (binaries/st's: the Amiga port's BGM_DAT,
 # ETC_DAT and XSP_DAT, which its attract demo reference was recorded with,
+# the music (MUSIC_DAT),
 # and the Falcon port's PCM_DAT with the 8-bit samples) are staged in
 # tmp/stage_NAME/, which Hatari mounts as GEMDOS drive C: and the program
 # starts from.
@@ -100,7 +101,7 @@ fi
 
 PROGRAM_NAME=$(basename "$PROG")
 cp "$PROG" "$STAGE/$PROGRAM_NAME"
-for data in BGM_DAT ETC_DAT PCM_DAT XSP_DAT; do
+for data in BGM_DAT ETC_DAT MUSIC_DAT PCM_DAT XSP_DAT; do
 	cp -R binaries/st/$data "$STAGE/"
 done
 

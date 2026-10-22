@@ -3,7 +3,7 @@
 ; priorities, stopping the one before with _ADPCMMOD) and asks _ADPCMSNS
 ; whether one still plays. The effects are the Falcon port's PCM_DAT/*.sam
 ; files (signed 8-bit mono, 12517 Hz), which the game loads into its heap
-; itself. No music (MCDRV is not emulated).
+; itself. The music is music.s's.
 ;
 ; Each machine loads only what it plays:
 ;
@@ -11,7 +11,9 @@
 ; - ST (no DMA sound): no samples; the YM2149 plays versions made by
 ;   tools/st/ym_effects.py, PCM_DAT\SZ2_YM.BIN (loaded at start: see the
 ;   tool for its format): per 50 Hz VBL a frame of two tones (channels A
-;   and C) and noise (channel B). The game's sample loader (sz2.s) asks
+;   and C) and noise (channel B); while the music plays (music.s), mixed
+;   down to voice C alone: the louder tone, the noise, the loudest level.
+;   The game's sample loader (sz2.s) asks
 ;   st_ym_effect for each sample's effect instead of loading it, and
 ;   _ADPCMOUT then hands it over. Effects the game plays at 10.4 kHz (its
 ;   mode's rate 3: the .sam files are all 15.6 kHz conversions) go 1.5
@@ -19,7 +21,9 @@
 ;   (TOS's floppy select) are never written, the mixer keeps the port
 ;   direction bits, and interrupts are masked between selecting a register
 ;   and writing it (TOS's Timer C, running with an Xpad provider, outranks
-;   the VBL).
+;   the VBL), only then: a border interrupt at full height must not wait.
+;   (The routines that write the YM keep the SR they were entered with on
+;   the stack's top, which YM_WRITE puts back.)
 
 	xdef audio_play
 	xdef audio_status
@@ -31,8 +35,10 @@
 	xdef ym_file_name
 	xdef ym_effects_played
 	xdef ym_effects_unknown
+	xdef ym_playing
 
 	xref machine_has_ste_hardware
+	xref music_playing
 
 YM_ENTRY_SIZE=20 ; SZ2_YM.BIN: name (12), frames (long), their number (word).
 YM_ENTRY_FRAMES=12
@@ -351,22 +357,27 @@ ym_play:
 ; Every VBL, on an ST: the playing effect's frame into the YM. Preserves all
 ; registers.
 
-; YM register \1 = \2 (a byte, not d7).
+; YM register \1 = \2 (a byte, not d7), interrupts masked between the two
+; (then the SR at (sp) again).
 
 YM_WRITE macro
+	move	#$2700,sr
 	move.b	#\1,YM_SELECT.w
 	move.b	\2,YM_DATA.w
+	move	(sp),sr
 	endm
 
 ; The mixer = \1 (tones and noises: 1 = off), keeping the I/O ports'
 ; direction bits; \2 = a data register to use.
 
 YM_SET_MIXER macro
+	move	#$2700,sr
 	move.b	#YM_MIXER,YM_SELECT.w
 	move.b	YM_SELECT.w,\2
 	and.b	#$c0,\2
 	or.b	#\1,\2
-	YM_WRITE YM_MIXER,\2
+	move.b	\2,YM_DATA.w
+	move	(sp),sr
 	endm
 
 ; Period \1 (a data register) 1.5 times longer, at most \2. Uses d4.
@@ -429,7 +440,8 @@ audio_tick:
 	YM_SLOWER d3,31
 
 .periods_known:
-	move	#$2700,sr ; (Select and write together.)
+	tst.b	music_playing
+	bne		.voice_c
 
 	tst.b	ym_start_pending
 	beq		.mixer_set
@@ -455,6 +467,7 @@ audio_tick:
 	move.b	1(a0),d4
 	YM_WRITE 10,d4 ; Tone C.
 
+.written:
 	move	(sp)+,sr
 
 	move	ym_step,d0
@@ -463,6 +476,61 @@ audio_tick:
 	movem.l	(sp)+,d0-d4/a0
 
 	rts
+
+; With the music: voice C alone (the music has A and B), the louder tone's
+; period, the noise, the loudest of the levels, C's mixer bits set from
+; them (the others the chip's).
+
+.voice_c:
+	sf		ym_start_pending
+
+	moveq	#0,d0
+	move.b	(a0),d0
+	and.b	#$f,d0 ; Tone A's level.
+	moveq	#0,d4
+	move.b	1(a0),d4 ; Tone C's.
+	cmp.b	d0,d4
+	bcc		.tone_chosen
+
+	move	d1,d2 ; A's period.
+	move.b	d0,d4
+
+.tone_chosen:
+	moveq	#%100100,d1 ; C's tone and noise off.
+	tst.b	d4
+	beq		.no_tone
+
+	bclr	#2,d1
+
+.no_tone:
+	moveq	#0,d0
+	move.b	(a0),d0
+	lsr.b	#4,d0 ; The noise's level.
+	beq		.no_noise
+
+	bclr	#5,d1
+	YM_WRITE 6,d3
+
+	cmp.b	d4,d0
+	bls		.no_noise
+
+	move.b	d0,d4 ; The loudest.
+
+.no_noise:
+	YM_WRITE 4,d2
+	lsr		#8,d2
+	YM_WRITE 5,d2
+	YM_WRITE 10,d4
+
+	move	#$2700,sr
+	move.b	#YM_MIXER,YM_SELECT.w
+	move.b	YM_SELECT.w,d0
+	and.b	#%11011011,d0
+	or.b	d1,d0
+	move.b	d0,YM_DATA.w
+	move	(sp),sr
+
+	bra		.written
 
 .end:
 	move	(sp)+,sr
@@ -480,7 +548,6 @@ audio_silence:
 
 	move.l	d0,-(sp)
 	move	sr,-(sp)
-	move	#$2700,sr
 
 	moveq	#0,d0
 	YM_WRITE 8,d0

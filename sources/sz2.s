@@ -4424,7 +4424,7 @@ L_00022296:
 	move.l  D0,LONG_00022360                        ; 000222A0 23C0 0002 2360
 	moveq   #-1,D0                                  ; 000222A6 70FF
 
-	ifd __AMIGA__
+	ifd __CHUNKY__
 
 	jsr		amiga_mcdrv_probe ; The pre-rendered music: version, or -1.
 	bra.s	L_000222CA
@@ -12986,7 +12986,7 @@ L_0002679A:
 
 	lea     36(A7),A7                               ; 000267F8 4FEF 0024
 
-	ifd __AMIGA__
+	ifd __CHUNKY__
 
 	move.l	D5,A0 ; Song data.
 	move.l	D6,A1 ; File name.

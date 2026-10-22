@@ -5,8 +5,8 @@
 ;
 ; - Human68k DOS and FLOAT calls are line-F opcodes ($FFxx / $FExx), served
 ;   with GEMDOS from the line-F exception (table at human68k_call_table).
-; - IOCS (trap #15) is served in its trap; PCM8 (trap #2) and MCDRV (trap #4)
-;   return at once (no music).
+; - IOCS (trap #15) is served in its trap; PCM8 (trap #2) returns at once,
+;   MCDRV (trap #4) plays the music (music.s).
 ; - The 50 Hz VBL is the game's frame tick (as on the Falcon: the game runs
 ;   at 50 instead of 55.46 frames per second). The VBL interrupt counts it,
 ;   flips the screen and enters the game's VBL handler (which ends with RTE)
@@ -69,6 +69,8 @@
 	xref audio_status
 	xref audio_stop
 	xref audio_tick
+	xref music_call
+	xref music_tick
 	xref render_frame
 	xref present_frame
 	xref display_vbl
@@ -158,6 +160,7 @@ vbl_handler:
 	jsr		display_vbl
 	jsr		input_tick
 	jsr		audio_tick ; (An ST: the YM's effect.)
+	jsr		music_tick
 
 	movem.l	(sp)+,d0-d1/a0-a1
 
@@ -998,6 +1001,8 @@ trap_2_handler: ; PCM8.
 	rte
 
 trap_4_handler: ; MCDRV.
+	jsr		music_call
+
 	rte
 
 ; ------------------------------------------------------------------------------

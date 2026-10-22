@@ -8,8 +8,10 @@ allows, leaving out the rest. It builds with the atarist-toolkit-docker tools
 
 One program runs on all three. It needs no BLiTTER (an STE uses its
 BLiTTER for the background copy only), so a plain ST draws nearly as fast
-as an STE. What the STE adds is DMA sound (on an ST the YM2149 plays
-versions of the sound effects made from the samples), 4,096 colours instead
+as an STE. All three play the music on the YM2149, the songs reduced from
+the X68000's FM chip in advance. What the STE adds is DMA sound (on an ST
+the YM2149 plays versions of the sound effects made from the samples, on
+one of its voices while the music plays), 4,096 colours instead
 of 512 (the same colour code: an ST ignores the extra bit) and its Jaguar
 pad port; the Mega STE adds 16 MHz and its cache.
 
@@ -44,6 +46,11 @@ build, against the STE's 946 KB).
 - **Drawing sets the picture rate.** On an STE a picture takes about 45 ms:
   12-13 for the background, 25-28 for the sprites, 3-4 for the text. That
   is about one picture every 4 frames, or every 3 on a Mega STE.
+- **The music costs about 2%.** These figures were measured before the
+  music (as `music=false` plays). With it, the sprite cache is 58 KB
+  smaller, and the attract demo shows 12.4 pictures per second on an ST
+  and an STE (12.6 and 12.7 without) and 17.2 on a Mega STE (the same);
+  the game logic is unchanged.
 - **Full height costs about a fifth.** With both borders open (see Full
   height) the attract demo shows 10.7 pictures per gameplay second on an
   STE and 14.9 on a Mega STE, against 13.2 and 17.4 in crop.
@@ -94,8 +101,9 @@ to those of the `amiga-port` revision; `CHECK=0` skips the check.
 there, as the Amiga's and the Falcon's do from their folders: copies of
 the Amiga port's `BGM_DAT`, `ETC_DAT` (its attract demo replay, which the
 checkpoint reference was recorded with) and `XSP_DAT`, and of the Falcon
-port's `PCM_DAT` (its `.sam` samples) with the ST's `SZ2_YM.BIN` added.
-`make check-data` (and `make test`) checks that they still match those.
+port's `PCM_DAT` (its `.sam` samples) with the ST's `SZ2_YM.BIN` added,
+and the ST's own `MUSIC_DAT` (see Music below). `make check-data` (and
+`make test`) checks that the copies still match those.
 `make release` also copies the release, `SZ2.CFG` and the data into
 `dist/CHORENSH`, a clean folder to copy to an ST (an `SZ2.CFG` already
 there is kept). Each machine loads only what it plays: an ST the
@@ -434,6 +442,64 @@ The attract demo on an ST, with no samples at all, plays 754 effects in
 a half less often (6 times against 10). A Hatari recording of an ST has sound in 276 of its 500
 tenths of a second, and an STE's 275.
 
+### Music (`music.s`, `tools/music/make_st_music.py`, `MUSIC_DAT`)
+
+The game plays its songs (`BGM_DAT\*.MDC`, for the X68000's YM2151 FM
+chip) through the MCDRV driver, trap #4. The port plays them on the
+YM2149 instead, from register streams made in advance:
+
+- `tools/music/build_music.sh`, the Amiga port's, runs MCDRV 0.69 itself
+  in a 68000 emulator and records each song's YM2151 writes into
+  `tools/music/deps/work/NAME.log`, the song's first two passes, and
+  `NAME.fade.log` with a `_FADEOUT`. (It goes on to make the Amiga's
+  `MUSIC_DAT`, so stop it there, or put that folder back from git.)
+- `tools/music/make_st_music.py tools/music/deps/work binaries/st/MUSIC_DAT
+  [stdlconv.py]` writes each log as a VGM file (the intro the first pass
+  up to the loop command, the loop the second pass, as the Amiga's
+  streams) and converts it with STDL's `stdlconv opm` into
+  `MUSIC_DAT\NAME.STM`: STDL's STM format, per 50 Hz frame the YM2149
+  registers that change. It also writes `sources/st/music_fades.i`, each
+  song's `_FADEOUT` length per unit of speed, measured as the Amiga's
+  script does (0.42 to 0.80 s). Twelve songs, 415 KB; the largest, the
+  fourth stage's, 58 KB.
+- `stdlconv opm` models each of the eight FM channels frame by frame: its
+  loudness from its carriers' envelopes (within about 1 dB of ymfm's
+  render, channel by channel) and its pitch (checked against the
+  spectrum of ymfm's). Instruments that keep to one or two pitches, or
+  are tuned inharmonically, are drums: kicks and toms as falling tones,
+  snares and hi-hats as noise. The three loudest parts get the voices,
+  doubled parts counting once: the two most important on A and B, the
+  third on C, where the drums sound too. A chord keeps one note.
+
+`music.s`:
+
+- At start, with `music=true` and streams in `MUSIC_DAT`, a buffer the
+  size of the largest (58 KB, taken from the sprite cache; all twelve
+  would take 415 KB). The MCDRV probe in `sz2.s` then reports the driver,
+  and the game loads its songs as on the X68000. The Amiga port's hooks,
+  the probe and `amiga_music_loaded` after each song is loaded (which
+  keeps the song's name), are now `ifd __CHUNKY__`, so the ST shares them.
+- `_TRANSMDC` names the song to play, `_PLAYMUSIC` loads its stream
+  (GEMDOS, from the trap, as the game's own file calls are served) and
+  plays it from the next VBL, `_STOPMUSIC` silences it, and `_FADEOUT`
+  fades it over the song's measured length: MCDRV's 64 steps of 0.75 dB
+  are 16 of the YM's 3 dB levels. The game stops while a song loads, at
+  a stage's start and when a boss appears.
+- Each VBL writes the frame's registers. As in STDL's player, registers
+  14 and 15 are never written and the mixer keeps the port direction
+  bits. Interrupts are masked between selecting a register and writing
+  it, and only then, so a border interrupt at full height never waits
+  for a whole frame's writes. `audio.s` now masks the same way.
+- On an ST the YM plays the effects too. While one plays, `audio.s` mixes
+  it down to voice C alone (the louder tone, the noise, the loudest
+  level), and the music keeps A and B; once it is over, the music's
+  registers are all written again. In the attract demo an effect has
+  voice C in 87% of the music's frames. With `music=false` the effects
+  have all three voices, as before.
+
+The exit report gives the songs played and those that could not be
+loaded, and on an ST the music's frames with an effect on voice C.
+
 ### Text (`text.s`)
 
 The game's characters go into a 32 x 32 map instead of the X68000's 512 KB
@@ -496,8 +562,9 @@ clock is Timer D instead.
 | **Program**                                                                              | **1,919** (1,855 release)                                  |
 | Game heap (stack, sprite patterns, samples, tables)                                      | 1,024 (871 used); 640 on an ST, with no samples (510 used) |
 | Three screens (allocated for the layout chosen)                                          | 94; 129 at full height                                     |
+| Music buffer (the largest song; none with `music=false`)                                 | 58                                                         |
 | Kept free for TOS                                                                        | 64                                                         |
-| **Sprite arena**                                                                         | **881** (946 release); 846 at full height                  |
+| **Sprite arena**                                                                         | **881** (946 release); 846 at full height; 58 less with the music |
 
 ## Measurements
 
@@ -684,8 +751,12 @@ The X68000's own sprite library code is already tight.
     prototype of the splits (the background only, no sprites or text, in
     Hatari): none late in the attract demo or 30,000 frames of DEMO8. It
     predates the full height and the settings.
-- **Music.** MCDRV (YM2151 FM) is not emulated. A YM2149 conversion of the
-  songs, or DMA samples streamed from disk, would be needed.
+- **Music.** The songs are reduced automatically, so a chord keeps one
+  note, and how each song's parts share the voices is the converter's
+  guess. Songs checked by ear, with `stdlconv opm`'s choices adjusted per
+  song, would be better. A Mega STE or an STE could also stream the
+  Amiga port's rendered songs from disk with DMA sound, at the cost of
+  the effects' channel and the disk's bandwidth.
 - **Sound effects on an ST.** The YM versions are a first conversion: the
   explosions, hits and menu sounds are close, and the sweeping lasers only
   roughly. The converter's settings, or hand-made frames for single

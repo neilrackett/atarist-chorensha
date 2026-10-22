@@ -33,6 +33,13 @@
 	xref ym_effects_played
 	xref ym_effects_unknown
 	xref load_ym_effects
+	xref initialize_music
+	xref music_enabled
+	xref music_available
+	xref music_songs_played
+	xref music_load_failures
+	xref music_ticks
+	xref music_ticks_shared
 	xref ym_file_name
 	xref machine_is_ste
 	xref machine_is_mega_ste
@@ -301,6 +308,22 @@ start:
 	bra		.data_missing
 
 .effects_loaded:
+	; The music's buffer (also before the arena).
+
+	jsr		initialize_music
+	lea		music_off_text,a0
+	tst.b	music_enabled
+	beq		.music_text
+
+	lea		music_text,a0
+	tst.b	music_available
+	bne		.music_text
+
+	lea		no_music_text,a0
+
+.music_text:
+	jsr		print_text
+
 	jsr		initialize_display
 	tst.l	d0
 	bpl		.screens_ok
@@ -798,6 +821,34 @@ print_report:
 	jsr		print_text
 
 .no_ym_report:
+	tst.b	music_available
+	beq		.no_music_report
+
+	lea		songs_played_text,a0
+	jsr		print_text
+	move.l	music_songs_played,d0
+	jsr		print_number
+	lea		songs_failed_text,a0
+	jsr		print_text
+	move.l	music_load_failures,d0
+	jsr		print_number
+	tst.b	machine_has_ste_hardware
+	bne		.music_report_ended
+
+	lea		music_unheard_text,a0
+	jsr		print_text
+	move.l	music_ticks_shared,d0
+	jsr		print_number
+	lea		music_ticks_text,a0
+	jsr		print_text
+	move.l	music_ticks,d0
+	jsr		print_number
+
+.music_report_ended:
+	lea		line_end_text,a0
+	jsr		print_text
+
+.no_music_report:
 
 	; Calls the port does not implement.
 
@@ -878,6 +929,12 @@ ste_text:
 	dc.b	'Machine: Atari STE, 8 MHz.',13,10,0
 mega_ste_text:
 	dc.b	'Machine: Atari Mega STE.',13,10,0
+music_text:
+	dc.b	'Music: the songs on the YM2149.',13,10,0
+no_music_text:
+	dc.b	'Music: none (no MUSIC_DAT).',13,10,0
+music_off_text:
+	dc.b	'Music: off.',13,10,0
 cpu_text:
 	dc.b	'CPU ($FFFF8E21): $',0
 cpu_was_text:
@@ -980,6 +1037,14 @@ half_switches_text:
 	dc.b	', halves switched: ',0
 ym_played_text:
 	dc.b	'YM sound effects played: ',0
+songs_played_text:
+	dc.b	'Songs played: ',0
+songs_failed_text:
+	dc.b	', not loaded: ',0
+music_unheard_text:
+	dc.b	13,10,'Music frames with an effect on voice C: ',0
+music_ticks_text:
+	dc.b	' of ',0
 ym_unknown_text:
 	dc.b	', not recognised: ',0
 masters_made_text:

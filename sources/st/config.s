@@ -9,6 +9,7 @@
 ;                        full (both borders open: the whole picture)
 ;   megaste_speedup=true a Mega STE at 16 MHz with the cache; false: at
 ;                        8 MHz without it (for comparisons)
+;   music=true           the songs on the YM2149 (MUSIC_DAT); false: none
 ;   lockstep=false       true: every frame shown from the start (as F1)
 ;   frames=0             a frame limit: the game exits after that many
 ;                        frames (test runs); 0: none
@@ -21,6 +22,7 @@
 	xref heap_address
 	xref frame_limit
 	xref lockstep_mode
+	xref music_enabled
 	xref print_text
 	xref print_number
 	xref line_end_text
@@ -40,6 +42,7 @@ read_config:
 	movem.l	d0-d7/a0-a6,-(sp)
 
 	st		megaste_speedup ; (The other defaults are 0.)
+	st		music_enabled
 
 	; The file: the command line's first word, or SZ2.CFG.
 
@@ -331,6 +334,15 @@ set_megaste_speedup:
 .done:
 	rts
 
+set_music:
+	bsr		parse_bool
+	bne		.done
+
+	move.b	d0,music_enabled
+
+.done:
+	rts
+
 set_lockstep:
 	bsr		parse_bool
 	bne		.done
@@ -427,6 +439,7 @@ parse_number:
 settings: ; Name, handler.
 	dc.l	screen_name,set_screen
 	dc.l	megaste_speedup_name,set_megaste_speedup
+	dc.l	music_name,set_music
 	dc.l	lockstep_name,set_lockstep
 	dc.l	frames_name,set_frames
 	dc.l	0
@@ -442,6 +455,8 @@ screen_name:
 	dc.b	'screen',0
 megaste_speedup_name:
 	dc.b	'megaste_speedup',0
+music_name:
+	dc.b	'music',0
 lockstep_name:
 	dc.b	'lockstep',0
 frames_name:

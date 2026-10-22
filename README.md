@@ -16,8 +16,9 @@ Polkosnik's [Amiga port](https://github.com/apolkosnik/chorensha), with the
 X68000 program running on the ST's own 68000, drawing the X68000's sprites,
 background and text in ST low resolution using 16 colours.
 
-The whole game plays at its full speed, with its sound effects (DMA sound on
-an STE or Mega STE, the YM2149 on an ST). Music is not currently supported.
+The whole game plays at its full speed, with its music, the original songs
+reduced to the YM2149's three voices, and its sound effects (DMA sound on an
+STE or Mega STE; on an ST the YM2149 plays them too, on one of its voices).
 
 The screenshots above are all from the ST port running in full height
 overscan mode (`screen=full`, see Configuration), taken at the same moment in
@@ -34,10 +35,11 @@ You can always download the latest build from the
 - 4MB RAM: an STE or Mega STE needs about 3.1MB of it free, an ST (which
   loads no samples) about 2.7MB. What is left over is the sprite cache:
   more means faster.
-- A hard disk with 1.9MB free.
+- A hard disk with 2.3MB free.
 - TOS 1.04 or above.
 - Sound effects are the original samples on an STE or Mega STE, YM2149
-  versions of them (made from the samples) on a regular ST.
+  versions of them (made from the samples) on a regular ST. The music is
+  the YM2149's on all three.
 - An Xpad provider if you'd like to play with a gamepad (see Controls).
 
 Speed: the game itself always runs at full speed (50fps); how many of those
@@ -95,6 +97,7 @@ value it cannot read, is named on the start-up screen and ignored.
 | ----------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `screen`          | `crop`  | `crop`: the 200-line screen, 192 of the playfield's lines in a window that follows the ship. `full`: both borders open, 273 lines and the whole picture |
 | `megaste_speedup` | `true`  | `false`: a Mega STE stays at 8MHz without its cache (for comparisons)                                                                                   |
+| `music`           | `true`  | `false`: no music (on an ST the effects get the whole YM2149 back)                                                                                      |
 | `lockstep`        | `false` | `true`: every frame drawn from the start (F1 switches it)                                                                                               |
 | `frames`          | `0`     | For testing: the attract demo runs for that many frames, then the program reports the pictures it drew and exits. 0: never                              |
 
@@ -119,8 +122,10 @@ Please include as much information as possible, including:
 
 ### To-do
 
-- Music: the original songs are for the X68000's YM2151 FM chip and its MCDRV
-  driver, which the port does not emulate.
+- Music: the songs are reduced from the X68000's eight FM channels to the
+  YM2149's three voices automatically, so a chord keeps one note and each
+  song's balance is the converter's guess. Songs tuned by ear would be
+  better.
 
 ## Building
 
@@ -139,8 +144,9 @@ to an ST:
 CHORENSH/
   SZ2.TOS                the program (320 KB)
   SZ2.CFG                its settings (see Configuration)
-  BGM_DAT/               the original MCDRV song data (not played)
+  BGM_DAT/               the original MCDRV song data (loaded, not played)
   ETC_DAT/               demo replays, tables, high scores
+  MUSIC_DAT/             the songs as YM2149 register streams
   PCM_DAT/               the sound effects: the samples, and SZ2_YM.BIN,
                          their YM2149 versions for an ST
   XSP_DAT/               the sprites
@@ -149,8 +155,9 @@ CHORENSH/
 `binaries/st` holds the same data, so the program also runs from there.
 `make debug` builds the measurement version, `make test` runs the tests in
 Hatari, and `make clean` removes what the builds and tests made. The other
-make targets, running the game in Hatari and on a real ST, and how the port
-works: [docs/ST_PORT.md](docs/ST_PORT.md).
+make targets, running the game in Hatari and on a real ST, how the songs in
+`MUSIC_DAT` are made, and how the port works:
+[docs/ST_PORT.md](docs/ST_PORT.md).
 
 ## Credits
 
@@ -160,9 +167,10 @@ works: [docs/ST_PORT.md](docs/ST_PORT.md).
   Springer.
 - [Amiga port](https://github.com/apolkosnik/chorensha): Adam Polkosnik.
 - Amiga colour icons: Hexaae.
-- The Amiga port's music recorded with MCDRV 0.69 by CUL (free software),
-  played by the Musashi 68000 emulator and rendered with ymfm's YM2151
-  (Aaron Giles).
+- The music recorded with MCDRV 0.69 by CUL (free software), played by the
+  Musashi 68000 emulator: rendered with ymfm's YM2151 (Aaron Giles) for the
+  Amiga port, reduced to the YM2149 with STDL's `stdlconv opm` for the
+  Atari ST port.
 - Atari ST port: [Neil Rackett](https://neilrackett.com/atarist)
 - Full-height overscan on the Atari ST via
   [STDL](https://github.com/neilrackett/atarist-stdl), LGPL-2.1. See

@@ -47,6 +47,7 @@
 	xref display_screen_address
 	xref xpad_block
 	xref audio_silence
+	xref music_release
 	xref st_palette
 
 	include "st.i"
@@ -388,6 +389,7 @@ restore_cpu_speed:
 release_machine:
 	move	#$2700,sr
 
+	jsr		music_release
 	jsr		audio_silence
 	bsr		restore_cpu_speed
 
