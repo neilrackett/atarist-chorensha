@@ -14,7 +14,7 @@
 #                    debug stream (tests/st/hw/run_on_st.sh)
 #   make check-data  that binaries/st's data is the other ports' (see below)
 #   make test        check-data, then in Hatari: the attract demo's
-#                    checkpoints on an ST, an STE and a Mega STE, in crop and
+#                    checkpoints and its song on an ST, an STE and a Mega STE, in crop and
 #                    at full height, and the pixel oracle
 #   make others      the X68000, Falcon and Amiga builds (build_mac.sh on
 #                    macOS, build.sh elsewhere)
@@ -85,6 +85,9 @@ test: check-data $(ST)/SZ2_ST.TOS
 			tmp/out/test_$${machine}_CHECKPTS.BIN > tmp/out/test_$$machine.txt 2>&1 \
 			|| failed=1; \
 		echo "$$machine, crop: $$(tail -1 tmp/out/test_$$machine.txt)"; \
+		songs=$$(grep -a 'Songs played' tmp/out/test_$$machine.log); \
+		echo "$$machine, music: $${songs:-no song played}"; \
+		case "$$songs" in "Songs played: 0"*|*"not loaded: "[1-9]*|"") failed=1;; esac; \
 	done; \
 	exit $$failed
 	tests/st/overscan_test.sh

@@ -71,7 +71,7 @@ make debug                    binaries/st/SZ2_ST.TOS (measurements; and SZ2_DBG.
 make headless                 binaries/st/SZ2_HL.TOS: no rendering (game logic, checkpoints)
 make devops                   binaries/st/SZ2_DEV.TOS: the text also on md-devops' debug stream
 make check-data               that binaries/st's data is the Amiga's and the Falcon's (see below)
-make test                     Hatari: checkpoints (ST, STE, Mega STE; crop and full height), pixel oracle
+make test                     Hatari: checkpoints and the song (ST, STE, Mega STE; crop and full height), pixel oracle
 make others                   the X68000, Falcon and Amiga builds (build_mac.sh, or build.sh)
 make clean                    removes the builds' and tests' files (keeps tmp/tos)
 ```
