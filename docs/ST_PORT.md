@@ -47,7 +47,7 @@ build, against the STE's 946 KB).
   12-13 for the background, 25-28 for the sprites, 3-4 for the text. That
   is about one picture every 4 frames, or every 3 on a Mega STE.
 - **The music costs about 2%.** These figures were measured before the
-  music (as `music=false` plays). With it, the sprite cache is 58 KB
+  music (as `music=false` plays). With it, the sprite cache is 59 KB
   smaller, and the attract demo shows 12.4 pictures per second on an ST
   and an STE (12.6 and 12.7 without) and 17.2 on a Mega STE (the same);
   the game logic is unchanged.
@@ -456,12 +456,23 @@ YM2149 instead, from register streams made in advance:
 - `tools/music/make_st_music.py tools/music/deps/work binaries/st/MUSIC_DAT
   [stdlconv.py]` writes each log as a VGM file (the intro the first pass
   up to the loop command, the loop the second pass, as the Amiga's
-  streams) and converts it with STDL's `stdlconv opm` into
+  streams), each write at least a VGM sample (23 us) after the one
+  before, and converts it with STDL's `stdlconv opm` into
   `MUSIC_DAT\NAME.STM`: STDL's STM format, per 50 Hz frame the YM2149
   registers that change. It also writes `sources/st/music_fades.i`, each
   song's `_FADEOUT` length per unit of speed, measured as the Amiga's
-  script does (0.42 to 0.80 s). Twelve songs, 415 KB; the largest, the
-  fourth stage's, 58 KB.
+  script does (0.42 to 0.80 s). Twelve songs, 416 KB; the largest, the
+  fourth stage's, 59 KB.
+- The spacing: `mcdrv_render` logs a timer tick's writes all at the
+  tick's time, but on the X68000 the YM2151 is busy for a sample (16 us)
+  after each write and MCDRV waits. When MCDRV keys a channel off and on
+  again in one tick, which is how it restarts a note, the chip sees the
+  key go off only if time passes between the two. In ymfm's render of
+  the log as it is, those notes neither end nor restart: a third to most
+  of each song's key-ons lose their attack (a repeated chord in the first
+  stage's song fades out after its first note). The Amiga port's
+  rendered songs have the same gaps; spreading the log's writes before
+  `opm_render` would fix them.
 - `stdlconv opm` models each of the eight FM channels frame by frame: its
   loudness from its carriers' envelopes (within about 1 dB of ymfm's
   render, channel by channel) and its pitch (checked against the
@@ -474,8 +485,8 @@ YM2149 instead, from register streams made in advance:
 `music.s`:
 
 - At start, with `music=true` and streams in `MUSIC_DAT`, a buffer the
-  size of the largest (58 KB, taken from the sprite cache; all twelve
-  would take 415 KB). The MCDRV probe in `sz2.s` then reports the driver,
+  size of the largest (59 KB, taken from the sprite cache; all twelve
+  would take 416 KB). The MCDRV probe in `sz2.s` then reports the driver,
   and the game loads its songs as on the X68000. The Amiga port's hooks,
   the probe and `amiga_music_loaded` after each song is loaded (which
   keeps the song's name), are now `ifd __CHUNKY__`, so the ST shares them.
@@ -562,9 +573,9 @@ clock is Timer D instead.
 | **Program**                                                                              | **1,919** (1,855 release)                                  |
 | Game heap (stack, sprite patterns, samples, tables)                                      | 1,024 (871 used); 640 on an ST, with no samples (510 used) |
 | Three screens (allocated for the layout chosen)                                          | 94; 129 at full height                                     |
-| Music buffer (the largest song; none with `music=false`)                                 | 58                                                         |
+| Music buffer (the largest song; none with `music=false`)                                 | 59                                                         |
 | Kept free for TOS                                                                        | 64                                                         |
-| **Sprite arena**                                                                         | **881** (946 release); 846 at full height; 58 less with the music |
+| **Sprite arena**                                                                         | **881** (946 release); 846 at full height; 59 less with the music |
 
 ## Measurements
 
