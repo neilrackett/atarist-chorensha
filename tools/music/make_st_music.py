@@ -4,10 +4,12 @@
 For each song NAME (NAME.log: the original driver's YM2151 writes with the
 loop times; NAME.fade.log: the same with _FADEOUT):
 
-  NAME.vgm (in the work directory)   the writes as a standard VGM log, the
+  NAME.vgm (in the work directory)   the writes as a standard VGM log:
                 the intro the song's first pass up to its loop command and
                 the loop its second pass, as the Amiga port's streams (a
-                song without loop: until 2 s after its last write)
+                song without loop: until 2 s after its last write); each
+                write at least a VGM sample after the one before (see
+                write_vgm)
   MUSIC_DAT/NAME.STM   STDL's YM2149 register stream (stdlconv opm: the
                 eight FM channels reduced to the YM2149's three voices and
                 noise), played by sources/st/music.s
@@ -53,7 +55,18 @@ def read_log(path):
 
 def write_vgm(writes, loops, path):
     """VGM 1.71: the YM2151 at CLOCK, the loop from the first pass's end
-    to the second's."""
+    to the second's.
+
+    mcdrv_render logs all of a timer tick's writes at the tick's time. On
+    the X68000 they are spread out: the YM2151 is busy for 64 of its
+    clocks after each write (16 us, a sample), and the driver waits. That
+    matters to a note started again: MCDRV keys a channel off and on
+    again in the same tick, and with no time between them the chip never
+    sees the key go off, so the note neither ends nor restarts (ymfm's
+    render loses the attack of a third to most of the key-ons, by song).
+    Here each write goes at least a VGM sample (22.7 us) after the one
+    before, so a player sees what the X68000's chip saw; the times stay
+    the ticks' (a tick's writes take under a millisecond)."""
     if len(loops) >= 2:
         loop, end = loops[0], loops[1]
     else:
@@ -79,7 +92,7 @@ def write_vgm(writes, loops, path):
         if loop is not None and loop_offset is None and t >= loop:
             wait(samples(loop))
             loop_offset = len(data)
-        wait(samples(t))
+        wait(max(samples(t), now + 1) if data else samples(t))
         data.extend((0x54, register, value))
     wait(samples(end))
     data.append(0x66)
