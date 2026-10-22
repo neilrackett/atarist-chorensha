@@ -36,6 +36,7 @@
 	xdef st_palette
 	xdef write_screenshot
 	xdef crop_mode
+	xdef st_hidden_menu
 
 	xref L_00E82000
 	xref WORD_00098864
@@ -73,6 +74,7 @@
 
 MAXIMUM_WINDOW=256-8-CROP_PLAYFIELD_LINES ; 56: the window shows X68000 lines 8+w..199+w.
 DEFAULT_WINDOW=24 ; Lines 32-223.
+HIDDEN_MENU_WINDOW=40 ; Lines 48-239: the hidden menu's rows 6-29.
 SHIP_LINE=130 ; The ship's line in the playfield window.
 WINDOW_STEP=2 ; Lines per frame.
 PI1_SIZE=CROP_SCREEN_LINES*SCREEN_LINE ; A screenshot's picture: 200 lines,
@@ -349,13 +351,22 @@ render_frame:
 	rts
 
 ; The window: in a stage, toward the ship (two thirds down the playfield),
-; else (or with F2) the default. At full height none: the whole playfield.
+; else (or with F2) the default, or lower for the game's hidden menu (its
+; title to its EXIT). At full height none: the whole playfield.
 
 update_window:
 	tst.b	full_height
 	bne		.done
 
 	move	#DEFAULT_WINDOW,d0
+	tst.b	st_hidden_menu
+	beq		.not_hidden_menu
+
+	moveq	#HIDDEN_MENU_WINDOW,d0
+
+	bra		.target
+
+.not_hidden_menu:
 	tst.b	crop_mode
 	bne		.target
 
@@ -667,6 +678,8 @@ playfield_bottom: ; Its last line.
 flip_pending: ; 2: a new picture to show at the next VBL, 1: its colours next.
 	ds.b	1
 crop_mode: ; F2: the window does not follow the ship.
+	ds.b	1
+st_hidden_menu: ; The game's hidden menu is open (sz2.s).
 	ds.b	1
 
 	even

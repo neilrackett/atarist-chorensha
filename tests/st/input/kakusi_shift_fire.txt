@@ -1,0 +1,18 @@
+# The hidden menu (KAKUSI mode): CONFIG chosen with trigger B held (SHIFT,
+# X, or B on a pad). Main menu: START, CONTINUE, CONFIG, EXIT; down twice,
+# then trigger B held and trigger A pressed. In the hidden menu, up (its
+# cursor wraps to EXIT), then trigger A. Run with FRAMES=1100: the
+# screenshot at frame 500 shows the whole menu, "---- KAKUSI mode ----" to
+# EXIT (in crop too: the window moves down for it), and the one at 1000
+# the title again.
+300 down
+310 -
+320 down
+330 -
+340 b
+350 b+a
+360 -
+400 up
+410 -
+600 a
+610 -

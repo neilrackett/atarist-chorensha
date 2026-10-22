@@ -112,6 +112,14 @@ when a provider was found.
 **Auto fire:** holding the shot button keeps shooting (the original game
 shot once per press).
 
+**Hidden menu:** hold SHIFT (or X, or B on a pad) and choose CONFIG with
+fire for the original game's hidden menu, KAKUSI mode. MUTEKI makes the
+ship invincible (left or right switches it on and off), STAGE picks the
+stage to start at, BOSS_ONLY plays the bosses alone, and EXIT goes back
+to the title. Its settings last until the program ends. The original's
+own way works too: up, down and right at once (an X68000 pad's SELECT and
+right) as CONFIG is chosen.
+
 ## Options
 
 Settings go in `SZ2.CFG`, next to the program: one `name=value` a line, in

@@ -245,7 +245,8 @@ default; full height is below):
   real size, 32 pixels from the left.
   - In a stage the window follows the ship, which sits two thirds of the
     way down; it moves at most 2 lines per frame.
-  - Elsewhere, or after F2, the window shows lines 32-223.
+  - Elsewhere, or after F2, the window shows lines 32-223, and lines
+    48-239 while the game's hidden menu is open (its title to its EXIT).
   - The lives and bombs (text rows 1-3) stay at the top of the playfield.
 
 The screen address is written at a VBL. The colours follow one VBL later,
@@ -439,15 +440,16 @@ of text planes:
 The port's changes are all `ifd __ST__`; `-D__ST__` also defines `__PORT__`,
 `__CHUNKY__` (the Amiga port's hooks) and `__PORT_CREDITS__`:
 
-| Change                                           | What it does                                                                                                                     |
-| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
-| Builder skip (`INITIALIZE_SPRITES_AND_GRAPHICS`) | The background builder runs once only                                                                                            |
-| `DRAW_CHARACTER`                                 | Goes to the character map                                                                                                        |
-| VBL handler                                      | Only the counters and the game's vsync function                                                                                  |
-| Sprite tables                                    | Two, swapped at `XSP_OUT` instead of copied (`XOBJ_SET`'s room check reads `st_sprite_buffer_end`)                               |
-| Shot slot loop (`L_0002B410`)                    | Kept in registers, with the collision-grid routine and `XSP_SET_ST` inlined instruction for instruction (about 0.5 ms per frame) |
-| Stage hook                                       | Auto fire                                                                                                                        |
-| Other                                            | EXIT, `PRINTF`, the rotated screen (off), the menu credits                                                                       |
+| Change                                           | What it does                                                                                                                                             |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Builder skip (`INITIALIZE_SPRITES_AND_GRAPHICS`) | The background builder runs once only                                                                                                                    |
+| `DRAW_CHARACTER`                                 | Goes to the character map                                                                                                                                |
+| VBL handler                                      | Only the counters and the game's vsync function                                                                                                          |
+| Sprite tables                                    | Two, swapped at `XSP_OUT` instead of copied (`XOBJ_SET`'s room check reads `st_sprite_buffer_end`)                                                       |
+| Shot slot loop (`L_0002B410`)                    | Kept in registers, with the collision-grid routine and `XSP_SET_ST` inlined instruction for instruction (about 0.5 ms per frame)                         |
+| Stage hook                                       | Auto fire                                                                                                                                                |
+| Title menu                                       | CONFIG chosen with trigger B held (SHIFT, X, B on a pad) opens the hidden menu, KAKUSI mode; a held trigger B no longer stops trigger A choosing an item |
+| Other                                            | EXIT, `PRINTF`, the rotated screen (off), the menu credits                                                                                               |
 
 The X68000, Falcon and Amiga objects are unchanged (`build_st.sh` checks
 this).
@@ -631,6 +633,10 @@ The X68000's own sprite library code is already tight.
   draws each picture again from the dump, independently of the 68000 code,
   and every pixel and colour must match: 12 of 12 frames, on an STE and on
   an ST.
+- **Hidden menu.** `tests/st/input/kakusi_shift_fire.txt` (run with
+  `INPUT=` and `FRAMES=1100`) opens it from CONFIG with trigger B held:
+  its grabs show the whole menu in crop, then the title again after its
+  EXIT.
 - **Other targets.** `build_st.sh` checks that the other objects of `sz2.s`
   are unchanged.
 - **Real hardware.** `tests/st/hw/run_on_st.sh` runs a build on a real ST

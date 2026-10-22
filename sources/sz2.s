@@ -10201,8 +10201,17 @@ L_00024F1A:
 	lea     12(A7),A7                               ; 00024F34 4FEF 000C
 
 L_00024F38:
+	ifd __ST__
+	; Trigger A held the frame before (not trigger B: chosen with B held,
+	; CONFIG opens the hidden menu, L_00025066).
+
+	move.w  A3,D1
+	btst    #$0,D1
+	bne.s   L_00024F56
+	else
 	cmpa.w  #$0,A3                                  ; 00024F38 B6FC 0000
 	bne.s   L_00024F56                              ; 00024F3C 6618
+	endif
 
 	move.w  A4,D1                                   ; 00024F3E 320C
 	btst    #$0,D1                                  ; 00024F40 0801 0000
@@ -10354,14 +10363,35 @@ L_00025066:
 	pea     $0.w                                    ; 00025066 4878 0000
 	jsr     READ_JOYSTICK_RAW                              ; 0002506A 4EB9 0005 A720
 
+	ifd __ST__
+	move.l  D0,D2 ; (Its buttons, for the check below.)
+	endif
+
 	moveq   #15,D1                                  ; 00025070 720F
 	and.l   D1,D0                                   ; 00025072 C081
 	addq.w  #$4,A7                                  ; 00025074 584F
+
+	ifd __ST__
+	; CONFIG chosen with the second button held (SHIFT, X, or B on a pad)
+	; opens the hidden menu too. The original's way, up, down and right at
+	; once (an X68000 pad's SELECT and right), needs two devices on an ST.
+
+	btst    #6,D2
+	beq.s   ST_KAKUSI_MODE
+	endif
+
 	moveq   #4,D1                                   ; 00025076 7204
 	cmp.l   D0,D1                                   ; 00025078 B280
 	bne.s   L_00025084                              ; 0002507A 6608
 
+	ifd __ST__
+ST_KAKUSI_MODE:
+	st      st_hidden_menu ; (Its rows 6-29 in the ST's window, display.s.)
+	bsr.w   KAKUSI_MODE_MENU
+	sf      st_hidden_menu
+	else
 	bsr.w   KAKUSI_MODE_MENU                              ; 0002507C 6100 0702
+	endif
 
 	bra.w   L_00024DDA                              ; 00025080 6000 FD58
 
