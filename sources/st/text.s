@@ -18,6 +18,8 @@
 	xdef st_draw_character
 	xdef amiga_clear_text_planes
 	xdef amiga_text_row_written
+	xdef amiga_text_character
+	xdef amiga_text_cleared
 	xdef compile_characters
 	xdef draw_text_rows
 	xdef character_map
@@ -248,6 +250,15 @@ convert_character:
 
 font_offsets:
 	dc.b	0,16,1,17
+
+; ------------------------------------------------------------------------------
+;
+; The Amiga port's hooks for its "mouse on" message (sz2.s, __CHUNKY__: a
+; character drawn, the text planes cleared): the ST has no such message.
+
+amiga_text_character:
+amiga_text_cleared:
+	rts
 
 ; ------------------------------------------------------------------------------
 ;

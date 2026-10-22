@@ -15,8 +15,11 @@
 ;   cursor keys          joystick directions
 ;   CTRL, Z              trigger A          (fire 1 / red button)
 ;   SHIFT (either), X    trigger B          (fire 2 / blue button)
-;   ESC, 1, TAB, SHIFT, CTRL, RETURN, SPACE, cursor keys   X68000 key matrix
-;   P                    X68000 ESC (the game's pause, as ESC)
+;   1, TAB, SHIFT, CTRL, RETURN, SPACE, cursor keys   X68000 key matrix
+;   ESC                  back to the title (a game, also paused or at game
+;                        over), EXIT on the title (amiga_escape_pressed, from
+;                        sz2.s); in other menus also the X68000's ESC
+;   P, CD32 PLAY         X68000 ESC (the game's START: pause)
 ;   M                    mouse control on / off
 ;   ` (left of 1)        FPS counter on / off (display.s)
 ;
@@ -34,14 +37,26 @@
 ; game moves or holds the ship itself (respawn, held still, slowed), the
 ; joystick directions point to the target instead (dead zone of
 ; MOUSE_DEAD_ZONE pixels), at the game's speed. The left mouse button is trigger A, the right one trigger
-; B. Outside a stage (menus) only the buttons count. "mouse on" /
-; "mouse off" is shown for MOUSE_MESSAGE_TICKS where the game shows "pause"
-; (DRAW_TEXT, from the frame end: mouse_frame_hook).
+; B. Outside a stage (menus, the name entry) the movement steps through the
+; options: every MOUSE_MENU_STEP pixels (vertical first) is one press of a
+; direction, held for MOUSE_MENU_PRESS frame timer ticks and then released
+; for MOUSE_MENU_GAP (mouse_menu_tick; on the timer, as the game also polls
+; in loops that complete no frame). "mouse on" /
+; "mouse off" is shown for MOUSE_MESSAGE_TICKS on a text row the game never
+; writes, above "pause" (DRAW_TEXT, from the frame end: mouse_frame_hook);
+; the characters under it (a high score table) are drawn again when it goes,
+; and when the game draws into it the message goes at the next frame end.
 
 	xdef initialize_input
 	xdef release_input
 	xdef update_input
 	xdef mouse_frame_hook
+	xdef amiga_text_character
+	xdef amiga_escape_pressed
+	xdef amiga_escape_menu
+	xdef amiga_escape_clear
+	xdef amiga_bitsns_group0
+	xdef amiga_text_cleared
 	xdef mouse_mode
 	xdef fps_display
 	xdef amiga_stage_frame
@@ -58,6 +73,8 @@
 	xref total_vbl_count
 	xref WORD_00098864
 	xref DRAW_TEXT
+	xref text_matrix
+	xref text_bitmaps
 	xref WORD_000A8EFC
 	xref WORD_0008D8FA
 	xref WORD_000A8EFE
@@ -114,6 +131,7 @@ JP_TYPE_NOTAVAIL=$00000000
 JP_TYPE_GAMECTLR=$10000000
 JP_TYPE_JOYSTK=$30000000
 JPB_BUTTON_BLUE=23
+JPB_BUTTON_PLAY=17
 JPB_BUTTON_RED=22
 JPB_JOY_UP=3
 JPB_JOY_DOWN=2
@@ -170,7 +188,11 @@ IECODE_LBUTTON=$68
 IECODE_RBUTTON=$69
 RAW_KEY_M=$37
 RAW_KEY_BACKTICK=$00 ; The key left of 1.
+RAW_KEY_ESC=$45
 MOUSE_DEAD_ZONE=2 ; Pixels.
+MOUSE_MENU_STEP=24 ; Pixels of mouse movement per menu step.
+MOUSE_MENU_PRESS=4 ; Frame timer ticks a menu step's direction is held,
+MOUSE_MENU_GAP=4 ; then released (up to about 7 steps a second).
 MOUSE_MAX_STEP=8 ; Pixels a frame (about 440 per second).
 RESPAWN_MOVING=$80 ; WORD_000A8EFC above this: the game flies the ship in.
 SHIP_LEFT=$400 ; The ship's area (the game's limits, 1/64 pixel).
@@ -180,8 +202,11 @@ SHIP_BOTTOM=$3F00
 AUTOFIRE_SHIFT=1
 AUTOFIRE_FRAMES=1<<AUTOFIRE_SHIFT ; Pressed for 2 frames, released for 2.
 MOUSE_MESSAGE_TICKS=110 ; 2 s.
-MOUSE_MESSAGE_X=11 ; Text cells: "mouse off" centred where "pause" is.
-MOUSE_MESSAGE_Y=16
+MOUSE_MESSAGE_X=11 ; Text cells: "mouse off" centred above "pause" (13, 16).
+	ifnd MOUSE_MESSAGE_Y
+MOUSE_MESSAGE_Y=11 ; Between "rank" (10) and "mission complete" (12).
+	endif
+MOUSE_MESSAGE_LENGTH=9
 
 IND_WRITEEVENT=11
 io_Length=36
@@ -206,6 +231,7 @@ initialize_input:
 	move.l	#-1,iocs_joystick_data
 
 	move.b	#-1,mouse_button_state
+	move.b	#-1,mouse_menu_state
 	move.b	#X68_LEFT,latest_horizontal
 	move.b	#X68_UP,latest_vertical
 
@@ -431,6 +457,11 @@ read_joystick:
 .not_blue:
 	move.b	d2,joystick_state
 
+	; CD32 PLAY: START (pause), as the X68000's ESC key (amiga_bitsns).
+
+	btst	#JPB_BUTTON_PLAY,d0
+	sne		pad_start
+
 .done:
 	movem.l	(sp)+,d0-d2/a0-a1/a6
 
@@ -442,6 +473,8 @@ read_joystick:
 ; records. Preserves all registers.
 
 input_tick:
+	bsr		mouse_menu_tick
+
 	tst.b	joystick_ready
 	beq		.script ; Still read by update_input until ReadJoyPort works.
 
@@ -497,6 +530,123 @@ input_tick:
 
 	rts
 
+; Mouse control outside a stage: the mouse's movement into presses of a
+; direction (mouse_menu_state, active low) for menus. Preserves all
+; registers.
+
+mouse_menu_tick:
+	movem.l	d0-d1,-(sp)
+
+	tst.b	mouse_mode
+	beq		.off
+
+	tst.b	mouse_in_stage
+	bne		.off ; The ship takes the movement (also while paused).
+
+	; Take the movement (single instructions: the input handler adds to
+	; it), at most two steps ahead.
+
+	move.l	mouse_dx,d0
+	sub.l	d0,mouse_dx
+	add.l	mouse_menu_x,d0
+	bsr		.clamp
+	move.l	d0,mouse_menu_x
+
+	move.l	mouse_dy,d0
+	sub.l	d0,mouse_dy
+	add.l	mouse_menu_y,d0
+	bsr		.clamp
+	move.l	d0,mouse_menu_y
+
+	tst		mouse_menu_ticks
+	beq		.idle
+
+	subq	#1,mouse_menu_ticks
+	cmp		#MOUSE_MENU_GAP,mouse_menu_ticks
+	bhi		.done ; Still held.
+
+	move.b	#-1,mouse_menu_state
+
+	bra		.done
+
+.idle:
+	moveq	#X68_DOWN,d1
+	move.l	mouse_menu_y,d0
+	cmp.l	#MOUSE_MENU_STEP,d0
+	bge		.vertical
+
+	moveq	#X68_UP,d1
+	cmp.l	#-MOUSE_MENU_STEP,d0
+	bgt		.horizontal
+
+.vertical:
+	tst.l	d0
+	bmi		.up
+
+	sub.l	#MOUSE_MENU_STEP,mouse_menu_y
+
+	bra		.press
+
+.up:
+	add.l	#MOUSE_MENU_STEP,mouse_menu_y
+
+	bra		.press
+
+.horizontal:
+	moveq	#X68_RIGHT,d1
+	move.l	mouse_menu_x,d0
+	cmp.l	#MOUSE_MENU_STEP,d0
+	bge		.horizontal_step
+
+	moveq	#X68_LEFT,d1
+	cmp.l	#-MOUSE_MENU_STEP,d0
+	bgt		.done
+
+.horizontal_step:
+	tst.l	d0
+	bmi		.left
+
+	sub.l	#MOUSE_MENU_STEP,mouse_menu_x
+
+	bra		.press
+
+.left:
+	add.l	#MOUSE_MENU_STEP,mouse_menu_x
+
+.press:
+	moveq	#-1,d0
+	bclr	d1,d0
+	move.b	d0,mouse_menu_state
+	move	#MOUSE_MENU_PRESS+MOUSE_MENU_GAP,mouse_menu_ticks
+
+	bra		.done
+
+.off:
+	clr.l	mouse_menu_x
+	clr.l	mouse_menu_y
+	clr		mouse_menu_ticks
+	move.b	#-1,mouse_menu_state
+
+.done:
+	movem.l	(sp)+,d0-d1
+
+	rts
+
+.clamp:
+	cmp.l	#MOUSE_MENU_STEP*2,d0
+	ble		.not_above
+
+	move.l	#MOUSE_MENU_STEP*2,d0
+
+.not_above:
+	cmp.l	#-MOUSE_MENU_STEP*2,d0
+	bge		.not_below
+
+	move.l	#-MOUSE_MENU_STEP*2,d0
+
+.not_below:
+	rts
+
 ; ------------------------------------------------------------------------------
 ;
 ; _JOYGET (trap handler): d0.l = the current joystick bits (X68000, active
@@ -535,12 +685,17 @@ joystick_now:
 	beq		.combine
 
 	; Mouse control: the buttons; in a stage, the directions toward the
-	; pointer.
+	; target; elsewhere the menu steps.
 
 	and.b	mouse_button_state,d1
 	tst.b	amiga_stage_frame
-	beq		.combine
+	bne		.stage
 
+	and.b	mouse_menu_state,d1
+
+	bra		.combine
+
+.stage:
 	bsr		mouse_directions
 	and.b	d0,d1
 
@@ -620,6 +775,7 @@ mouse_directions:
 
 amiga_ship_control:
 	st		amiga_stage_frame
+	st		mouse_in_stage
 	sf		mouse_moved_ship
 
 	tst.b	mouse_mode
@@ -756,10 +912,66 @@ reset_mouse_target:
 	tst.b	amiga_stage_frame
 	bne		.done
 
+	sf		mouse_target_set ; (Menus: mouse_menu_tick takes the movement.)
+
+	bra		.done
+
 .reset:
 	sf		mouse_target_set
 	clr.l	mouse_dx
 	clr.l	mouse_dy
+
+.done:
+	rts
+
+; ------------------------------------------------------------------------------
+;
+; ESC, "back to the title", for the game's loops (sz2.s, __AMIGA__): returns
+; the Z flag clear once for each ESC press since the last call (several at
+; once count as one). Preserves all registers.
+
+amiga_escape_pressed:
+	move.l	d0,-(sp)
+
+	move.l	escape_presses,d0
+	cmp.l	escape_taken,d0
+	beq		.done
+
+	move.l	d0,escape_taken
+	moveq	#1,d0 ; Z clear.
+
+.done:
+	movem.l	(sp)+,d0 ; (Keeps the flags.)
+
+	rts
+
+; The game loop's READ_JOYSTICK_FOR_MENU result in d0: START + SELECT (3,
+; the game's own way out of a game) after an ESC press.
+
+amiga_escape_menu:
+	bsr		amiga_escape_pressed
+	beq		.done
+
+	moveq	#3,d0
+
+.done:
+	rts
+
+; The title menu appears: ESC presses before it are not "exit".
+
+amiga_escape_clear:
+	move.l	escape_presses,escape_taken
+
+	rts
+
+; _BITSNS group 0 (emulator.s): d0.b = the key matrix byte; returns it with
+; bit 1 (the X68000's ESC, the game's START) set while CD32 PLAY is held.
+
+amiga_bitsns_group0:
+	tst.b	pad_start
+	beq		.done
+
+	bset	#1,d0
 
 .done:
 	rts
@@ -778,6 +990,13 @@ mouse_frame_hook:
 	beq		.no_change
 
 	sf		mouse_mode_changed
+
+	tst.b	mouse_message_shown
+	bne		.under_saved ; Shown already: what is under it is kept.
+
+	bsr		save_mouse_message_cells
+
+.under_saved:
 	lea		mouse_on_text,a0
 	tst.b	mouse_mode
 	bne		.text_set
@@ -789,6 +1008,7 @@ mouse_frame_hook:
 	move.l	total_vbl_count,d0
 	add.l	#MOUSE_MESSAGE_TICKS,d0
 	move.l	d0,mouse_message_end
+	sf		mouse_message_overdrawn
 	st		mouse_message_shown
 
 	bra		.done
@@ -797,12 +1017,16 @@ mouse_frame_hook:
 	tst.b	mouse_message_shown
 	beq		.done
 
+	tst.b	mouse_message_overdrawn
+	bne		.erase ; The game drew there ("pause"): its text wins.
+
 	move.l	total_vbl_count,d0
 	cmp.l	mouse_message_end,d0
 	bcs		.done
 
+.erase:
 	sf		mouse_message_shown
-	lea		mouse_erase_text,a0
+	lea		mouse_message_under,a0 ; The cells as the game left them.
 	bsr		draw_mouse_message
 
 .done:
@@ -827,6 +1051,8 @@ mouse_frame_hook:
 	sf		autofire_released
 
 .autofire_done:
+	tst.b	amiga_stage_frame
+	sne		mouse_in_stage ; A frame without the ship control: menus.
 	bsr		reset_mouse_target
 	sf		amiga_stage_frame ; Set again by the next stage frame.
 
@@ -839,14 +1065,110 @@ mouse_frame_hook:
 draw_mouse_message:
 	movem.l	d2-d7/a2-a6,-(sp)
 
+	st		mouse_message_drawing
 	move.l	a0,-(sp)
 	pea		MOUSE_MESSAGE_Y.w
 	pea		MOUSE_MESSAGE_X.w
 	jsr		DRAW_TEXT
 	lea		12(sp),sp
+	sf		mouse_message_drawing
 
 	movem.l	(sp)+,d2-d7/a2-a6
 
+	rts
+
+; Keeps the characters of the cells the message covers (pause text, high
+; scores) in mouse_message_under, to draw them again when it goes: a cell's
+; character (text_matrix) if its row's draw bitmap has it, else a space.
+
+save_mouse_message_cells:
+	movem.l	d0-d2/a0-a2,-(sp)
+
+	move.l	text_bitmaps+32*4+MOUSE_MESSAGE_Y*4,d2 ; Bit 31 - x: drawn.
+	lea		text_matrix+MOUSE_MESSAGE_Y*32+MOUSE_MESSAGE_X,a0
+	lea		mouse_message_under,a1
+	moveq	#31-MOUSE_MESSAGE_X,d1
+	moveq	#MOUSE_MESSAGE_LENGTH-1,d0
+
+.cell:
+	move.b	(a0)+,(a1)
+	btst	d1,d2
+	beq		.space
+
+	cmp.b	#' ',(a1)
+	bcc		.next ; (Control characters: a space.)
+
+.space:
+	move.b	#' ',(a1)
+
+.next:
+	addq.l	#1,a1
+	subq	#1,d1
+	dbf		d0,.cell
+
+	clr.b	(a1)
+
+	movem.l	(sp)+,d0-d2/a0-a2
+
+	rts
+
+; From DRAW_CHARACTER(x, y, character) (the game's arguments on the stack
+; above its return address), for every character the game draws: one that
+; falls on the shown message replaces the saved cell, and the message is
+; taken away at the next frame end. Preserves all registers.
+
+amiga_text_character:
+	tst.b	mouse_message_shown
+	beq		.done
+
+	tst.b	mouse_message_drawing
+	bne		.done
+
+	cmp		#MOUSE_MESSAGE_Y,12+2(sp)
+	bne		.done
+
+	move.l	d0,-(sp)
+
+	move	4+8+2(sp),d0
+	sub		#MOUSE_MESSAGE_X,d0
+	cmp		#MOUSE_MESSAGE_LENGTH,d0
+	bcc		.outside
+
+	move.l	a0,-(sp)
+	lea		mouse_message_under,a0
+	move.b	8+16+3(sp),(a0,d0.w)
+	cmp.b	#' ',(a0,d0.w)
+	bcc		.saved
+
+	move.b	#' ',(a0,d0.w)
+
+.saved:
+	move.l	(sp)+,a0
+	st		mouse_message_overdrawn
+
+.outside:
+	move.l	(sp)+,d0
+
+.done:
+	rts
+
+; From CLEAR_TEXT_PLANE: nothing is under the message any more. Preserves
+; all registers.
+
+amiga_text_cleared:
+	tst.b	mouse_message_shown
+	beq		.done
+
+	move.l	a0,-(sp)
+	lea		mouse_message_under,a0
+	rept	MOUSE_MESSAGE_LENGTH
+	move.b	#' ',(a0)+
+	endr
+	move.l	(sp)+,a0
+
+	st		mouse_message_overdrawn ; Gone from the screen already.
+
+.done:
 	rts
 
 ; ------------------------------------------------------------------------------
@@ -1122,6 +1444,30 @@ process_key:
 	bra		.done
 
 .not_backtick:
+	; ESC: back to the title (counted for amiga_escape_pressed); in menus
+	; also the X68000's ESC (START: back out of the configuration).
+
+	cmp.b	#RAW_KEY_ESC,d1
+	bne		.not_escape
+
+	tst.l	d4
+	bmi		.escape_up
+
+	addq.l	#1,escape_presses
+	tst.b	mouse_in_stage
+	bne		.done ; In a stage ESC does not pause (P does).
+
+	st		escape_in_matrix
+
+	bra		.not_escape
+
+.escape_up:
+	tst.b	escape_in_matrix
+	beq		.done
+
+	sf		escape_in_matrix
+
+.not_escape:
 	lea		key_map,a1
 	add		d1,d1
 	add		d1,a1
@@ -1287,8 +1633,6 @@ mouse_on_text:
 	dc.b	'mouse on ',0
 mouse_off_text:
 	dc.b	'mouse off',0
-mouse_erase_text:
-	dc.b	'         ',0
 
 	even
 
@@ -1472,6 +1816,10 @@ keyboard_joystick_state:
 	ds.b	1
 script_joystick_state:
 	ds.b	1
+escape_presses:
+	ds.l	1 ; ESC presses (input handler).
+escape_taken:
+	ds.l	1 ; The last one seen by amiga_escape_pressed.
 mouse_message_end:
 	ds.l	1 ; Frame timer tick to erase the message at.
 autofire_frames:
@@ -1484,6 +1832,12 @@ mouse_dx:
 	ds.l	1 ; Mouse movement since the last frame end (counts).
 mouse_dy:
 	ds.l	1
+mouse_menu_x:
+	ds.l	1 ; Movement not yet turned into menu steps (counts).
+mouse_menu_y:
+	ds.l	1
+mouse_menu_ticks:
+	ds.w	1 ; Ticks left of the current menu step (pressed, then released).
 mouse_target_x:
 	ds.w	1 ; Mouse control's target (the ship's units).
 mouse_target_y:
@@ -1496,10 +1850,24 @@ mouse_mode_changed:
 	ds.b	1
 mouse_message_shown:
 	ds.b	1
+escape_in_matrix:
+	ds.b	1 ; ESC was pressed in a menu: in the key matrix until released.
+pad_start:
+	ds.b	1 ; CD32 PLAY held.
+mouse_message_drawing:
+	ds.b	1 ; draw_mouse_message is drawing (amiga_text_character).
+mouse_message_overdrawn:
+	ds.b	1 ; The game drew into the message, or cleared the text.
+mouse_message_under:
+	ds.b	MOUSE_MESSAGE_LENGTH+1 ; The cells under the message.
 mouse_button_state:
 	ds.b	1 ; Triggers from the mouse buttons (active low).
 amiga_stage_frame:
 	ds.b	1 ; The game has run its ship control this frame.
+mouse_in_stage:
+	ds.b	1 ; The last frame was a stage frame (mouse_menu_tick off).
+mouse_menu_state:
+	ds.b	1 ; Menu step directions from the mouse (active low).
 mouse_target_set:
 	ds.b	1
 mouse_moved_ship:

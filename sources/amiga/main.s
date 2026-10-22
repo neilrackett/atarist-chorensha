@@ -23,6 +23,8 @@
 	xdef machine_rtg
 
 	xref print_music_summary
+	xref print_parallax_summary
+	xref parallax_requested
 	xref audio_ahi_requested
 	xref audio_ahi_mode
 	xref audio_music_volume
@@ -192,7 +194,11 @@ start:
 
 	move.l	d0,a6
 	move.l	#console_name,d1
+	ifd __CONSOLE_FILE__
+	move.l	#MODE_NEWFILE,d2
+	else
 	move.l	#MODE_OLDFILE,d2
+	endif
 	jsr		_LVOOpen(a6)
 	move.l	d0,console
 	beq		.console_done
@@ -657,11 +663,12 @@ print_info_text:
 ; Audio options among the arguments: "AHI" plays the sound through AHI in
 ; the mode selected in the AHI preferences, "AHI=<mode id>" (hex, e.g.
 ; AHI=$20001 or AHI=0x20001) in that mode; "MUSICVOL=<0-64>" and
-; "SFXVOL=<0-64>" set the music's and the effects' volume (default 64);
+; "SFXVOL=<0-64>" set the music's and the effects' volume (default 64 and 32);
 ; "MHI" plays the music on an MHI decoder (LIBS:MHI/mhiz3660.library),
 ; "MHI=<driver>" with that driver (e.g. MHI=mhizz9000.library). Display:
 ; "AGA" or "RTG" chooses the display (default: a graphics card if there is
-; one, else AGA), "MODE=<id>" (hex) the RTG screen mode.
+; one, else AGA), "MODE=<id>" (hex) the RTG screen mode, "PARALLAX50" draws
+; the background where it is when each picture is shown (parallax.s).
 ; The arguments are copied without them for parse_frame_limit.
 
 parse_audio_options:
@@ -737,6 +744,19 @@ parse_audio_options:
 	bra		.token
 
 .not_volume:
+	; PARALLAX50 (whole word).
+
+	lea		parallax_keyword,a3
+	bsr		match_word
+	beq		.not_parallax
+
+	st		parallax_requested
+	add.l	d0,a0
+	sub.l	d0,d1
+
+	bra		.token
+
+.not_parallax:
 	; AGA, RTG (whole words).
 
 	lea		aga_keyword,a3
@@ -1224,6 +1244,7 @@ print_run_summary:
 	jsr		_LVOVPrintf(a6)
 
 	jsr		print_music_summary
+	jsr		print_parallax_summary
 	move.l	dos_base,a6
 
 	ifd __RENDER_PROFILE__
@@ -1498,22 +1519,43 @@ read_tool_arguments:
 	tst.l	d0
 	beq		.restore_directory
 
+	; ARGUMENTS=<options>, then each tool type that is an option by
+	; itself (AGA, MUSICVOL=40, ... one per line), as one argument text.
+
 	move.l	do_ToolTypes(a3),a0
 	lea		arguments_tool_type,a1
 	jsr		_LVOFindToolType(a6)
-	tst.l	d0
-	beq		.free_icon
 
-	move.l	d0,a0
 	lea		tool_arguments,a1
 	move.l	a1,argument_string
-	move	#ARGUMENTS_SIZE-2,d0
+	move.l	#ARGUMENTS_SIZE-1,d1 ; Room (the last byte for the 0).
 
-.copy:
-	move.b	(a0)+,(a1)+
-	dbeq	d0,.copy
+	tst.l	d0
+	beq		.tool_types
 
-	clr.b	-(a1)
+	move.l	d0,a0
+	bsr		append_tool_argument
+
+.tool_types:
+	move.l	do_ToolTypes(a3),d0
+	beq		.arguments_done
+
+	move.l	d0,a2
+
+.tool_type:
+	move.l	(a2)+,d0
+	beq		.arguments_done
+
+	move.l	d0,a0
+	bsr		is_option_tool_type
+	beq		.tool_type
+
+	bsr		append_tool_argument
+
+	bra		.tool_type
+
+.arguments_done:
+	clr.b	(a1)
 	move.l	a1,d0
 	sub.l	argument_string,d0
 	move.l	d0,argument_length
@@ -1536,8 +1578,87 @@ read_tool_arguments:
 
 	rts
 
+; a0 = text, appended to the argument text at a1 (after a space, unless it
+; is the first), while d1 bytes of room are left. Advances a1, d1.
+
+append_tool_argument:
+	cmp.l	argument_string,a1
+	beq		.copy
+
+	tst.l	d1
+	beq		.done
+
+	move.b	#' ',(a1)+
+	subq.l	#1,d1
+
+.copy:
+	tst.b	(a0)
+	beq		.done
+
+	tst.l	d1
+	beq		.done
+
+	move.b	(a0)+,(a1)+
+	subq.l	#1,d1
+
+	bra		.copy
+
+.done:
+	rts
+
+; a0 = a tool type. Returns the Z flag clear if it is one of the options
+; (option_tool_types: a keyword followed by its end or "=", or one ending in
+; "="; either case). Preserves all registers.
+
+is_option_tool_type:
+	movem.l	d0-d2/a0/a3-a4,-(sp)
+
+	move.l	a0,a4
+	moveq	#-1,d1
+
+.length:
+	addq.l	#1,d1
+	tst.b	(a4)+
+	bne		.length
+
+	lea		option_tool_types,a4
+
+.keyword:
+	move.l	(a4)+,d0
+	beq		.no
+
+	move.l	d0,a3
+	bsr		match_keyword
+	beq		.keyword
+
+	cmp.b	#'=',-1(a3,d0.l) ; "MODE=": a value follows.
+	beq		.yes
+
+	cmp.l	d0,d1
+	beq		.yes ; The whole tool type.
+
+	cmp.b	#'=',(a0,d0.l)
+	bne		.keyword ; Another word ("AGAIN").
+
+.yes:
+	moveq	#1,d0
+
+	bra		.done
+
+.no:
+	moveq	#0,d0
+
+.done:
+	movem.l	(sp)+,d0-d2/a0/a3-a4
+
+	rts
+
 ; ------------------------------------------------------------------------------
 	data
+
+option_tool_types:
+	dc.l	aga_keyword,rtg_keyword,mode_keyword,ahi_tool_type,mhi_keyword
+	dc.l	music_volume_keyword,effect_volume_keyword,parallax_keyword,0
 
 data_drawer_names:
 	dc.l	bgm_dat_name,etc_dat_name,pcm_dat_name,xsp_dat_name,0
@@ -1579,6 +1700,8 @@ aga_refused_text:
 	dc.b	'AGA was asked for, but this machine has no AGA chipset or less than 8 MB of fast RAM.',10,0
 rtg_refused_text:
 	dc.b	'RTG was asked for, but there is no graphics card (Picasso96 or CyberGraphX).',10,0
+parallax_keyword:
+	dc.b	'PARALLAX50',0
 aga_keyword:
 	dc.b	'AGA',0
 rtg_keyword:
@@ -1593,15 +1716,21 @@ icon_name:
 	dc.b	'icon.library',0
 arguments_tool_type:
 	dc.b	'ARGUMENTS',0
+ahi_tool_type:
+	dc.b	'AHI',0
 
 dos_name:
 	dc.b	'dos.library',0
 
 console_name:
+	ifd __CONSOLE_FILE__
+	dc.b	'WORK:console.txt',0 ; Test builds: the text for the test to read.
+	else
 	ifd __CONSOLE_NO_WAIT__
 	dc.b	'CON:20/20/600/180/Cho Ren Sha 68k/AUTO/CLOSE',0 ; Test builds: the whole exit runs.
 	else
 	dc.b	'CON:20/20/600/180/Cho Ren Sha 68k/AUTO/CLOSE/WAIT',0
+	endif
 	endif
 
 graphics_name:

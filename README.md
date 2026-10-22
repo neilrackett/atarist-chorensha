@@ -159,6 +159,7 @@ If the borders do not open on a machine, `screen=full` falls back to crop.
 - Atari Falcon port and the disassembly this port builds on: Sascha
   Springer.
 - Amiga port: Adam Polkosnik.
+- Amiga colour icons: Hexaae.
 - The Amiga port's music recorded with MCDRV 0.69 by CUL (free software),
   played by the Musashi 68000 emulator and rendered with ymfm's YM2151
   (Aaron Giles).
