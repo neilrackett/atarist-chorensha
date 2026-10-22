@@ -39,6 +39,7 @@
 
 	xref machine_has_ste_hardware
 	xref music_playing
+	xref music_restore
 
 YM_ENTRY_SIZE=20 ; SZ2_YM.BIN: name (12), frames (long), their number (word).
 YM_ENTRY_FRAMES=12
@@ -540,7 +541,9 @@ audio_tick:
 	; Fall through: silence.
 
 ; The three channels silent and their tones and noise off (also at the
-; take-over and the release, on an ST). Preserves all registers.
+; take-over and the release, on an ST); while the music plays, only voice
+; C, the effect's, and the music writes all its registers again at its
+; next tick. Preserves all registers.
 
 audio_silence:
 	tst.b	machine_has_ste_hardware
@@ -550,11 +553,21 @@ audio_silence:
 	move	sr,-(sp)
 
 	moveq	#0,d0
+	tst.b	music_playing
+	bne		.music_voices
+
 	YM_WRITE 8,d0
 	YM_WRITE 9,d0
 	YM_WRITE 10,d0
 	YM_SET_MIXER YM_MIXER_OFF,d0
 
+	bra		.silent
+
+.music_voices:
+	YM_WRITE 10,d0
+	st		music_restore
+
+.silent:
 	move	(sp)+,sr
 	move.l	(sp)+,d0
 

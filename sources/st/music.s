@@ -47,6 +47,7 @@
 	xdef music_ticks
 	xdef music_ticks_shared
 	xdef music_playing
+	xdef music_restore
 
 	xref machine_has_ste_hardware
 	xref ym_playing
