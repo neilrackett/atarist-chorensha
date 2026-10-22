@@ -1,0 +1,48 @@
+name: PR
+
+# Does it build, and does it leave the other versions alone? This runs the
+# release's build (make), and make debug, whose build_st.sh checks that the
+# X68000, Falcon and Amiga objects of sources/sz2.s are those of upstream's
+# amiga-port. It tags nothing, publishes nothing and keeps no artifacts. The
+# tests run in Hatari (make test), which a runner does not have.
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+# Read-only: this runs code from a contributor's branch. release.yml holds
+# the write token.
+permissions:
+  contents: read
+
+# A force-push mid-review should not leave two builds racing to report.
+concurrency:
+  group: pr-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # stcmd runs docker with -it unless this is set, and a runner has no
+  # terminal.
+  STCMD_NO_TTY: 1
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v5
+        with:
+          submodules: recursive
+          # The object check reads amiga-port's sz2.s (origin/amiga-port).
+          fetch-depth: 0
+
+      - name: Install the Atari ST toolkit
+        run: curl -sL https://github.com/sidecartridge/atarist-toolkit-docker/releases/latest/download/install_atarist_toolkit_docker.sh | bash
+
+      - name: Build the debug version, and check the other versions' objects
+        run: BASE=origin/amiga-port make debug
+
+      - name: Build the release
+        run: make

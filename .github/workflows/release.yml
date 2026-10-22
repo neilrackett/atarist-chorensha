@@ -1,0 +1,129 @@
+name: Release
+
+# Rolling release, as the Flashback port's (atarist-reminiscence): build
+# the Atari ST version, tag the commit with the next v1.01-atarist.N, move
+# the lightweight "latest" tag onto it, and replace the file on the
+# "latest" release. Nothing else: the release's title and text are left
+# exactly as they are (`gh release upload` touches files only), the
+# release is never created here (it is made by hand, once), and the
+# file's name never changes, so a download link handed to someone keeps
+# working.
+
+on:
+  # Anything landing on main is a release: a merge, or a direct push. Tag
+  # pushes do not match a branch filter, so the tags this workflow creates
+  # cannot trigger it again.
+  push:
+    branches:
+      - main
+    # A prose-only push cannot change the program; a new -atarist.N for a
+    # typo fix would be noise. GitHub still runs the job when a push
+    # touches anything else as well, and workflow_dispatch forces one.
+    paths-ignore:
+      - '**.md'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# Two pushes in quick succession would otherwise race: both move the
+# latest tag and replace the same file. Newest commit wins instead.
+concurrency:
+  group: release
+  cancel-in-progress: true
+
+env:
+  # stcmd runs docker with -it unless this is set, and a runner has no
+  # terminal.
+  STCMD_NO_TTY: 1
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    # The push trigger already filters to main; this stops a manual
+    # dispatch from some other branch tagging and releasing it.
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v5
+        with:
+          # STDL and Xpad are submodules (lib/), and STDL carries Xpad as
+          # one of its own.
+          submodules: recursive
+          # The next version is counted from the tags already in the
+          # repository, which checkout fetches only with a full clone.
+          fetch-depth: 0
+
+      - name: Check that the latest release is there
+        # This workflow only replaces its file: making the release, and
+        # writing its title and text, is the maintainer's.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view latest > /dev/null \
+            || { echo "No \"latest\" release: create it by hand first."; exit 1; }
+
+      - name: Install the Atari ST toolkit
+        # Puts stcmd in /usr/local/bin: build_st.sh runs each tool through
+        # it, in the toolkit's container.
+        run: curl -sL https://github.com/sidecartridge/atarist-toolkit-docker/releases/latest/download/install_atarist_toolkit_docker.sh | bash
+
+      - name: Build
+        # The command the README documents: binaries/st/SZ2.TOS, and the
+        # folder to copy to an ST, dist/CHORENSH (the program, SZ2.CFG and
+        # the game's data).
+        run: make
+
+      - name: Package
+        run: cd dist && zip -qr ../ChoRenSha-atarist.zip CHORENSH
+
+      - name: Work out the version
+        run: |
+          # A tag already on this commit is the maintainer's own (a
+          # release worth notes gets an annotated tag by hand before the
+          # push): release what it names rather than numbering the same
+          # commit twice.
+          VERSION=$(git tag --points-at HEAD --list 'v*-atarist.*' | sort -V | tail -1)
+
+          if [ -n "$VERSION" ]; then
+            echo "This commit is already tagged $VERSION; leaving it alone."
+          else
+            PREVIOUS=$(git tag --list 'v*-atarist.*' | sort -V | tail -1)
+            # Refuse to invent a base version: if the tags have gone
+            # missing, the fix is to restore them, not to count afresh.
+            test -n "$PREVIOUS" || { echo "No v*-atarist.* tag to count from."; exit 1; }
+            VERSION="${PREVIOUS%-atarist.*}-atarist.$(( ${PREVIOUS##*-atarist.} + 1 ))"
+            echo "TAG_NEEDED=1" >> "$GITHUB_ENV"
+          fi
+
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Tag it
+        # Only once the build has succeeded: a tag naming a program that
+        # never got made would be a number to explain later.
+        if: env.TAG_NEEDED == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Through the API rather than `git push`: pushing a tag is
+          # refused when its commit touches .github/workflows and the
+          # token has no workflow scope.
+          gh api -X POST "repos/$GITHUB_REPOSITORY/git/refs" \
+            -f ref="refs/tags/$VERSION" -f sha="$GITHUB_SHA" --silent
+          echo "Tagged $VERSION."
+
+      - name: Move the latest tag onto this commit
+        # The latest release is attached to this tag, so its source links
+        # name the commit the file was built from.
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/latest" \
+            -f sha="$GITHUB_SHA" -F force=true --silent
+
+      - name: Replace the file on the latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload latest ChoRenSha-atarist.zip --clobber
+          echo "Published $VERSION to the latest release."

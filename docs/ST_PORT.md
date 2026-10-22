@@ -77,6 +77,15 @@ and `SZ2_DEVH.TOS` with either of the others) pick the build, `FLAGS` and
 Every build has both screen layouts, crop and full height (see below):
 `SZ2.CFG` picks one when the program starts.
 
+**Releases.** Each push to `main` (other than one changing only Markdown)
+runs `.github/workflows/release.yml` on GitHub: it builds with `make`,
+tags the commit with the next `v1.01-atarist.N` (1.01 is the original's
+version this port is built from; a commit already tagged by hand keeps its
+tag), moves the `latest` tag onto it and replaces `ChoRenSha-atarist.zip`
+(`dist/CHORENSH`) on the `latest` release. It never creates that release or
+edits its title or text. `.github/workflows/pr.yml` builds pull requests
+(`make debug`, with the check below, and `make`).
+
 `build_st.sh` also checks that the `sz2.s` changes leave the other targets
 alone. The X68000, Falcon and Amiga objects of `sz2.s` must be byte-identical
 to those of the `amiga-port` revision; `CHECK=0` skips the check.

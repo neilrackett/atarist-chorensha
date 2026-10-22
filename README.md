@@ -18,6 +18,14 @@ The screenshots are all from the ST port, taking using the full height overscan
 mode (`screen=full`, see Options) at the same moment in the demo as the Amiga 
 screenshots in `docs/screenshots/amiga`, in case you want to compare.
 
+## Download
+
+The latest build is
+[ChoRenSha-atarist.zip](https://github.com/neilrackett/atarist-chorensha/releases/download/latest/ChoRenSha-atarist.zip),
+on the [latest release](https://github.com/neilrackett/atarist-chorensha/releases/tag/latest):
+the `CHORENSH` folder (see Building) to copy to an ST's hard disk. It is
+rebuilt from `main` each time it changes.
+
 ## Building
 
 The ST version builds with [atarist-toolkit-docker](https://github.com/sidecartridge/atarist-toolkit-docker) (`stcmd`) and needs this repository's submodules, `lib/xpad` and `lib/stdl`.
