@@ -35,7 +35,7 @@ You can always download the latest build from the
 - 4MB RAM: an STE or Mega STE needs about 3.1MB of it free, an ST (which
   loads no samples) about 2.7MB. What is left over is the sprite cache:
   more means faster.
-- A hard disk with 2.3MB free.
+- A hard disk with 2.2MB free.
 - TOS 1.04 or above.
 - Sound effects are the original samples on an STE or Mega STE, YM2149
   versions of them (made from the samples) on a regular ST. The music is
