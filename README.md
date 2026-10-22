@@ -1,41 +1,144 @@
-# Cho Ren Sha 68k - Atari ST
+# Cho Ren Sha 68k for Atari ST
 
-[Cho Ren Sha 68k](https://yosshin4004.github.io/x68k/crs68k/official/index.html) is a vertical shoot 'em up for the Sharp X68000, (c) 1995
-by Famibe No Yosshin. This is a port of the original game code to the
-Atari ST, STE and Mega STE: the X68000 program runs on the ST's own 68000,
-and the port draws the X68000's sprites, background and text in ST low
-resolution using 16 colours.
+<img src="./docs/screenshots/st/hero.png" alt="Cho Ren Sha 68k on the Atari ST" width="832" />
 
-The whole game plays at its full speed, with its sound effects (DMA sound
-on an STE or Mega STE, the YM2149 on an ST). The music is not played.
+[Cho Ren Sha 68k](https://yosshin4004.github.io/x68k/crs68k/official/index.html),
+ported to the Atari ST by [Neil Rackett](https://neilrackett.com/atarist).
 
-|                                                       |                                                                         |                                                 |
-| ----------------------------------------------------- | ----------------------------------------------------------------------- | ----------------------------------------------- |
-| ![Title screen](docs/screenshots/st/title.png)        | ![Stage 1: the butterfly fighters](docs/screenshots/st/butterflies.png) | ![A mid-boss](docs/screenshots/st/mid-boss.png) |
-| ![A big explosion](docs/screenshots/st/explosion.png) | ![Bullets](docs/screenshots/st/bullets.png)                             | ![A gunship](docs/screenshots/st/gunship.png)   |
+## Introduction
 
-The screenshots are all from the ST port, taking using the full height overscan
-mode (`screen=full`, see Options) at the same moment in the demo as the Amiga 
-screenshots in `docs/screenshots/amiga`, in case you want to compare.
+[Cho Ren Sha 68k](https://yosshin4004.github.io/x68k/crs68k/official/index.html)
+is a vertical shoot 'em up for the Sharp X68000, (c) 1995 by Famibe No
+Yosshin.
 
-## Download
+The Atari ST version builds on Sascha Springer's Atari Falcon build and Adam
+Polkosnik's [Amiga port](https://github.com/apolkosnik/chorensha), with the
+X68000 program running on the ST's own 68000, drawing the X68000's sprites,
+background and text in ST low resolution using 16 colours.
 
-The latest build is
-[ChoRenSha-atarist.zip](https://github.com/neilrackett/atarist-chorensha/releases/download/latest/ChoRenSha-atarist.zip),
-on the [latest release](https://github.com/neilrackett/atarist-chorensha/releases/tag/latest):
-the `CHORENSH` folder (see Building) to copy to an ST's hard disk. It is
-rebuilt from `main` each time it changes.
+The whole game plays at its full speed, with its sound effects (DMA sound on
+an STE or Mega STE, the YM2149 on an ST). Music is not currently supported.
+
+The screenshots above are all from the ST port running in full height
+overscan mode (`screen=full`, see Configuration), taken at the same moment in
+the demo as the Amiga screenshots in `docs/screenshots/amiga`, in case you
+want to compare.
+
+You can always download the latest build from the
+[release page](https://github.com/neilrackett/atarist-chorensha/releases/latest).
+
+## Requirements
+
+- An Atari ST, STE or Mega STE with a colour monitor: the game runs in low
+  resolution at 50Hz. No BLiTTER is needed.
+- 4MB RAM: an STE or Mega STE needs about 3.1MB of it free, an ST (which
+  loads no samples) about 2.7MB. What is left over is the sprite cache:
+  more means faster.
+- A hard disk with 1.9MB free.
+- TOS 1.04 or above.
+- Sound effects are the original samples on an STE or Mega STE, YM2149
+  versions of them (made from the samples) on a regular ST.
+- An Xpad provider if you'd like to play with a gamepad (see Controls).
+
+Speed: the game itself always runs at full speed (50fps); how many of those
+frames are rendered depends on the machine. An ST or STE shows about 13 per
+second and a Mega STE up to 25 (switched to 16MHz with cache automatically).
+At full height (see Configuration) you lose about 20% of the framerate,
+but gain 20% more screen.
+
+## Installing
+
+1. Download `ChoRenSha-atarist.zip` from the [release page](https://github.com/neilrackett/atarist-chorensha/releases/latest).
+2. Extract the `CHORENSH` folder to your ST's hard disk.
+3. Run `SZ2.TOS`.
+
+## Controls
+
+| Key                   | Joystick   | Gamepad                         | Action                                                                           |
+| --------------------- | ---------- | ------------------------------- | -------------------------------------------------------------------------------- |
+| Arrow keys            | Directions | D-pad / left stick              | move                                                                             |
+| Ctrl / Z              | Fire       | A, X, right shoulder or trigger | shoot                                                                            |
+| Shift / X             |            | B, Y, left shoulder or trigger  | second button                                                                    |
+| P                     |            | Start                           | pause (press again to continue)                                                  |
+| Esc                   |            |                                 | back to the title (from a game, also paused or at game over); on the title: quit |
+| F1                    |            |                                 | lockstep on / off: every frame is shown, the game slowed to the drawing speed    |
+| F2                    |            |                                 | keep the playfield window still instead of following the ship                    |
+| 1, Tab, Return, Space |            |                                 | as the same keys on the X68000                                                   |
+
+A joystick works in either port. On an STE, a Jaguar pad in the enhanced
+joystick port A works too: A shoots and B is the second button.
+
+Gamepads are supported via [Xpad](https://neilrackett.com/atarist/atarist-xpad)
+providers (MD/Sidepad, COMpad, STEpad or any other); the start-up text says
+when a provider was found.
+
+**Auto fire:** holding the shot button keeps shooting (the original game
+shot once per press).
+
+**Hidden menu:** hold Shift (or X, or B on a pad) and choose CONFIG with
+fire for the original game's hidden menu, KAKUSI mode. MUTEKI makes the
+ship invincible (left or right switches it on and off), STAGE picks the
+stage to start at, BOSS_ONLY plays the bosses alone, and EXIT goes back to
+the title. Its settings last until the program ends. The original's own
+way works too: up, down and right at once (an X68000 pad's SELECT and
+right) as CONFIG is chosen.
+
+## Configuration
+
+Settings go in `SZ2.CFG`, next to `SZ2.TOS`: one `name=value` a line, in any
+case, with `#` or `;` starting a comment. The `SZ2.CFG` in the download lists
+them all, commented out, each set to the opposite of its default. Without the
+file every setting has its default; a setting the program does not know, or a
+value it cannot read, is named on the start-up screen and ignored.
+
+| Setting           | Default | Meaning                                                                                                                                                 |
+| ----------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `screen`          | `crop`  | `crop`: the 200-line screen, 192 of the playfield's lines in a window that follows the ship. `full`: both borders open, 273 lines and the whole picture |
+| `megaste_speedup` | `true`  | `false`: a Mega STE stays at 8MHz without its cache (for comparisons)                                                                                   |
+| `lockstep`        | `false` | `true`: every frame drawn from the start (F1 switches it)                                                                                               |
+| `frames`          | `0`     | For testing: the attract demo runs for that many frames, then the program reports the pictures it drew and exits. 0: never                              |
+
+If the borders do not open on a machine, `screen=full` falls back to crop.
+
+### Feedback
+
+Please [submit an issue](https://github.com/neilrackett/atarist-chorensha/issues)
+or [open a pull request](https://github.com/neilrackett/atarist-chorensha/pulls)
+if you find anything that doesn't work or if you'd like to contribute to make
+it better.
+
+Please include as much information as possible, including:
+
+- The Atari ST model and TOS version (ST, STE, Mega ST, Mega STE)
+- Whether you are using an emulator (e.g. [Hatari](https://www.hatari-emu.org/)) or real hardware
+- The amount of RAM you have installed
+- Any devices you have connected (hard disk interface, cartridges, Xpad provider)
+- Your `SZ2.CFG` settings
+- The exact steps to reproduce the issue
+- The text the program shows at start-up and exit
+
+### To-do
+
+- Music: the original songs are for the X68000's YM2151 FM chip and its MCDRV
+  driver, which the port does not emulate.
 
 ## Building
 
-The ST version builds with [atarist-toolkit-docker](https://github.com/sidecartridge/atarist-toolkit-docker) (`stcmd`) and needs this repository's submodules, `lib/xpad` and `lib/stdl`.
-`make` (the same as `make release`) builds the game and puts a copy in
-`dist/CHORENSH`, the folder to copy to an ST:
+With [atarist-toolkit-docker](https://github.com/sidecartridge/atarist-toolkit-docker)
+installed (and Docker running):
+
+```
+git submodule update --init
+make
+```
+
+This produces `binaries/st/SZ2.TOS` and `dist/CHORENSH`, the folder to copy
+to an ST:
 
 ```
 CHORENSH/
   SZ2.TOS                the program (320 KB)
-  SZ2.CFG                its settings (see Options)
+  SZ2.CFG                its settings (see Configuration)
   BGM_DAT/               the original MCDRV song data (not played)
   ETC_DAT/               demo replays, tables, high scores
   PCM_DAT/               the sound effects: the samples, and SZ2_YM.BIN,
@@ -43,135 +146,35 @@ CHORENSH/
   XSP_DAT/               the sprites
 ```
 
-The program is built in `binaries/st`, which holds the same data, so it
-also runs from there. `make debug` builds the measurement version, `make test`
-runs the tests in Hatari, and `make clean` removes what the builds and
-tests made. The other make targets, running the game in Hatari and on a
-real ST, and how the port works: `docs/ST_PORT.md`.
-
-## Requirements
-
-- An Atari ST, STE or Mega STE with a colour monitor: the game runs in low
-  resolution at 50 Hz. No BLiTTER is needed.
-- 4 MB of RAM: an STE or Mega STE needs about 3.1 MB of it free, an ST
-  (which loads no samples) about 2.7 MB. What is left over is the sprite
-  cache: more means faster.
-- A hard disk or other GEMDOS drive with 1.9 MB free: the game is too big
-  for a floppy disk.
-- TOS 1.04 or above.
-- An Xpad provider if you would like to play with gamepads (see
-  Controls).
-
-Speed: the game itself always runs at full speed (50 frames per second);
-how many of those frames are shown depends on the machine. An ST or STE
-shows about 13 per second and a Mega STE up to 25 (it is switched to 16 MHz
-with its cache on automatically). At full height (see Options) you lose about
-20% of the framerate but gain 20% more screen.
-
-## Installation and start
-
-Copy the `CHORENSH` folder anywhere on a hard disk and start `SZ2.TOS`
-from the desktop.
-
-The program needs its data folders (`BGM_DAT`, `ETC_DAT`, `PCM_DAT`,
-`XSP_DAT`) next to it: it checks for them at start and says which file is
-missing. The start-up text shows the machine, the memory and any settings
-that differ from the defaults. The game then takes the machine over (the
-first game start takes a few seconds, while the background is built) and
-gives it back to the desktop when it ends.
-
-To quit, choose EXIT in the game's menu, or press ESC on the title screen.
-
-## Controls
-
-A joystick in either port, or on an STE a Jaguar pad in the enhanced
-joystick port A:
-
-| Input                       | Action        |
-| --------------------------- | ------------- |
-| directions                  | move          |
-| fire button (Jaguar pad: A) | shot          |
-| Jaguar pad: B               | second button |
-
-Keyboard:
-
-| Key                   | Action                                                                               |
-| --------------------- | ------------------------------------------------------------------------------------ |
-| cursor keys           | move                                                                                 |
-| CTRL or Z             | shot                                                                                 |
-| SHIFT or X            | second button                                                                        |
-| P                     | pause (press again to continue)                                                      |
-| ESC                   | back to the title (from a game, also paused or at game over); on the title: quit     |
-| F1                    | lockstep on / off: every frame is shown and the game slows down to the drawing speed |
-| F2                    | keeps the playfield window still instead of following the ship                       |
-| 1, TAB, RETURN, SPACE | as the same keys on the X68000                                                       |
-
-**Xpad gamepads:** with an [Xpad](https://neilrackett.com/atarist/atarist-xpad)
-provider installed (MD/Sidepad, COMpad, STEpad or any other), every pad it
-reports plays, alongside the keyboard and joysticks. The start-up text says
-when a provider was found.
-
-| Pad                             | Action        |
-| ------------------------------- | ------------- |
-| D-pad or left stick             | move          |
-| A, X, right shoulder or trigger | shot          |
-| B, Y, left shoulder or trigger  | second button |
-| START                           | pause         |
-
-**Auto fire:** holding the shot button keeps shooting (the original game
-shot once per press).
-
-**Hidden menu:** hold SHIFT (or X, or B on a pad) and choose CONFIG with
-fire for the original game's hidden menu, KAKUSI mode. MUTEKI makes the
-ship invincible (left or right switches it on and off), STAGE picks the
-stage to start at, BOSS_ONLY plays the bosses alone, and EXIT goes back
-to the title. Its settings last until the program ends. The original's
-own way works too: up, down and right at once (an X68000 pad's SELECT and
-right) as CONFIG is chosen.
-
-## Options
-
-Settings go in `SZ2.CFG`, next to the program: one `name=value` a line, in
-any case, with `#` or `;` starting a comment. The `SZ2.CFG` that
-`make release` puts in `dist/CHORENSH` lists them all, commented out, each set to
-the opposite of its default. Without the file every setting has its
-default; a setting the program does not know, or a value it cannot read,
-is named on the start-up screen and ignored.
-
-| Setting           | Default | Meaning                                                                                                                                                 |
-| ----------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `screen`          | `crop`  | `crop`: the 200-line screen, 192 of the playfield's lines in a window that follows the ship. `full`: both borders open, 273 lines and the whole picture |
-| `megaste_speedup` | `true`  | `false`: a Mega STE stays at 8 MHz without its cache (for comparisons)                                                                                  |
-| `lockstep`        | `false` | `true`: every frame drawn from the start (F1 switches it)                                                                                               |
-| `frames`          | `0`     | For testing: the attract demo runs for that many frames, then the program reports the pictures it drew and exits. 0: never                              |
-
-If the borders do not open on a machine, `screen=full` falls back to crop.
-
-## Notes
-
-- The game runs at 50 frames per second, from the ST's vertical blank,
-  rather than the X68000's 55.46. When a machine cannot show every frame,
-  frames are left out; the game does not slow down.
-- Music: the original songs are for the X68000's YM2151 FM chip and its
-  MCDRV driver, which the port does not emulate, so the game is silent
-  but for its sound effects.
-- Sound effects: an STE or Mega STE plays the game's samples with DMA
-  sound; an ST, which has none, plays YM2149 versions of them, made in
-  advance from the samples by `tools/st/ym_effects.py`.
-- The port's technical notes are in `docs/ST_PORT.md`. This repository
-  also holds the Amiga port (`docs/AMIGA_PORT.md`) and the Atari Falcon
-  port this one builds on.
+`binaries/st` holds the same data, so the program also runs from there.
+`make debug` builds the measurement version, `make test` runs the tests in
+Hatari, and `make clean` removes what the builds and tests made. The other
+make targets, running the game in Hatari and on a real ST, and how the port
+works: [docs/ST_PORT.md](docs/ST_PORT.md).
 
 ## Credits
 
-- [Original game](https://yosshin4004.github.io/x68k/crs68k/official/index.html): (c) 1995 Famibe No Yosshin (X68000).
+- [Original game](https://yosshin4004.github.io/x68k/crs68k/official/index.html):
+  (c) 1995 Famibe No Yosshin (X68000), with sound by Loser Kashiwagi.
 - Atari Falcon port and the disassembly this port builds on: Sascha
   Springer.
-- Amiga port: Adam Polkosnik.
+- [Amiga port](https://github.com/apolkosnik/chorensha): Adam Polkosnik.
 - Amiga colour icons: Hexaae.
 - The Amiga port's music recorded with MCDRV 0.69 by CUL (free software),
   played by the Musashi 68000 emulator and rendered with ymfm's YM2151
   (Aaron Giles).
 - Atari ST port: [Neil Rackett](https://neilrackett.com/atarist)
+- Full-height overscan on the Atari ST via
+  [STDL](https://github.com/neilrackett/atarist-stdl), LGPL-2.1. See
+  `lib/stdl/LICENSE`.
 - Controller input on the Atari ST via Xpad, Copyright (c) 2026 Neil
   Rackett, BSD-2-Clause. See `lib/xpad/LICENSE`.
+
+## More info
+
+- The original game's [official page](https://yosshin4004.github.io/x68k/crs68k/official/index.html):
+  version 1.10 for the X68000, and a Windows build. This port, like the
+  Falcon and Amiga ones, is built from version 1.01.
+- The Atari ST port's technical notes: [docs/ST_PORT.md](docs/ST_PORT.md).
+- The Amiga port, upstream: [apolkosnik/chorensha](https://github.com/apolkosnik/chorensha),
+  and its notes in [docs/AMIGA_PORT.md](docs/AMIGA_PORT.md).
