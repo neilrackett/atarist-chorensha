@@ -50,6 +50,7 @@
 	xdef render_sprite_count
 
 	xref SPRITE_DATA_TABLE
+	xref playfield_bottom
 	xref CURRENT_SPRITE_DATA_ENTRY
 	xref SPRITE_DATA_ADDRESS
 	xref BUFF_END_ADR
@@ -432,7 +433,8 @@ draw_sprites:
 	movem.l	d0-d7/a0-a6,-(sp)
 
 	move	d0,window_offset
-	move	#PLAYFIELD_BOTTOM+1,margin_top
+	move	playfield_bottom,margin_top
+	addq	#1,margin_top
 	move	#PLAYFIELD_TOP-1,margin_bottom
 
 	tst.l	arena
@@ -488,7 +490,7 @@ draw_one_sprite:
 	; a y beyond the X68000's 272).
 
 	sub		d6,d1 ; ST line of pattern row 0.
-	cmp		#PLAYFIELD_BOTTOM,d1
+	cmp		playfield_bottom,d1
 	bgt		.nothing
 
 	cmp		#PLAYFIELD_TOP-15,d1
@@ -557,7 +559,8 @@ draw_one_sprite:
 .top_ok:
 	move	d1,d2
 	add		d5,d2
-	sub		#PLAYFIELD_BOTTOM+1,d2 ; Rows below it.
+	sub		playfield_bottom,d2
+	subq	#1,d2 ; Rows below it.
 	ble		.lines_ok
 
 	sub		d2,d5
@@ -570,16 +573,16 @@ draw_one_sprite:
 	sub		d2,d1 ; Line of data row 0 (the lowest).
 	move	#-SCREEN_LINE,a2
 
-	cmp		#PLAYFIELD_BOTTOM,d1
+	cmp		playfield_bottom,d1
 	ble		.bottom_ok
 
 	move	d1,d2
-	sub		#PLAYFIELD_BOTTOM,d2 ; Rows below the playfield.
+	sub		playfield_bottom,d2 ; Rows below the playfield.
 	sub		d2,d5
 	ble		.nothing
 
 	bsr		.skip_rows
-	move	#PLAYFIELD_BOTTOM,d1
+	move	playfield_bottom,d1
 
 .bottom_ok:
 	move	d1,d2

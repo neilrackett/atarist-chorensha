@@ -17,6 +17,8 @@
 ;   tests/amiga/checkpoints.py against tests/amiga/reference/).
 
 	xdef measure_timer_handler
+	xdef measure_timer_d_handler
+	xdef measure_timer_d
 	xdef read_timer
 	xdef measure_logic
 	xdef measure_picture
@@ -66,9 +68,18 @@ BUCKET_UNITS=19 ; 0.495 ms.
 	text
 ; ------------------------------------------------------------------------------
 
+; The measurement clock's overflows: Timer A, or Timer D at full height
+; (machine.s, measure_timer_d).
+
 measure_timer_handler:
 	addq.l	#1,timer_overflows
-	move.b	#~(1<<MEASURE_BIT)&$ff,MEASURE_IN_SERVICE.w ; End of interrupt.
+	move.b	#%11011111,$fffffa0f.w ; End of interrupt (ISRA bit 5).
+
+	rte
+
+measure_timer_d_handler:
+	addq.l	#1,timer_overflows
+	move.b	#%11101111,$fffffa11.w ; End of interrupt (ISRB bit 4).
 
 	rte
 
@@ -84,12 +95,26 @@ read_timer:
 	; before the check is in the counted period.
 
 	moveq	#0,d0
-	move.b	MEASURE_DATA.w,d0 ; Counts down from 256 (reads 0 just after a reload).
+	tst.b	measure_timer_d
+	bne		.timer_d
+
+	move.b	$fffffa1f.w,d0 ; Counts down from 256 (reads 0 just after a reload).
 	move.l	timer_overflows,d1
-	btst	#MEASURE_BIT,MEASURE_PENDING.w
+	btst	#5,$fffffa0b.w ; IPRA.
 	beq		.counted
 
-	move.b	MEASURE_DATA.w,d0
+	move.b	$fffffa1f.w,d0
+	addq.l	#1,d1
+
+	bra		.counted
+
+.timer_d:
+	move.b	$fffffa25.w,d0
+	move.l	timer_overflows,d1
+	btst	#4,$fffffa0d.w ; IPRB.
+	beq		.counted
+
+	move.b	$fffffa25.w,d0
 	addq.l	#1,d1
 
 .counted:
@@ -666,6 +691,9 @@ point_text:
 	bss
 ; ------------------------------------------------------------------------------
 
+measure_timer_d: ; Non-zero: the measurement clock is Timer D.
+	ds.b	1
+	even
 timer_overflows:
 	ds.l	1
 

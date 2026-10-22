@@ -47,16 +47,18 @@ cache is bigger (1,347 KB in the release build, against the STE's 953 KB).
 
 The build needs Docker running for `stcmd`, the atarist-toolkit-docker
 wrapper; the repository is mounted at `/tmp` in the container. It also
-needs the submodules (Xpad, and STDL for the full-height version): `git
+needs the submodules (Xpad, and STDL for the full height): `git
 submodule update --init`.
 
 ```
 ./build_st.sh                 binaries/st/SZ2_ST.TOS (measurements; and SZ2_DBG.TOS with symbols)
 RELEASE=1 ./build_st.sh       binaries/st/SZ2_REL.TOS: to play (no measurements)
 HEADLESS=1 ./build_st.sh      binaries/st/SZ2_HL.TOS: no rendering (game logic, checkpoints)
-OVERSCAN=1 ./build_st.sh      binaries/st/SZ2_OVS.TOS: the full height (see below), measurements
-OVERSCAN=1 RELEASE=1 ./build_st.sh   binaries/st/SZ2_OVR.TOS: the full height, to play
+STREAM=1 ./build_st.sh        an S added to the name: the text also on md-devops' debug stream
 ```
+
+Every build has both screen layouts, crop and full height (see below):
+`SZ2.CFG` picks one when the program starts.
 
 `build_st.sh` also checks that the `sz2.s` changes leave the other targets
 alone. The X68000, Falcon and Amiga objects of `sz2.s` must be byte-identical
@@ -73,6 +75,21 @@ it plays: an ST the YM effects in `SZ2_YM.BIN` and none of the `.sam`
 samples, an STE or Mega STE the samples and not `SZ2_YM.BIN`; the run
 script stages only those. The program checks for its files at start and
 says which one is missing.
+
+**Settings.** `SZ2.CFG`, next to the program, holds the settings: one
+`name=value` a line, in any case, `#` or `;` starting a comment
+(`binaries/st/SZ2.CFG` lists them all, commented out, each set to the
+opposite of its default). Without the file every setting has its default.
+A setting the program does not know, or a value it cannot read, is named
+on the start-up screen and ignored. A file named on the program's command
+line is read instead (test runs).
+
+| Setting | Default | |
+|---|---|---|
+| `screen` | `crop` | `crop`: the 200-line screen, the window following the ship; `full`: both borders open, the whole picture |
+| `megaste_speedup` | `true` | `false`: a Mega STE stays at 8 MHz without the cache (for comparisons) |
+| `lockstep` | `false` | `true`: every frame drawn from the start (F1 switches) |
+| `frames` | `0` | A frame limit: the game exits after that many frames, with its report (measurements); 0: none |
 
 ```
 # Playing, in a window (MACHINE=megaste for the Mega STE).
@@ -97,11 +114,13 @@ Options:
   and a PI1 screenshot every 500 frames; `tools/st/pi1_png.py` converts
   the screenshots to PNG in `tmp/out/shots_NAME/`.
 - `REPLAY`: a `binaries/atari/ETC_DAT` replay, played as the demo.
-- `LOCKSTEP=1`.
+- `SCREEN=full`: at full height. With `LOCKSTEP=1`, `MEGASTE8=1` and
+  `FRAMES` it goes into the staged `SZ2.CFG`.
 - `INPUT`: a frame-timed joystick script in the Amiga port's text format,
   such as `tests/st/input/autofire_held.txt`.
 - `PROG`, `TOS`, `MEMSIZE`, `FF`, `WINDOW`, `MEGASTE8=1`. `MEGASTE8=1`
-  keeps a Mega STE at 8 MHz without the cache, for comparisons.
+  keeps a Mega STE at 8 MHz without the cache, for comparisons
+  (`megaste_speedup=false`).
 - `SOUND` (a rate, default off) and `RECORD=FILE.wav`: Hatari's sound, and
   a recording of it, started and stopped with the command
   `fifo hatari-shortcut recsound`.
@@ -148,7 +167,8 @@ costs about 2% of the picture rate, and only with a provider installed.
 
 On a Mega STE the program switches to 16 MHz with the cache on, writing
 `$FFFF8E21` whole with the canonical value `$FF` (`$F4` for 8 MHz without
-the cache with `MEGASTE8.TXT`), as Atari's control panel and MSTE_CC do.
+the cache with `megaste_speedup=false`), as Atari's control panel and
+MSTE_CC do.
 It reports what it reads back (a real Mega STE reads `$20` at TOS's
 8 MHz and `$23` after the switch: the upper bits read as clear), and
 restores the register on exit (TOS's cold-boot `$F4` if it read without
@@ -208,12 +228,19 @@ before that. So there are three screens: the one shown, the one presented
 and the one being drawn. Presenting waits for the picture before it to be
 on screen, which by then it nearly always is, and drawing never waits.
 
-### Full height (`OVERSCAN=1`: `SZ2_OVS.TOS`, `SZ2_OVR.TOS`)
+### Full height (`screen=full`)
 
 With the top and bottom borders open the screen shows 273 lines, enough
 for the X68000's whole picture: the HUD band and the playfield's 248 lines
-(the X68000's lines 8-255; its lines 0-7 are under the HUD), so the window
-no longer moves. The 256 lines are centred, the 17 others black.
+(the X68000's lines 8-255; its lines 0-7 are under the HUD), so there is
+no window. The 256 lines are centred, the 17 others black.
+
+Both layouts are in every build, chosen when the program starts: the
+playfield's height and the screens' page size and origin are variables
+(`display.s`), set from the layout, and the screens are allocated for it
+(three of 32,000 bytes in crop, of 44,032 at full height), so crop gives
+none of the sprite cache away. If the borders do not open (STDL says why:
+a measurement build's exit report shows it), the game plays in crop.
 
 - **The borders are STDL's code**, `lib/stdl/src/overscan.c` (the
   atarist-stdl submodule, as in the Flashback port), compiled unchanged
@@ -224,18 +251,18 @@ no longer moves. The 256 lines are centred, the 17 others black.
   then finds the GLUE's bottom border test: a third of a second of
   flickering border), and before the release.
 - **What it uses:** MFP Timer A and Timer B, a prefix on the VBL (and on
-  TOS's Timer C handler, which runs only with an Xpad provider). The
-  measurement clock moves to Timer D (st.i), so an overscan measurement
-  build does not work with COMpad; release builds have no measurement
-  clock.
+  TOS's Timer C handler, which runs only with an Xpad provider). At full
+  height the measurement clock moves to Timer D (st.i), so a measurement
+  build at full height does not work with COMpad; release builds have no
+  measurement clock.
 - **The port's screens** are pages of 274 lines (row 0 hidden), each drawn
   from 9 lines in, so the drawing code is unchanged but for the
   playfield's height. STDL is given the first page as its own and never
   flips; `display.s` flips the port's three pages itself and keeps the
   page addresses STDL's interrupts compare the video counter with up to
   date (the page shown, and the next one from the VBL that names it).
-- **The background is copied by the CPU** on every machine: a BLiTTER in
-  HOG mode would hold off the borders' interrupts.
+- **The background is copied by the CPU** on every machine at full
+  height: a BLiTTER in HOG mode would hold off the borders' interrupts.
 - **Screenshots** (PI1) hold the first 200 lines; the pixel oracle is for
   the normal height only.
 
@@ -411,20 +438,20 @@ set it, for COMpad.)
 
 | Part | KB |
 |---|---|
-| Code (game 246, port 12) | 258 |
-| Data | 40 |
+| Code (game 246, port 14, STDL's border code and libgcc 9) | 269 |
+| Data | 41 |
 | Game BSS (includes the 128 KB demo replay buffer) | 310 |
 | Composed background table (at the GVRAM label; GVRAM while the game builds it) | 1,024 |
 | X68000 register and sprite shadows | 96 |
-| Three screens | 94 |
 | Background layers (made once, for the table) | 45 |
 | Sprite tables (per-palette pair tables 32, per-pattern variants 7.5, sprite list, order) | 46 |
 | Checkpoints (not in the release build) | 65 |
 | Text, input script, stage counters, stack | 27 |
-| **Program** | **2,004** (1,940 release) |
+| **Program** | **1,919** (1,855 release) |
 | Game heap (stack, sprite patterns, samples, tables) | 1,024 (871 used); 640 on an ST, with no samples (510 used) |
+| Three screens (allocated for the layout chosen) | 94; 129 at full height |
 | Kept free for TOS | 64 |
-| **Sprite arena** | **891** (955 release) |
+| **Sprite arena** | **881** (946 release); 846 at full height |
 
 ## Measurements
 
@@ -451,20 +478,21 @@ set it, for COMpad.)
 
 Measured on a Mega STE (TOS 2.06, 4 MB, 16 MHz with the cache) with the
 game on an ACSI2STM's GemDrive and COMpad, STinG, an accessory and
-md-devops loaded: the attract demo, 6,000 frames, the measurement builds
-(`STREAM=1`, run with `tests/st/hw/run_on_st.sh`).
+md-devops loaded: the attract demo, 6,000 frames, the measurement build
+(`SZ2_STS.TOS`, `STREAM=1`, run with `tests/st/hw/run_on_st.sh`) in each
+layout.
 
-| Build | Pictures per second (mean) | Gameplay median | Background ms | Sprites ms | Sprite cache |
+| Layout | Pictures per second (mean) | Gameplay median | Background ms | Sprites ms | Sprite cache |
 |---|---|---|---|---|---|
-| `SZ2_STS.TOS` | 15.5 (Hatari 17.4) | 15 (Hatari 17) | 13.4 (13.0) | 22.7 (19.6) | 462 KB (891) |
-| `SZ2_OVSS.TOS`, full height | 12.6 (Hatari 15.0) | 12 | 17.7 | 28.5 | 418 KB |
+| Crop | 15.3 (Hatari 17.4) | 15 (Hatari 17) | 13.4 (13.0) | 23.0 (19.6) | 452 KB (881) |
+| Full height | 12.5 (Hatari 14.9) | 12 (Hatari 14) | 17.7 | 29.1 | 417 KB (846) |
 
 Hatari's timing holds: the background copy and the game logic (median
 3.9 ms) are within a few percent. The difference is memory: the drivers
 and accessories leave about 430 KB less TPA (3,553 KB), all of it taken
-from the sprite cache, which then switches halves 34 times instead of 13
-and makes more shifted copies. The full-height version opened both
-borders on every one of the 6,000 frames.
+from the sprite cache, which then switches halves 36 times instead of 13
+and makes more shifted copies. At full height both borders opened on
+every one of the 6,000 frames.
 
 ### Pictures per second by stage (full-game replays, 190,000 frames)
 
@@ -537,10 +565,10 @@ The X68000's own sprite library code is already tight.
 
 ## Verification
 
-- **Full height.** `tests/st/overscan_test.sh` builds `SZ2_OVS.TOS` and
-  runs the attract demo on an ST (TOS 1.04), an STE and a Mega STE: the
-  borders must open (273 lines), never miss a frame, and the checkpoints
-  must match.
+- **Full height.** `tests/st/overscan_test.sh` runs the attract demo at
+  full height (`SCREEN=full`) on an ST (TOS 1.04), an STE and a Mega STE:
+  the borders must open (273 lines), never miss a frame, and the
+  checkpoints must match.
 - **Xpad.** `tests/st/xpad_test.sh` builds a scripted provider
   (`tests/st/xpad/xpadtest.s`, a TSR for `C:\AUTO` that presses buttons
   from `etv_timer`) and runs the game with it. Its grabs show the menu
@@ -577,16 +605,13 @@ The X68000's own sprite library code is already tight.
   build sends its text, the start-up and the exit report, to md-devops'
   debug stream as well as the screen. With `FRAMES` the run ends by
   itself; a program that hangs owns the interrupts, and only the reset
-  button gets the ST back. On a Mega STE with ACSI2STM's GemDrive, the
-  normal and full-height builds, measurement and release, all run their
-  frames and exit.
+  button gets the ST back. Its `SCREEN` and `FRAMES` go into a settings
+  file of the run's own, named on the program's command line. On a Mega
+  STE with ACSI2STM's GemDrive, both layouts, measurement and release
+  builds, run their frames and exit.
 
 ## Open items and next steps
 
-- **The full 256 lines.** The playfield shows 192 of the 256 lines and
-  follows the ship. Opening the top and bottom borders, translated from
-  `../atarist-overscan`, would show them all. It is the riskiest step left:
-  the timing has to hold at 16 MHz too.
 - **HUD colours.** The score uses the shared sprite/text colours. A Timer B
   palette change at line 8 would give the HUD band its own exact colours.
 - **More speed.**
@@ -614,9 +639,8 @@ The X68000's own sprite library code is already tight.
 - **Coverage.** Stages 6 and 7 are not reached by the replays used for the
   colour map and the measurements.
 - **Timers.** Timer C (the TOS 200 Hz timer) is stopped while the game
-  runs. That is fine with Hatari's GEMDOS drive; it is untested with
-  floppies and hard disks on real hardware.
-- **Testing.** The port is tested in Hatari only. The full height's
-  border code is STDL's, proven on real STs, STEs and a Mega STE (the
-  Flashback port), but how the port drives it is tested in Hatari only,
-  which does not show every way a border can fail on hardware.
+  runs. That is fine with Hatari's GEMDOS drive and ACSI2STM's GemDrive on
+  a real Mega STE; it is untested with floppies.
+- **Testing.** Besides Hatari, the port has run on one real machine, a
+  Mega STE (both layouts, 6,000 frames each, no border missed). An ST and
+  an STE remain to be tried on hardware.

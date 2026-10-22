@@ -1,7 +1,7 @@
 #!/bin/bash
 #
-# Overscan test: builds the full-height version (OVERSCAN=1: both borders
-# open with STDL's code, lib/stdl) and runs the attract demo on an ST (TOS
+# Full-height test: runs the attract demo at full height (SZ2.CFG's
+# screen=full: both borders open with STDL's code, lib/stdl) on an ST (TOS
 # 1.04), an STE and a Mega STE. Each run must open the borders (273 lines),
 # show them on every frame (no frame with a border missed) and match the
 # Amiga port's reference checkpoints: the game logic is untouched by the
@@ -16,13 +16,13 @@ FRAMES=${FRAMES:-6000}
 REFERENCE=tests/amiga/reference/attract-6000.txt
 
 mkdir -p tmp/out
-OVERSCAN=1 CHECK=0 ./build_st.sh > /dev/null 2>&1 || exit 1
+CHECK=0 ./build_st.sh > /dev/null 2>&1 || exit 1
 
-PROG=binaries/st/SZ2_OVS.TOS MACHINE=st TOS=tmp/tos/tos104uk.img FRAMES=$FRAMES \
+SCREEN=full MACHINE=st TOS=tmp/tos/tos104uk.img FRAMES=$FRAMES \
 	tests/st/run_hatari.sh overscan_st > /dev/null 2>&1 &
-PROG=binaries/st/SZ2_OVS.TOS MACHINE=ste FRAMES=$FRAMES \
+SCREEN=full MACHINE=ste FRAMES=$FRAMES \
 	tests/st/run_hatari.sh overscan_ste > /dev/null 2>&1 &
-PROG=binaries/st/SZ2_OVS.TOS MACHINE=megaste FRAMES=$FRAMES \
+SCREEN=full MACHINE=megaste FRAMES=$FRAMES \
 	tests/st/run_hatari.sh overscan_megaste > /dev/null 2>&1 &
 wait
 

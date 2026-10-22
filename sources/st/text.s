@@ -25,6 +25,7 @@
 	xref TEXT_GRAPHICS_ADDRESS
 	xref sprite_colour_map
 	xref screen_buffers
+	xref playfield_bottom
 
 	include "st.i"
 
@@ -358,7 +359,7 @@ draw_text_rows:
 	bcs		.pinned
 
 	sub		d6,d7
-	cmp		#PLAYFIELD_BOTTOM,d7
+	cmp		playfield_bottom,d7
 	bgt		.done ; Below the playfield (the rows below are too).
 
 .pinned:
@@ -390,7 +391,7 @@ draw_text_rows:
 	sub		d3,d4
 	move	d7,d1
 	addq	#7,d1
-	sub		#PLAYFIELD_BOTTOM,d1
+	sub		playfield_bottom,d1
 	ble		.bottom_ok
 
 	sub		d1,d4

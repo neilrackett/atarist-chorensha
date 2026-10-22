@@ -25,8 +25,12 @@
 #   MEMSIZE   RAM in MB (default 4)
 #   TIMEOUT   seconds before Hatari is stopped (default 900)
 #   BOOT_WAIT seconds from launch to the first command (default 10)
-#   MEGASTE8  1: keep a Mega STE at 8 MHz without the cache (MEGASTE8.TXT)
-#   LOCKSTEP  1: start in lockstep mode (every frame rendered; LOCKSTEP.TXT)
+#   SCREEN    crop (default) or full: the screen layout (full: both borders
+#             open)
+#   MEGASTE8  1: keep a Mega STE at 8 MHz without the cache
+#   LOCKSTEP  1: start in lockstep mode (every frame rendered)
+#   SETTINGS  more lines for SZ2.CFG (printf %b: \n, \r)
+#             (These and FRAMES go into the staged SZ2.CFG.)
 #   REPLAY    a replay from binaries/atari/ETC_DAT (e.g. DEMO3.REP) used as
 #             the attract demo (ETC_DAT/DEMO.REP)
 #   INPUT     an input script (text, as tests/amiga/input/*.txt; only its
@@ -107,15 +111,13 @@ fi
 if [ -n "${REPLAY:-}" ]; then
 	cp "binaries/atari/ETC_DAT/$REPLAY" "$STAGE/ETC_DAT/DEMO.REP" || exit 2
 fi
-if [ -n "$FRAMES" ]; then
-	echo "$FRAMES" > "$STAGE/FRAMES.TXT"
-fi
-if [ "${MEGASTE8:-0}" = "1" ]; then
-	echo "8 MHz" > "$STAGE/MEGASTE8.TXT"
-fi
-if [ "${LOCKSTEP:-0}" = "1" ]; then
-	echo "lockstep" > "$STAGE/LOCKSTEP.TXT"
-fi
+{
+	echo "screen=${SCREEN:-crop}"
+	[ -n "$FRAMES" ] && echo "frames=$FRAMES"
+	[ "${MEGASTE8:-0}" = "1" ] && echo "megaste_speedup=false"
+	[ "${LOCKSTEP:-0}" = "1" ] && echo "lockstep=true"
+	[ -n "${SETTINGS:-}" ] && printf '%b\n' "$SETTINGS"
+} > "$STAGE/SZ2.CFG"
 if [ -n "${AUTO:-}" ]; then
 	mkdir -p "$STAGE/AUTO"
 	for program in $AUTO; do

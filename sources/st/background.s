@@ -36,6 +36,8 @@
 	xref L_00E80000
 	xref graphics_dither
 	xref machine_is_ste
+	xref full_height
+	xref playfield_lines
 
 	ifd __DUMP__
 	xref write_graphics_dump
@@ -327,7 +329,7 @@ compose_table:
 ;
 ; a1 = the picture's first playfield line (its first pixel, 32 pixels into
 ; the screen line), d0.w = the first playfield line's X68000 line (8 + the
-; window offset): copies the PLAYFIELD_LINES lines of the background there,
+; window offset): copies the playfield's lines of the background there,
 ; in two parts if the table wraps. The STE's BLiTTER copies at the bus's
 ; speed; the CPU (a plain ST, and the Mega STE, where every BLiTTER
 ; operation empties the cache) copies four lines a pass. Uses all registers
@@ -356,19 +358,22 @@ copy_background:
 
 	move	#PAGE0_LINES,d7
 	sub		d1,d7 ; Lines before the wrap.
-	cmp		#PLAYFIELD_LINES,d7
+	move	playfield_lines,d6
+	cmp		d6,d7
 	bls		.first_count
 
-	move	#PLAYFIELD_LINES,d7
+	move	d6,d7
 
 .first_count:
-	move	#PLAYFIELD_LINES,d6
 	sub		d7,d6 ; Lines after it.
 
-	ifnd __OVERSCAN__ ; (A BLiTTER in HOG mode would hold off the borders'
-	tst.b	machine_is_ste ; interrupts.)
+	tst.b	full_height ; (A BLiTTER in HOG mode would hold off the
+	bne		.cpu ; borders' interrupts.)
+
+	tst.b	machine_is_ste
 	bne		blit_background
-	endif
+
+.cpu:
 
 	move	d7,d0
 	move.l	a1,-(sp)
@@ -390,7 +395,7 @@ copy_background:
 	rts
 
 ; a0 = source (TABLE_LINE bytes a line, one after the other), a1 =
-; destination, d0 = lines (1 to PLAYFIELD_LINES): four lines a pass (small
+; destination, d0 = lines (1 to the playfield's): four lines a pass (small
 ; enough to stay in a Mega STE's cache, where fully unrolled code would be
 ; fetched over the bus again every picture), entered part-way for the
 ; remainder. Block n of a pass writes at n * SCREEN_LINE, n = 1-4: never 0,

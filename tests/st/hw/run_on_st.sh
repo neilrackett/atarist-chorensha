@@ -9,14 +9,17 @@
 # any build (tests/st/hw/launch.s).
 #
 #   tests/st/hw/run_on_st.sh binaries/st/SZ2_STS.TOS
-#   FRAMES=3000 tests/st/hw/run_on_st.sh binaries/st/SZ2_OVSS.TOS
+#   FRAMES=3000 SCREEN=full tests/st/hw/run_on_st.sh binaries/st/SZ2_STS.TOS
 #
 # SIDECART   md-devops' address (default http://sidecart.local)
 # DIR        the folder on the ST that holds the game's data (default
 #            C:\GAMES\CHORENSH)
 # MD_DRIVE   md-devops' drive letter on the ST (default D)
-# FRAMES     a frame limit: FRAMES.TXT beside the program for this run (the
-#            game exits after that many frames; deleted afterwards)
+# FRAMES     a frame limit: the game exits after that many frames
+# SCREEN     crop or full: the screen layout
+#            (With either, the run's settings go in SZ2TEST.CFG beside the
+#            program, named on its command line and deleted afterwards: the
+#            ST's own SZ2.CFG is left alone. Without, the program reads it.)
 # TIMEOUT    seconds to wait for the program's exit (default 600)
 #
 # The stream goes to tmp/out/st_<program>.log. A program that never exits
@@ -68,15 +71,20 @@ upload "$PROG" "CRS/$NAME"
 # The launcher's commands, in a file (past the command line's 127
 # characters).
 
-if [ -n "$FRAMES" ]; then
-	printf '%s\r\n' "$FRAMES" > tmp/out/FRAMES.TXT
-	upload tmp/out/FRAMES.TXT CRS/FRAMES.TXT
+SETTINGS=""
+if [ -n "${FRAMES:-}" ] || [ -n "${SCREEN:-}" ]; then
+	SETTINGS=SZ2TEST.CFG
+	{
+		[ -n "${FRAMES:-}" ] && printf 'frames=%s\r\n' "$FRAMES"
+		[ -n "${SCREEN:-}" ] && printf 'screen=%s\r\n' "$SCREEN"
+	} > tmp/out/$SETTINGS
+	upload tmp/out/$SETTINGS CRS/$SETTINGS
 fi
 {
 	printf '%s\r\n' "copy $MD_DRIVE:\\CRS\\$NAME $DIR\\$NAME"
-	[ -n "$FRAMES" ] && printf '%s\r\n' "copy $MD_DRIVE:\\CRS\\FRAMES.TXT $DIR\\FRAMES.TXT"
-	printf '%s\r\n' "run $DIR\\$NAME"
-	[ -n "$FRAMES" ] && printf '%s\r\n' "del $DIR\\FRAMES.TXT"
+	[ -n "$SETTINGS" ] && printf '%s\r\n' "copy $MD_DRIVE:\\CRS\\$SETTINGS $DIR\\$SETTINGS"
+	printf '%s\r\n' "run $DIR\\$NAME $SETTINGS"
+	[ -n "$SETTINGS" ] && printf '%s\r\n' "del $DIR\\$SETTINGS"
 } > tmp/out/RUN.TXT
 upload tmp/out/RUN.TXT CRS/RUN.TXT
 

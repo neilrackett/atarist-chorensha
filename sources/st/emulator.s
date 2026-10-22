@@ -153,9 +153,7 @@ vbl_handler:
 	movem.l	d0-d1/a0-a1,-(sp)
 
 	addq.l	#1,total_vbl_count
-	ifd __OVERSCAN__
 	addq.l	#1,$466.w ; TOS's frame counter: STDL's border code waits on it.
-	endif
 
 	jsr		display_vbl
 	jsr		input_tick

@@ -29,6 +29,10 @@
 	xref vbl_handler
 	xref ikbd_handler
 	xref measure_timer_handler
+	xref measure_timer_d_handler
+	xref measure_timer_d
+	xref full_height
+	xref show_display_page
 	xref ikbd_mouse_off
 	xref ikbd_mouse_on
 	xref ikbd_synchronise
@@ -186,11 +190,14 @@ initialize_machine:
 	move.b	$fffffa17.w,old_fa17
 	move.b	$fffffa19.w,old_fa19
 	move.b	$fffffa1f.w,old_fa1f
-	ifd __OVERSCAN__
 	ifnd __RELEASE__
-	; Timer D (the measurement clock here): its control, and its reload
-	; value, which only shows as the largest count read (its data
-	; register reads the count; TOS's baud rates reload it with 1-12).
+	; At full height the measurement clock is Timer D (st.i): its
+	; control, and its reload value, which only shows as the largest
+	; count read (its data register reads the count; TOS's baud rates
+	; reload it with 1-12).
+
+	move.b	full_height,measure_timer_d
+	beq		.timer_d_kept
 
 	move.b	$fffffa1d.w,old_fa1d
 	moveq	#0,d1
@@ -207,7 +214,8 @@ initialize_machine:
 	dbf		d2,.timer_d_reload
 
 	move.b	d1,old_fa25
-	endif
+
+.timer_d_kept:
 	endif
 
 	; Vectors.
@@ -250,12 +258,7 @@ initialize_machine:
 	clr.b	$ffff8260.w
 	move.b	#2,$ffff820a.w
 
-	move.l	display_screen_address,d0
-	sub.l	#SCREEN_TOP*SCREEN_LINE,d0 ; Its page.
-	lsr.l	#8,d0
-	move.b	d0,$ffff8203.w
-	lsr.w	#8,d0
-	move.b	d0,$ffff8201.w
+	jsr		show_display_page
 
 	tst.b	machine_has_ste_hardware
 	beq		.st_display
@@ -299,19 +302,27 @@ initialize_machine:
 	ifnd __RELEASE__
 	; The measurement clock (st.i), 150 Hz overflows: Timer A, not Timer
 	; D, the serial port's baud rate clock, which COMpad needs as TOS set
-	; it; but Timer D with the borders open, whose code needs Timer A.
+	; it; but Timer D at full height, whose border code needs Timer A.
 
-	ifd __OVERSCAN__
-	and.b	#$f0,$fffffa1d.w ; Timer D stopped (Timer C kept).
-	clr.b	$fffffa25.w ; 256.
-	or.b	#5,$fffffa1d.w ; Divide by 64: 38400 Hz.
-	else
+	tst.b	measure_timer_d
+	bne		.measure_timer_d
+
 	clr.b	$fffffa19.w ; Timer A stopped.
 	clr.b	$fffffa1f.w ; 256.
 	move.b	#5,$fffffa19.w ; Divide by 64: 38400 Hz.
-	endif
-	bset	#MEASURE_BIT,MEASURE_ENABLE.w
-	bset	#MEASURE_BIT,MEASURE_MASK.w
+	bset	#5,$fffffa07.w
+	bset	#5,$fffffa13.w
+
+	bra		.measure_clock_set
+
+.measure_timer_d:
+	and.b	#$f0,$fffffa1d.w ; Timer D stopped (Timer C kept).
+	clr.b	$fffffa25.w ; 256.
+	or.b	#5,$fffffa1d.w ; Divide by 64: 38400 Hz.
+	bset	#4,$fffffa09.w
+	bset	#4,$fffffa15.w
+
+.measure_clock_set:
 	endif
 
 	; The MFP stays in TOS's software end-of-interrupt mode (the port's
@@ -328,9 +339,10 @@ initialize_machine:
 ; ------------------------------------------------------------------------------
 ;
 ; Mega STE: 16 MHz and the cache ($FFFF8E21 = $FF), or 8 MHz without the
-; cache ($F4) if force_8mhz is set (MEGASTE8.TXT, for comparisons). The
-; register is read back into mega_ste_control (the start-up text and the
-; exit report show it); release_machine puts the old value back.
+; cache ($F4) if force_8mhz is set (megaste_speedup=false, for
+; comparisons). The register is read back into mega_ste_control (the
+; start-up text and the exit report show it); release_machine puts the old
+; value back.
 ; A Mega STE only; supervisor mode, before the take-over.
 
 set_cpu_speed:
@@ -396,12 +408,15 @@ release_machine:
 	clr.b	$fffffa19.w
 	move.b	old_fa1f,$fffffa1f.w
 	move.b	old_fa19,$fffffa19.w
-	ifd __OVERSCAN__
 	ifnd __RELEASE__
+	tst.b	measure_timer_d
+	beq		.timer_d_restored
+
 	and.b	#$f0,$fffffa1d.w
 	move.b	old_fa25,$fffffa25.w
 	move.b	old_fa1d,$fffffa1d.w
-	endif
+
+.timer_d_restored:
 	endif
 
 	lea		vector_list,a0
@@ -474,8 +489,10 @@ vector_list:
 	dc.w	$70
 	dc.l	vbl_handler
 	ifnd __RELEASE__
-	dc.w	MEASURE_VECTOR
-	dc.l	measure_timer_handler ; (Measurements.)
+	dc.w	TIMER_A_VECTOR
+	dc.l	measure_timer_handler ; (Measurements: Timer A,
+	dc.w	TIMER_D_VECTOR
+	dc.l	measure_timer_d_handler ; or Timer D at full height.)
 	endif
 	dc.w	$118
 	dc.l	ikbd_handler

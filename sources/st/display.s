@@ -1,6 +1,6 @@
 
-; Atari ST display: low resolution (320 x 200, 16 colours),
-; triple-buffered, drawn in bitplanes:
+; Atari ST display: low resolution (320 x 200, 16 colours, or 273 lines
+; at full height), triple-buffered, drawn in bitplanes:
 ;
 ;   lines 0-7     the HUD band: the X68000 text layer's row 0 (score, high
 ;                 score), drawn into all three screens by text.s when the game
@@ -9,6 +9,8 @@
 ;                 pixels from the left edge. The window follows the ship in
 ;                 a stage (the ship two thirds down; at most 2 lines per
 ;                 frame), elsewhere it shows lines 32-223; F2 keeps it there.
+;                 At full height (SZ2.CFG's screen=full: both borders open,
+;                 STDL's code) all 248, lines 8-255, and no window.
 ;
 ; A picture: the background (background.s: a copy from the composed table)
 ; or colour 0 while the game hides it; sprites and the text layer's other
@@ -21,6 +23,11 @@
 ; waits only if the picture before is not on screen yet (wait_for_flip).
 
 	xdef initialize_display
+	xdef use_crop_layout
+	xdef show_display_page
+	xdef screen_top_offset
+	xdef playfield_lines
+	xdef playfield_bottom
 	xdef render_frame
 	xdef present_frame
 	xdef display_vbl
@@ -47,14 +54,13 @@
 	xref close_file
 	xref start_render_parts
 	xref mark_render_part
+	xref full_height
 
-	ifd __OVERSCAN__
 	xref _stdl_ovsc_bhi ; (stdl_glue.c, lib/stdl/src/overscan.c)
 	xref _stdl_ovsc_bmid
 	xref _stdl_ovsc_bhi2
 	xref _stdl_ovsc_bmid2
 	xref _stdl_ovsc_l262mid
-	endif
 
 	ifd __ORACLE__
 	xref L_00E80000
@@ -65,36 +71,131 @@
 
 	include "st.i"
 
-MAXIMUM_WINDOW=256-8-PLAYFIELD_LINES ; 56: the window shows X68000 lines 8+w..199+w.
+MAXIMUM_WINDOW=256-8-CROP_PLAYFIELD_LINES ; 56: the window shows X68000 lines 8+w..199+w.
 DEFAULT_WINDOW=24 ; Lines 32-223.
 SHIP_LINE=130 ; The ship's line in the playfield window.
 WINDOW_STEP=2 ; Lines per frame.
-PI1_SIZE=32000 ; A screenshot's picture (the first 200 lines with the
-               ; borders open).
-	ifd __OVERSCAN__
+PI1_SIZE=32000 ; A screenshot's picture (the first 200 lines at full
+               ; height).
 OVERSCAN_LINE_262=228 ; The page's row on the frame's line 262 (STDL's).
-	endif
 
 ; ------------------------------------------------------------------------------
 	text
 ; ------------------------------------------------------------------------------
 
+; The screens for the layout chosen (full_height: both borders open, else
+; crop): three pages, allocated (the sprite arena then takes what is
+; left), cleared. Returns d0.l negative (N set) if there is no memory for
+; them.
+
 initialize_display:
+	movem.l	d1-d2/a0-a2,-(sp)
+
+	move.l	#CROP_PAGE_SIZE*SCREENS+256,d0
+	tst.b	full_height
+	beq		.size_known
+
+	move.l	#FULL_PAGE_SIZE*SCREENS+256,d0
+
+.size_known:
+	move.l	d0,-(sp)
+	move	#72,-(sp) ; Malloc
+	trap	#1
+	addq.l	#6,sp
+	move.l	d0,screen_memory
+	beq		.no_memory
+
+	bsr		set_layout
+	moveq	#0,d0
+
+.done:
+	movem.l	(sp)+,d1-d2/a0-a2
+
+	rts
+
+.no_memory:
+	moveq	#-1,d0
+
+	bra		.done
+
+; The borders did not open: crop instead, in the same memory (more than
+; crop needs), before the game starts. Preserves all registers.
+
+use_crop_layout:
+	sf		full_height
+	bsr		set_layout
+
+	; (Falls through.)
+
+; The shown screen's page to the shifter. Preserves all registers.
+
+show_display_page:
+	move.l	d0,-(sp)
+	move.l	display_screen_address,d0
+	sub.l	screen_top_offset,d0
+	lsr.l	#8,d0
+	move.b	d0,$ffff8203.w
+	lsr.w	#8,d0
+	move.b	d0,$ffff8201.w
+	move.l	(sp)+,d0
+
+	rts
+
+; The layout's values, the screens in their pages (256-aligned, cleared)
+; and the window. Preserves all registers.
+
+set_layout:
 	movem.l	d0-d1/a0,-(sp)
 
-	move.l	#screen_memory+255,d0 ; 256-byte aligned pages.
+	tst.b	full_height
+	bne		.full_height
+
+	clr.l	screen_top_offset
+	move.l	#CROP_PAGE_SIZE,d1
+	move	#CROP_PLAYFIELD_LINES,playfield_lines
+	move	#DEFAULT_WINDOW,window_offset
+
+	bra		.values_set
+
+.full_height:
+	move.l	#FULL_SCREEN_TOP*SCREEN_LINE,screen_top_offset
+	move.l	#FULL_PAGE_SIZE,d1
+	move	#FULL_PLAYFIELD_LINES,playfield_lines
+	clr		window_offset
+
+.values_set:
+	move	playfield_lines,d0
+	add		#PLAYFIELD_TOP-1,d0
+	move	d0,playfield_bottom
+
+	move.l	screen_memory,d0
+	add.l	#255,d0
 	clr.b	d0
-	add.l	#SCREEN_TOP*SCREEN_LINE,d0 ; Their screens' origins.
+	move.l	d0,a0 ; The first page.
+	add.l	screen_top_offset,d0 ; Its screen's origin.
 	move.l	d0,display_screen_address
 	move.l	d0,screen_buffers
-	add.l	#PAGE_SIZE,d0
+	add.l	d1,d0
 	move.l	d0,work_screen_address
 	move.l	d0,screen_buffers+4
-	add.l	#PAGE_SIZE,d0
+	add.l	d1,d0
 	move.l	d0,spare_screen_address
 	move.l	d0,screen_buffers+8
 
-	move	#DEFAULT_WINDOW,window_offset
+	move.l	d1,d0 ; The three pages cleared, 16 bytes a pass.
+	add.l	d0,d0
+	add.l	d1,d0
+	lsr.l	#4,d0
+	subq.l	#1,d0
+	moveq	#0,d1
+
+.clear:
+	move.l	d1,(a0)+
+	move.l	d1,(a0)+
+	move.l	d1,(a0)+
+	move.l	d1,(a0)+
+	subq.l	#1,d0
+	bpl		.clear
 
 	movem.l	(sp)+,d0-d1/a0
 
@@ -113,26 +214,21 @@ display_vbl:
 	cmp.b	#2,flip_pending
 	bne		.colours
 
-	; Its page (256-aligned: an STE's low byte stays 0). With the borders
-	; open, their top interrupt accepts it too (bhi2, bmid2) from now on:
-	; next frame shows it, this one still the page before.
+	; Its page (256-aligned: an STE's low byte stays 0). At full height,
+	; the borders' top interrupt accepts it too (bhi2, bmid2) from now on:
+	; next frame shows it, this one still the page before. (Their values
+	; are kept in crop too, unused.)
 
 	move.l	d0,-(sp)
 	move.l	display_screen_address,d0
-	sub.l	#SCREEN_TOP*SCREEN_LINE,d0
-	ifd __OVERSCAN__
+	sub.l	screen_top_offset,d0
 	move.l	d0,flip_page
-	endif
 	lsr.l	#8,d0
 	move.b	d0,$ffff8203.w
-	ifd __OVERSCAN__
 	move.b	d0,_stdl_ovsc_bmid2
-	endif
 	lsr.w	#8,d0
 	move.b	d0,$ffff8201.w
-	ifd __OVERSCAN__
 	move.b	d0,_stdl_ovsc_bhi2
-	endif
 	move.l	(sp)+,d0
 
 	bra		.flipped
@@ -142,9 +238,9 @@ display_vbl:
 	movem.l	flip_palette,d0-d7
 	movem.l	d0-d7,$ffff8240.w
 
-	ifd __OVERSCAN__
-	; The page is shown from this frame: the borders' interrupts compare
-	; the video counter with it (the bottom one at its line 262).
+	; The page is shown from this frame: at full height the borders'
+	; interrupts compare the video counter with it (the bottom one at its
+	; line 262).
 
 	move.b	_stdl_ovsc_bhi2,_stdl_ovsc_bhi
 	move.b	_stdl_ovsc_bmid2,_stdl_ovsc_bmid
@@ -152,7 +248,6 @@ display_vbl:
 	add.l	#OVERSCAN_LINE_262*SCREEN_LINE,d0
 	lsr.w	#8,d0
 	move.b	d0,_stdl_ovsc_l262mid
-	endif
 	movem.l	(sp)+,d0-d7
 
 .flipped:
@@ -253,9 +348,12 @@ render_frame:
 	rts
 
 ; The window: in a stage, toward the ship (two thirds down the playfield),
-; else (or with F2) the default.
+; else (or with F2) the default. At full height none: the whole playfield.
 
 update_window:
+	tst.b	full_height
+	bne		.done
+
 	move	#DEFAULT_WINDOW,d0
 	tst.b	crop_mode
 	bne		.target
@@ -310,15 +408,21 @@ update_window:
 .not_too_high:
 	add		d0,window_offset
 
+.done:
 	rts
 
 ; The playfield in colour 0 (no background).
 
 clear_playfield:
+	move	playfield_lines,d7
+	moveq	#PLAYFIELD_TOP,d0
+	add		d7,d0
+	mulu	#SCREEN_LINE,d0
 	move.l	work_screen_address,a0
-	add.l	#(PLAYFIELD_TOP+PLAYFIELD_LINES)*SCREEN_LINE,a0
+	add.l	d0,a0 ; Its end.
+	mulu	#SCREEN_LINE/40,d7
+	subq	#1,d7
 	bsr		zero_registers
-	move	#PLAYFIELD_LINES*SCREEN_LINE/40-1,d7
 
 .loop:
 	movem.l	d0-d6/a1-a3,-(a0) ; 10 longs.
@@ -542,10 +646,16 @@ frame_header:
 	ds.b	16
 	endif
 
-	ifd __OVERSCAN__
 flip_page: ; The presented picture's page.
 	ds.l	1
-	endif
+screen_memory: ; The screens' allocation.
+	ds.l	1
+screen_top_offset: ; Bytes from a page's start to its screen's origin.
+	ds.l	1
+playfield_lines: ; Shown: 192 in crop, 248 at full height.
+	ds.w	1
+playfield_bottom: ; Its last line.
+	ds.w	1
 
 flip_pending: ; 2: a new picture to show at the next VBL, 1: its colours next.
 	ds.b	1
@@ -553,9 +663,6 @@ crop_mode: ; F2: the window does not follow the ship.
 	ds.b	1
 
 	even
-
-screen_memory:
-	ds.b	PAGE_SIZE*SCREENS+256
 
 ; ------------------------------------------------------------------------------
 	end

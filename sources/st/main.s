@@ -8,28 +8,26 @@
 ; TPA is given back. The start-up text shows the TPA, the program's size and
 ; the memory left free.
 ;
-; FRAMES.TXT (optional, next to the program): a number of frames; the game
-; then exits after that many frames (the attract demo, for measurements) and
-; writes CHECKPTS.BIN.
-;
-; MEGASTE8.TXT (optional): keep a Mega STE at 8 MHz without its cache (for
-; comparisons; by default a Mega STE runs at 16 MHz with the cache on).
-;
-; LOCKSTEP.TXT (optional): start in lockstep mode (every frame shown, the
-; game slowed down to the rendering speed; F1 switches).
+; Settings (config.s): SZ2.CFG next to the program, or the file the
+; command line names. With a frame limit (frames=N) the game exits after
+; that many frames (the attract demo, for measurements) and writes
+; CHECKPTS.BIN.
 
 	xdef start
+	xdef basepage
 
 	xref detect_machine
 	xref initialize_machine
 	xref release_machine
-	ifd __OVERSCAN__
 	xref machine_type
 	xref _port_overscan_open ; (stdl_glue.c)
 	xref _port_overscan_close
 	xref _port_overscan_misses
 	xref screen_buffers
-	endif
+	xref use_crop_layout
+	xref read_config
+	xref full_height
+	xref megaste_speedup
 	xref machine_is_st
 	xref machine_has_ste_hardware
 	xref ym_effects_played
@@ -276,20 +274,19 @@ start:
 
 .no_xpad:
 
+	jsr		read_config
+	move.b	full_height,overscan_requested
+
 	tst.b	machine_is_mega_ste
 	beq		.speed_done
 
-	lea		megaste8_file_name,a0
-	bsr		file_exists
-	sne		force_8mhz
+	tst.b	megaste_speedup
+	seq		force_8mhz
 
 	jsr		set_cpu_speed
 	bsr		print_cpu_speed
 
 .speed_done:
-
-	bsr		read_frame_limit
-	bsr		read_lockstep
 
 	; An ST: its YM effects (before the sprite arena takes the rest).
 
@@ -305,6 +302,16 @@ start:
 
 .effects_loaded:
 	jsr		initialize_display
+	tst.l	d0
+	bpl		.screens_ok
+
+	lea		no_screens_text,a0
+	jsr		print_text
+	jsr		restore_cpu_speed
+
+	bra		.wait_and_exit
+
+.screens_ok:
 	jsr		initialize_renderer
 
 	tst.l	arena_size
@@ -343,19 +350,24 @@ start:
 
 	jsr		initialize_machine
 
-	ifd __OVERSCAN__
+	tst.b	full_height
+	beq		.borders_done
+
 	move	#$2300,sr ; (Opening the borders watches frames.)
 	bsr		open_overscan
-	endif
 
+.borders_done:
 	jsr		start_emulator
 
-	ifd __OVERSCAN__
+	tst.l	overscan_lines
+	beq		.borders_closed
+
 	move	#$2300,sr ; (Closing them waits for frames.)
 	jsr		_port_overscan_close
 	jsr		_port_overscan_misses
 	move.l	d0,overscan_misses
-	endif
+
+.borders_closed:
 
 	jsr		release_machine
 
@@ -407,88 +419,6 @@ start:
 
 	clr		-(sp)
 	trap	#1
-
-; ------------------------------------------------------------------------------
-;
-; FRAMES.TXT: a decimal frame limit (none if the file is missing).
-
-read_frame_limit:
-	clr.l	frame_limit
-
-	clr		-(sp)
-	pea		frames_file_name
-	move	#61,-(sp) ; Fopen
-	trap	#1
-	addq.l	#8,sp
-	tst.l	d0
-	bmi		.done
-
-	move	d0,d3
-
-	clr.l	frames_buffer
-	clr.l	frames_buffer+4
-	clr.l	frames_buffer+8
-	clr.l	frames_buffer+12
-
-	pea		frames_buffer
-	move.l	#15,-(sp)
-	move	d3,-(sp)
-	move	#63,-(sp) ; Fread
-	trap	#1
-	lea		12(sp),sp
-
-	move	d3,-(sp)
-	move	#62,-(sp) ; Fclose
-	trap	#1
-	addq.l	#4,sp
-
-	lea		frames_buffer,a0
-	moveq	#0,d0
-
-.digit_loop:
-	moveq	#0,d1
-	move.b	(a0)+,d1
-	sub.b	#'0',d1
-	bcs		.parsed
-
-	cmp.b	#9,d1
-	bhi		.parsed
-
-	move.l	d0,d2 ; * 10
-	lsl.l	#3,d0
-	add.l	d2,d0
-	add.l	d2,d0
-	add.l	d1,d0
-
-	bra		.digit_loop
-
-.parsed:
-	move.l	d0,frame_limit
-	beq		.done
-
-	lea		frame_limit_text,a0
-	jsr		print_text
-	jsr		print_number
-	lea		line_end_text,a0
-	jsr		print_text
-
-.done:
-	rts
-
-; LOCKSTEP.TXT present: lockstep mode from the start.
-
-read_lockstep:
-	lea		lockstep_file_name,a0
-	bsr		file_exists
-	beq		.done
-
-	st		lockstep_mode
-
-	lea		lockstep_text,a0
-	jsr		print_text
-
-.done:
-	rts
 
 ; a0 = file name: Z clear if the file exists (Fopen succeeds). Preserves
 ; a0.
@@ -560,13 +490,11 @@ print_cpu_speed:
 
 ; ------------------------------------------------------------------------------
 
-	ifd __OVERSCAN__
-
-; Both borders open (STDL's code, in stdl_glue.c), after the take-over with
-; the interrupts on: the screens' pages 274 lines tall, 273 of them shown.
-; On a machine where they do not open, the pages show their first 200
-; lines. The first opening calibrates (a frame or two) and finds the
-; GLUE's bottom border test (a third of a second of flickering border).
+; Full height: both borders open (STDL's code, in stdl_glue.c), after the
+; take-over with the interrupts on: the screens' pages 274 lines tall, 273
+; of them shown. On a machine where they do not open, crop instead. The
+; first opening calibrates (a frame or two) and finds the GLUE's bottom
+; border test (a third of a second of flickering border).
 
 open_overscan:
 	movem.l	d0-d1/a0-a1,-(sp)
@@ -584,12 +512,16 @@ open_overscan:
 	addq.l	#2,sp
 	move.l	d0,-(sp)
 	move.l	screen_buffers,d0
-	sub.l	#SCREEN_TOP*SCREEN_LINE,d0 ; The first screen's page.
+	sub.l	#FULL_SCREEN_TOP*SCREEN_LINE,d0 ; The first screen's page.
 	move.l	d0,-(sp)
 	jsr		_port_overscan_open
 	lea		16(sp),sp
 	move.l	d0,overscan_lines
+	bne		.open
 
+	jsr		use_crop_layout
+
+.open:
 	movem.l	(sp)+,d0-d1/a0-a1
 
 	rts
@@ -617,8 +549,6 @@ print_overscan:
 	jsr		print_text
 	lea		line_end_text,a0
 	jmp		print_text
-
-	endif
 
 	ifd __STREAM__
 
@@ -801,9 +731,12 @@ print_report:
 	jsr		print_measurements
 	jsr		print_stages
 
-	ifd __OVERSCAN__
+	tst.b	overscan_requested
+	beq		.no_overscan_report
+
 	bsr		print_overscan
-	endif
+
+.no_overscan_report:
 
 	; Heap high-water mark: the area was cleared at start.
 
@@ -945,8 +878,6 @@ ste_text:
 	dc.b	'Machine: Atari STE, 8 MHz.',13,10,0
 mega_ste_text:
 	dc.b	'Machine: Atari Mega STE.',13,10,0
-megaste8_file_name:
-	dc.b	'MEGASTE8.TXT',0
 cpu_text:
 	dc.b	'CPU ($FFFF8E21): $',0
 cpu_was_text:
@@ -1006,27 +937,19 @@ free_text:
 	dc.b	' KB, free ',0
 kilobytes_end_text:
 	dc.b	' KB.',13,10,0
-frames_file_name:
-	dc.b	'FRAMES.TXT',0
-frame_limit_text:
-	dc.b	'Frame limit: ',0
-lockstep_file_name:
-	dc.b	'LOCKSTEP.TXT',0
-lockstep_text:
-	dc.b	'Lockstep: every frame (F1 switches).',13,10,0
 starting_text:
 	dc.b	'Starting (the background takes a few',13,10
 	dc.b	'seconds to build)...',13,10,0
 run_end_text:
 	dc.b	'End of the run.',13,10,0
-	ifd __OVERSCAN__
 overscan_text:
 	dc.b	'Overscan: ',0
 overscan_lines_text:
 	dc.b	' lines, frames with a border missed: ',0
 overscan_closed_text:
-	dc.b	'not open: ',0
-	endif
+	dc.b	'not open (crop instead): ',0
+no_screens_text:
+	dc.b	'Not enough memory for the screens.',13,10,0
 press_key_text:
 	dc.b	13,10,'Press a key.',13,10,0
 exit_text:
@@ -1078,14 +1001,12 @@ unimplemented_iocs_text:
 
 basepage:
 	ds.l	1
-	ifd __OVERSCAN__
 overscan_lines: ; Shown, or 0: the borders did not open.
 	ds.l	1
 overscan_misses:
 	ds.l	1
 overscan_error: ; STDL's message.
 	ds.l	1
-	endif
 text_base:
 	ds.l	1
 tpa_size:
@@ -1096,8 +1017,9 @@ kept_size:
 	ds.l	1
 old_stack_address:
 	ds.l	1
-frames_buffer:
-	ds.l	4
+overscan_requested: ; screen=full (the report says what happened).
+	ds.b	1
+	even
 
 	ds.l	1024
 my_stack:
