@@ -40,7 +40,7 @@
 	xdef units_to_tenths_ms
 
 	xref frame_count
-	ifd __STREAM__
+	ifd __DEVOPS__
 	xref stream_text
 	endif
 	xref last_sprite_count
@@ -552,7 +552,7 @@ divide_unsigned:
 print_text:
 	movem.l	d0-d2/a0-a2,-(sp)
 
-	ifd __STREAM__
+	ifd __DEVOPS__
 	move.l	a0,a1 ; On md-devops' debug stream too (main.s).
 
 .end:

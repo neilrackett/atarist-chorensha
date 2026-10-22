@@ -35,7 +35,7 @@ plays the frames (rendered here: tone squares, the 17-bit noise register,
 turn.
 
 usage:
-    ym_effects.py [--pcm binaries/atari/PCM_DAT]
+    ym_effects.py [--pcm binaries/st/PCM_DAT]
                   [-o binaries/st/PCM_DAT/SZ2_YM.BIN] [--preview DIR]
 """
 
@@ -289,7 +289,7 @@ def write_wav(path, signal):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    parser.add_argument("--pcm", default="binaries/atari/PCM_DAT")
+    parser.add_argument("--pcm", default="binaries/st/PCM_DAT")
     parser.add_argument("-o", "--output", default="binaries/st/PCM_DAT/SZ2_YM.BIN")
     parser.add_argument("--preview")
     args = parser.parse_args()

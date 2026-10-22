@@ -4,7 +4,7 @@ Cho Ren Sha 68k is a vertical shoot 'em up for the Sharp X68000, (c) 1995
 by Famibe No Yosshin. This is a port of the original game code to the
 Atari ST, STE and Mega STE: the X68000 program runs on the ST's own 68000,
 and the port draws the X68000's sprites, background and text in ST low
-resolution, in 16 colours.
+resolution using 16 colours.
 
 The whole game plays at its full speed, with its sound effects (DMA sound
 on an STE or Mega STE, the YM2149 on an ST). The music is not played.
@@ -14,13 +14,15 @@ on an STE or Mega STE, the YM2149 on an ST). The music is not played.
 | ![Title screen](docs/screenshots/st/title.png)        | ![Stage 1: the butterfly fighters](docs/screenshots/st/butterflies.png) | ![A mid-boss](docs/screenshots/st/mid-boss.png) |
 | ![A big explosion](docs/screenshots/st/explosion.png) | ![Bullets](docs/screenshots/st/bullets.png)                             | ![A gunship](docs/screenshots/st/gunship.png)   |
 
-The screenshots are all from the ST port, in full height mode using overscan
-(`screen=full`, see Options) at the same moment in the demo as the Amiga 
-screenshots in `docs/screenshots/amiga`.
+The screenshots are all from the ST port, taking using the full height overscan
+mode (`screen=full`, see Options) at the same moment in the demo as the Amiga 
+screenshots in `docs/screenshots/amiga`, in case you want to compare.
 
 ## Building
 
-The ST version builds with [atarist-toolkit-docker](https://github.com/sidecartridge/atarist-toolkit-docker) (`stcmd`) and needs this repository's submodules, `lib/xpad` and `lib/stdl`:
+The ST version builds with [atarist-toolkit-docker](https://github.com/sidecartridge/atarist-toolkit-docker) (`stcmd`) and needs this repository's submodules, `lib/xpad` and `lib/stdl`.
+`make` (the same as `make release`) builds the game and puts a copy in
+`dist/CHORENSH`, the folder to copy to an ST:
 
 ```
 CHORENSH/
@@ -33,10 +35,11 @@ CHORENSH/
   XSP_DAT/               the sprites
 ```
 
-`make` alone builds the measurement version, `make test` runs the tests in
-Hatari, and `make clean` removes what the builds and tests made. The other
-make targets, running the game in Hatari and on a real ST, and how the
-port works: `docs/ST_PORT.md`.
+The program is built in `binaries/st`, which holds the same data, so it
+also runs from there. `make debug` builds the measurement version, `make test`
+runs the tests in Hatari, and `make clean` removes what the builds and
+tests made. The other make targets, running the game in Hatari and on a
+real ST, and how the port works: `docs/ST_PORT.md`.
 
 ## Requirements
 
@@ -44,19 +47,18 @@ port works: `docs/ST_PORT.md`.
   resolution at 50 Hz. No BLiTTER is needed.
 - 4 MB of RAM: an STE or Mega STE needs about 3.1 MB of it free, an ST
   (which loads no samples) about 2.7 MB. What is left over is the sprite
-  cache: the more, the faster.
+  cache: more means faster.
 - A hard disk or other GEMDOS drive with 1.9 MB free: the game is too big
-  for a floppy disk. It is tested with ACSI2STM's GemDrive on a Mega STE.
-- TOS: tested with TOS 1.04 and 2.06 and with EmuTOS (older versions are
-  untested).
-- An Xpad provider, if you would like to play with gamepads (see
+  for a floppy disk.
+- TOS 1.04 or above.
+- An Xpad provider if you would like to play with gamepads (see
   Controls).
 
 Speed: the game itself always runs at full speed (50 frames per second);
 how many of those frames are shown depends on the machine. An ST or STE
-shows about 13 per second, a Mega STE about 17 (it is switched to 16 MHz
-with its cache on automatically), up to 25. At full height (see Options)
-about a fifth fewer are shown.
+shows about 13 per second and a Mega STE up to 25 (it is switched to 16 MHz
+with its cache on automatically). At full height (see Options) you lose about
+20% of the framerate but gain 20% more screen.
 
 ## Installation and start
 
@@ -95,7 +97,7 @@ Keyboard:
 | F2                    | keeps the playfield window still instead of following the ship                       |
 | 1, TAB, RETURN, SPACE | as the same keys on the X68000                                                       |
 
-**Xpad gamepads:** with an [Xpad](https://github.com/neilrackett/atarist-xpad)
+**Xpad gamepads:** with an [Xpad](https://neilrackett.com/atarist/atarist-xpad)
 provider installed (MD/Sidepad, COMpad, STEpad or any other), every pad it
 reports plays, alongside the keyboard and joysticks. The start-up text says
 when a provider was found.
@@ -114,7 +116,7 @@ shot once per press).
 
 Settings go in `SZ2.CFG`, next to the program: one `name=value` a line, in
 any case, with `#` or `;` starting a comment. The `SZ2.CFG` that
-`make dist` puts in the folder lists them all, commented out, each set to
+`make release` puts in `dist/CHORENSH` lists them all, commented out, each set to
 the opposite of its default. Without the file every setting has its
 default; a setting the program does not know, or a value it cannot read,
 is named on the start-up screen and ignored.

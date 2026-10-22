@@ -28,5 +28,5 @@ python3 tests/amiga/checkpoints.py compare tests/amiga/reference/attract-6000.tx
 	tmp/out/${NAME}_CHECKPTS.BIN
 
 python3 tools/st/refrender.py --graphics tmp/out/${NAME}_GRAPHICS.BIN \
-	--font binaries/amiga/XSP_DAT/SZ_TEXT.PCG --map sources/st/palette_map.i \
+	--font binaries/st/XSP_DAT/SZ_TEXT.PCG --map sources/st/palette_map.i \
 	--diff tmp/out/diff_$NAME tmp/out/shots_$NAME

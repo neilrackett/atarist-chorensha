@@ -15,7 +15,7 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 
 MACHINE=${MACHINE:-ste}
-PROG=${PROG:-binaries/st/SZ2_REL.TOS}
+PROG=${PROG:-binaries/st/SZ2.TOS}
 
 mkdir -p tmp/xpadtest tmp/out
 STCMD_NO_TTY=1 STCMD_QUIET=1 ST_WORKING_FOLDER="$ROOT" stcmd vasmm68k_mot \

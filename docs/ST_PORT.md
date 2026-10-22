@@ -59,19 +59,20 @@ needs the submodules (Xpad, and STDL for the full height): `git
 submodule update --init`.
 
 ```
-make                          binaries/st/SZ2_ST.TOS (measurements; and SZ2_DBG.TOS with symbols)
-make release                  binaries/st/SZ2_REL.TOS: to play (no measurements)
+make, make release            binaries/st/SZ2.TOS: to play (no measurements); a copy in dist/CHORENSH/ for an ST
+make debug                    binaries/st/SZ2_ST.TOS (measurements; and SZ2_DBG.TOS with symbols, and the object check)
 make headless                 binaries/st/SZ2_HL.TOS: no rendering (game logic, checkpoints)
-make stream                   binaries/st/SZ2_STS.TOS: the text also on md-devops' debug stream
-make dist                     dist/CHORENSH/: SZ2.TOS (the release), SZ2.CFG and the data, for an ST
+make devops                   binaries/st/SZ2_DEV.TOS: the text also on md-devops' debug stream
+make check-data               that binaries/st's data is the Amiga's and the Falcon's (see below)
 make test                     Hatari: checkpoints (ST, STE, Mega STE; crop and full height), pixel oracle
 make others                   the X68000, Falcon and Amiga builds (build_mac.sh, or build.sh)
 make clean                    removes the builds' and tests' files (keeps tmp/tos)
 ```
 
 The Makefile runs `build_st.sh`, which can also be run directly:
-`RELEASE=1`, `HEADLESS=1` and `STREAM=1` (an S added to the name, with any
-of the others) pick the build, `FLAGS` and `NAME` add defines and rename it.
+`RELEASE=1`, `HEADLESS=1` and `DEVOPS=1` (`SZ2_DEV.TOS`, or `SZ2_DEVR.TOS`
+and `SZ2_DEVH.TOS` with either of the others) pick the build, `FLAGS` and
+`NAME` add defines and rename it.
 
 Every build has both screen layouts, crop and full height (see below):
 `SZ2.CFG` picks one when the program starts.
@@ -80,18 +81,23 @@ Every build has both screen layouts, crop and full height (see below):
 alone. The X68000, Falcon and Amiga objects of `sz2.s` must be byte-identical
 to those of the `amiga-port` revision; `CHECK=0` skips the check.
 
-`tests/st/run_hatari.sh NAME` stages the program with the game data in
-`tmp/stage_NAME/`, which is Hatari's drive C:, and starts it in Hatari
-(`/Applications/Hatari.app`). On first use, TOS 2.06 is copied from
-`../atarist-rott/tmp/tos/` to `tmp/tos/`. To run the program elsewhere, put
-the folders `BGM_DAT`, `ETC_DAT` and `XSP_DAT` (from `binaries/amiga`) and
-`PCM_DAT` (from `binaries/atari`) next to it, with `SZ2_YM.BIN` (from
-`binaries/st/PCM_DAT`) added to `PCM_DAT`: `make dist` makes that folder,
-`dist/CHORENSH`, ready to copy to an ST. Each machine loads only what
-it plays: an ST the YM effects in `SZ2_YM.BIN` and none of the `.sam`
-samples, an STE or Mega STE the samples and not `SZ2_YM.BIN`; the run
-script stages only those. The program checks for its files at start and
-says which one is missing.
+`binaries/st` holds the game's data beside the programs, so they run from
+there, as the Amiga's and the Falcon's do from their folders: copies of
+the Amiga port's `BGM_DAT`, `ETC_DAT` (its attract demo replay, which the
+checkpoint reference was recorded with) and `XSP_DAT`, and of the Falcon
+port's `PCM_DAT` (its `.sam` samples) with the ST's `SZ2_YM.BIN` added.
+`make check-data` (and `make test`) checks that they still match those.
+`make release` also copies the release, `SZ2.CFG` and the data into
+`dist/CHORENSH`, a clean folder to copy to an ST (an `SZ2.CFG` already
+there is kept). Each machine loads only what it plays: an ST the
+YM effects in `SZ2_YM.BIN` and none of the `.sam` samples, an STE or Mega
+STE the samples and not `SZ2_YM.BIN`. The program checks for its files at
+start and says which one is missing.
+
+`tests/st/run_hatari.sh NAME` stages the program with the game data (only
+what the machine plays) in `tmp/stage_NAME/`, which is Hatari's drive C:,
+and starts it in Hatari (`/Applications/Hatari.app`). On first use, TOS
+2.06 is copied from `../atarist-rott/tmp/tos/` to `tmp/tos/`.
 
 **Settings.** `SZ2.CFG`, next to the program, holds the settings: one
 `name=value` a line, in any case, `#` or `;` starting a comment
@@ -110,7 +116,7 @@ line is read instead (test runs).
 
 ```
 # Playing, in a window (MACHINE=megaste for the Mega STE).
-WINDOW=1 MACHINE=ste PROG=binaries/st/SZ2_REL.TOS tests/st/run_hatari.sh play
+WINDOW=1 MACHINE=ste PROG=binaries/st/SZ2.TOS tests/st/run_hatari.sh play
 
 # Measurement: 6,000 frames of the attract demo, headless, fast forward.
 MACHINE=ste FRAMES=6000 tests/st/run_hatari.sh attract
@@ -508,7 +514,7 @@ clock is Timer D instead.
 Measured on a Mega STE (TOS 2.06, 4 MB, 16 MHz with the cache) with the
 game on an ACSI2STM's GemDrive and COMpad, STinG, an accessory and
 md-devops loaded: the attract demo, 6,000 frames, the measurement build
-(`SZ2_STS.TOS`, `STREAM=1`, run with `tests/st/hw/run_on_st.sh`) in each
+(`SZ2_DEV.TOS`, `DEVOPS=1`, run with `tests/st/hw/run_on_st.sh`) in each
 layout.
 
 | Layout      | Pictures per second (mean) | Gameplay median | Background ms | Sprites ms  | Sprite cache |
@@ -632,7 +638,7 @@ The X68000's own sprite library code is already tight.
   microfirmware, its GEMDRIVE Runner and `DEVOPS.ACC`). It uploads the
   program to md-devops' drive, and a small launcher there
   (`tests/st/hw/launch.s`) copies it to the ST's own disk and runs it
-  from there, so the ST's own hard disk driver loads it. A `STREAM=1`
+  from there, so the ST's own hard disk driver loads it. A `DEVOPS=1`
   build sends its text, the start-up and the exit report, to md-devops'
   debug stream as well as the screen. With `FRAMES` the run ends by
   itself; a program that hangs owns the interrupts, and only the reset

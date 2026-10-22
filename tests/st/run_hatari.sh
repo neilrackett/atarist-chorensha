@@ -5,10 +5,11 @@
 #
 #   tests/st/run_hatari.sh NAME ["cmd;cmd;..."]
 #
-# The program and the game data are staged in tmp/stage_NAME/, which Hatari
-# mounts as GEMDOS drive C: and the program starts from (the Amiga port's
-# BGM_DAT, ETC_DAT and XSP_DAT, which its attract demo reference was
-# recorded with, and the Falcon port's PCM_DAT with the 8-bit samples).
+# The program and the game data (binaries/st's: the Amiga port's BGM_DAT,
+# ETC_DAT and XSP_DAT, which its attract demo reference was recorded with,
+# and the Falcon port's PCM_DAT with the 8-bit samples) are staged in
+# tmp/stage_NAME/, which Hatari mounts as GEMDOS drive C: and the program
+# starts from.
 # The console output (the program's start-up text and exit report, through
 # --conout 2) goes to tmp/out/NAME.log, screenshots to tmp/out/shots_NAME/.
 #
@@ -99,14 +100,16 @@ fi
 
 PROGRAM_NAME=$(basename "$PROG")
 cp "$PROG" "$STAGE/$PROGRAM_NAME"
-cp -R binaries/amiga/BGM_DAT binaries/amiga/ETC_DAT binaries/amiga/XSP_DAT "$STAGE/"
-cp -R binaries/atari/PCM_DAT "$STAGE/"
+for data in BGM_DAT ETC_DAT PCM_DAT XSP_DAT; do
+	cp -R binaries/st/$data "$STAGE/"
+done
 
 # Only what the machine uses: an ST plays YM versions of the effects
-# (binaries/st/PCM_DAT/SZ2_YM.BIN), an STE or Mega STE the samples.
+# (PCM_DAT/SZ2_YM.BIN), an STE or Mega STE the samples.
 if [ "$MACHINE" = "st" ]; then
 	rm -f "$STAGE"/PCM_DAT/*.sam "$STAGE"/PCM_DAT/*.SAM
-	cp binaries/st/PCM_DAT/SZ2_YM.BIN "$STAGE/PCM_DAT/"
+else
+	rm -f "$STAGE"/PCM_DAT/SZ2_YM.BIN
 fi
 if [ -n "${REPLAY:-}" ]; then
 	cp "binaries/atari/ETC_DAT/$REPLAY" "$STAGE/ETC_DAT/DEMO.REP" || exit 2

@@ -41,7 +41,7 @@
 	xref force_8mhz
 	xref mega_ste_control
 	xref old_8e21
-	ifd __STREAM__
+	ifd __DEVOPS__
 	xdef stream_text
 	xref stream_8e21
 	endif
@@ -550,9 +550,9 @@ print_overscan:
 	lea		line_end_text,a0
 	jmp		print_text
 
-	ifd __STREAM__
+	ifd __DEVOPS__
 
-; STREAM=1 builds (for a real machine with md-devops in its cartridge port):
+; DEVOPS=1 builds (for a real machine with md-devops in its cartridge port):
 ; the bytes from a0 up to a1 on md-devops' debug stream too, a read at
 ; $FBFF00 + c for each byte c. A Mega STE's cache would answer repeated
 ; reads itself: it is off meanwhile. Preserves all registers.
@@ -902,10 +902,8 @@ wrong_machine_text:
 no_data_text:
 	dc.b	'Game data not found:',13,10,0
 no_data_help_text:
-	dc.b	13,10,'BGM_DAT, ETC_DAT and XSP_DAT',13,10
-	dc.b	'(binaries/amiga) and PCM_DAT',13,10
-	dc.b	'(binaries/atari; an ST: SZ2_YM.BIN',13,10
-	dc.b	'from binaries/st/PCM_DAT) go next',13,10
+	dc.b	13,10,'BGM_DAT, ETC_DAT, PCM_DAT and',13,10
+	dc.b	'XSP_DAT (in binaries/st) go next',13,10
 	dc.b	'to the program.',13,10,0
 bgm_data_file_name:
 	dc.b	'BGM_DAT\SZ2_BGM.CNF',0

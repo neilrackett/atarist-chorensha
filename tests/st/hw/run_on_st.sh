@@ -5,11 +5,11 @@
 # loaded): the program is copied from md-devops' drive to the ST's own
 # disk and started there, so the ST's own hard disk driver loads it, as
 # from the desktop. The ST's text comes back on md-devops' debug stream
-# with a STREAM=1 build (build_st.sh), and the launcher's results with
-# any build (tests/st/hw/launch.s).
+# with a DEVOPS=1 build (make devops), and the launcher's results with any
+# build (tests/st/hw/launch.s).
 #
-#   tests/st/hw/run_on_st.sh binaries/st/SZ2_STS.TOS
-#   FRAMES=3000 SCREEN=full tests/st/hw/run_on_st.sh binaries/st/SZ2_STS.TOS
+#   tests/st/hw/run_on_st.sh binaries/st/SZ2_DEV.TOS
+#   FRAMES=3000 SCREEN=full tests/st/hw/run_on_st.sh binaries/st/SZ2_DEV.TOS
 #
 # SIDECART   md-devops' address (default http://sidecart.local)
 # DIR        the folder on the ST that holds the game's data (default

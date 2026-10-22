@@ -18,7 +18,7 @@
 	xdef force_8mhz
 	xdef machine_type
 	xdef mega_ste_control
-	ifd __STREAM__
+	ifd __DEVOPS__
 	xdef stream_8e21
 	endif
 
@@ -357,7 +357,7 @@ set_cpu_speed:
 .write:
 	move.b	d0,$ffff8e21.w
 	move.b	$ffff8e21.w,mega_ste_control
-	ifd __STREAM__
+	ifd __DEVOPS__
 	move.b	d0,stream_8e21
 	endif
 
@@ -372,7 +372,7 @@ restore_cpu_speed:
 	beq		.done
 
 	move.b	#MEGA_STE_8MHZ,$ffff8e21.w
-	ifd __STREAM__
+	ifd __DEVOPS__
 	clr.b	stream_8e21 ; (TOS's: the cache taken as off.)
 	endif
 	tst.b	old_8e21
@@ -537,7 +537,7 @@ force_8mhz:
 mega_ste_control: ; $FFFF8E21 as read back after set_cpu_speed.
 	ds.b	1
 
-	ifd __STREAM__
+	ifd __DEVOPS__
 stream_8e21: ; $FFFF8E21 as set_cpu_speed wrote it, 0 before (main.s).
 	ds.b	1
 	endif
