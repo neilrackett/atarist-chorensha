@@ -164,6 +164,6 @@ If the borders do not open on a machine, `screen=full` falls back to crop.
 - The Amiga port's music recorded with MCDRV 0.69 by CUL (free software),
   played by the Musashi 68000 emulator and rendered with ymfm's YM2151
   (Aaron Giles).
-- Atari ST port: Neil Rackett
+- Atari ST port: [Neil Rackett](https://neilrackett.com/atarist)
 - Controller input on the Atari ST via Xpad, Copyright (c) 2026 Neil
   Rackett, BSD-2-Clause. See `lib/xpad/LICENSE`.

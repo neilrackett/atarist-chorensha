@@ -1,6 +1,6 @@
 # Cho Ren Sha 68k: Atari ST port
 
-The Atari ST version, by Neil Rackett (neilrackett.com): the game in colour
+The Atari ST version, by [Neil Rackett](https://neilrackett.com/atarist): the game in colour
 on an Atari ST, STE or Mega STE with 4 MB. The game runs at its full speed
 (50 frames per second), and the pictures are drawn as fast as the machine
 allows, leaving out the rest. It builds with the atarist-toolkit-docker tools
