@@ -43,6 +43,10 @@
 	xref force_8mhz
 	xref mega_ste_control
 	xref old_8e21
+	ifd __STREAM__
+	xdef stream_text
+	xref stream_8e21
+	endif
 	xref initialize_display
 	xref initialize_renderer
 	xref release_renderer
@@ -613,6 +617,51 @@ print_overscan:
 	jsr		print_text
 	lea		line_end_text,a0
 	jmp		print_text
+
+	endif
+
+	ifd __STREAM__
+
+; STREAM=1 builds (for a real machine with md-devops in its cartridge port):
+; the bytes from a0 up to a1 on md-devops' debug stream too, a read at
+; $FBFF00 + c for each byte c. A Mega STE's cache would answer repeated
+; reads itself: it is off meanwhile. Preserves all registers.
+
+stream_text:
+	movem.l	d0-d1/a0/a2,-(sp)
+	moveq	#0,d1
+	tst.b	machine_is_mega_ste
+	beq		.cache_off
+
+	move.b	stream_8e21,d1
+	moveq	#~1,d0
+	and.b	d1,d0
+	cmp.b	d1,d0
+	beq		.cache_off
+
+	move.b	d0,$ffff8e21.w
+
+.cache_off:
+	lea		$fbff00,a2
+	moveq	#0,d0
+	bra		.next
+
+.byte:
+	move.b	(a0)+,d0
+	tst.b	(a2,d0.w)
+
+.next:
+	cmp.l	a1,a0
+	bne		.byte
+
+	btst	#0,d1
+	beq		.done
+
+	move.b	d1,$ffff8e21.w
+
+.done:
+	movem.l	(sp)+,d0-d1/a0/a2
+	rts
 
 	endif
 

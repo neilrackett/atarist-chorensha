@@ -18,6 +18,10 @@
 #   OVERSCAN=1 ./build_st.sh      the full height, both borders open with STDL's
 #                                  overscan code (lib/stdl): SZ2_OVS.TOS, or
 #                                  SZ2_OVR.TOS with RELEASE=1
+#   STREAM=1 ./build_st.sh        any of these with its text also on md-devops'
+#                                  debug stream, for runs on a real machine
+#                                  (tests/st/hw/run_on_st.sh): an S added to
+#                                  the name (SZ2_STS.TOS, SZ2_OVSS.TOS)
 #   FLAGS=... NAME=... ./build_st.sh  extra defines, another program name
 
 set -e
@@ -61,6 +65,10 @@ if [ "${OVERSCAN:-0}" = "1" ]; then
 		echo "$0: lib/stdl is missing: git submodule update --init" >&2
 		exit 1
 	fi
+fi
+if [ "${STREAM:-0}" = "1" ]; then
+	PORT_FLAGS="$PORT_FLAGS -D__STREAM__"
+	DEFAULT_NAME=${DEFAULT_NAME}S
 fi
 NAME=${NAME:-$DEFAULT_NAME}
 

@@ -447,6 +447,25 @@ set it, for COMpad.)
 | Three screens: two let the next picture be drawn into the one still shown (flicker) | 12.1 | 17.1 |
 | Release build (no measurements, 64 KB more sprite cache) | 12.4 | 17.4 |
 
+### On a real Mega STE
+
+Measured on a Mega STE (TOS 2.06, 4 MB, 16 MHz with the cache) with the
+game on an ACSI2STM's GemDrive and COMpad, STinG, an accessory and
+md-devops loaded: the attract demo, 6,000 frames, the measurement builds
+(`STREAM=1`, run with `tests/st/hw/run_on_st.sh`).
+
+| Build | Pictures per second (mean) | Gameplay median | Background ms | Sprites ms | Sprite cache |
+|---|---|---|---|---|---|
+| `SZ2_STS.TOS` | 15.5 (Hatari 17.4) | 15 (Hatari 17) | 13.4 (13.0) | 22.7 (19.6) | 462 KB (891) |
+| `SZ2_OVSS.TOS`, full height | 12.6 (Hatari 15.0) | 12 | 17.7 | 28.5 | 418 KB |
+
+Hatari's timing holds: the background copy and the game logic (median
+3.9 ms) are within a few percent. The difference is memory: the drivers
+and accessories leave about 430 KB less TPA (3,553 KB), all of it taken
+from the sprite cache, which then switches halves 34 times instead of 13
+and makes more shifted copies. The full-height version opened both
+borders on every one of the 6,000 frames.
+
 ### Pictures per second by stage (full-game replays, 190,000 frames)
 
 | Stage | ST DEMO3 | ST DEMO8 | STE DEMO3 | STE DEMO8 | Mega STE DEMO3 | Mega STE DEMO8 |
@@ -549,6 +568,18 @@ The X68000's own sprite library code is already tight.
   an ST.
 - **Other targets.** `build_st.sh` checks that the other objects of `sz2.s`
   are unchanged.
+- **Real hardware.** `tests/st/hw/run_on_st.sh` runs a build on a real ST
+  through md-devops (a SidecarTridge Multi-device with the DevOps
+  microfirmware, its GEMDRIVE Runner and `DEVOPS.ACC`). It uploads the
+  program to md-devops' drive, and a small launcher there
+  (`tests/st/hw/launch.s`) copies it to the ST's own disk and runs it
+  from there, so the ST's own hard disk driver loads it. A `STREAM=1`
+  build sends its text, the start-up and the exit report, to md-devops'
+  debug stream as well as the screen. With `FRAMES` the run ends by
+  itself; a program that hangs owns the interrupts, and only the reset
+  button gets the ST back. On a Mega STE with ACSI2STM's GemDrive, the
+  normal and full-height builds, measurement and release, all run their
+  frames and exit.
 
 ## Open items and next steps
 

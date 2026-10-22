@@ -38,6 +38,9 @@
 	xdef units_to_tenths_ms
 
 	xref frame_count
+	ifd __STREAM__
+	xref stream_text
+	endif
 	xref last_sprite_count
 	xref PLAYER_SCORE
 	xref PLAYER_INFO_STRUCT
@@ -523,6 +526,17 @@ divide_unsigned:
 
 print_text:
 	movem.l	d0-d2/a0-a2,-(sp)
+
+	ifd __STREAM__
+	move.l	a0,a1 ; On md-devops' debug stream too (main.s).
+
+.end:
+	tst.b	(a1)+
+	bne		.end
+
+	subq.l	#1,a1
+	jsr		stream_text
+	endif
 
 	pea		(a0)
 	move	#9,-(sp)

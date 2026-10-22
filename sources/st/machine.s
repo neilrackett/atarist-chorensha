@@ -18,6 +18,9 @@
 	xdef force_8mhz
 	xdef machine_type
 	xdef mega_ste_control
+	ifd __STREAM__
+	xdef stream_8e21
+	endif
 
 	xref line_f_handler
 	xref trap_2_handler
@@ -342,6 +345,9 @@ set_cpu_speed:
 .write:
 	move.b	d0,$ffff8e21.w
 	move.b	$ffff8e21.w,mega_ste_control
+	ifd __STREAM__
+	move.b	d0,stream_8e21
+	endif
 
 	rts
 
@@ -354,6 +360,9 @@ restore_cpu_speed:
 	beq		.done
 
 	move.b	#MEGA_STE_8MHZ,$ffff8e21.w
+	ifd __STREAM__
+	clr.b	stream_8e21 ; (TOS's: the cache taken as off.)
+	endif
 	tst.b	old_8e21
 	bpl		.done ; (Upper bits clear: the cold-boot value stays.)
 
@@ -511,6 +520,10 @@ force_8mhz:
 mega_ste_control: ; $FFFF8E21 as read back after set_cpu_speed.
 	ds.b	1
 
+	ifd __STREAM__
+stream_8e21: ; $FFFF8E21 as set_cpu_speed wrote it, 0 before (main.s).
+	ds.b	1
+	endif
 
 old_fa07:
 	ds.b	1
