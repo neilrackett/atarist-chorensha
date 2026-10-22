@@ -1,6 +1,6 @@
 # Cho Ren Sha 68k - Atari ST
 
-Cho Ren Sha 68k is a vertical shoot 'em up for the Sharp X68000, (c) 1995
+[Cho Ren Sha 68k](https://yosshin4004.github.io/x68k/crs68k/official/index.html) is a vertical shoot 'em up for the Sharp X68000, (c) 1995
 by Famibe No Yosshin. This is a port of the original game code to the
 Atari ST, STE and Mega STE: the X68000 program runs on the ST's own 68000,
 and the port draws the X68000's sprites, background and text in ST low
@@ -156,7 +156,7 @@ If the borders do not open on a machine, `screen=full` falls back to crop.
 
 ## Credits
 
-- Original game: (c) 1995 Famibe No Yosshin (X68000).
+- [Original game](https://yosshin4004.github.io/x68k/crs68k/official/index.html): (c) 1995 Famibe No Yosshin (X68000).
 - Atari Falcon port and the disassembly this port builds on: Sascha
   Springer.
 - Amiga port: Adam Polkosnik.
