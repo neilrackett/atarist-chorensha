@@ -14,7 +14,8 @@ __CHUNKY__ equ 1
 	endif
 
 	; __CHUNKY__: the Amiga port's renderer hooks and frame scheduler, shared
-	; by the Atari ST port (sources/st: the Falcon's TOS layer with it).
+	; by the Atari ST port (sources/st: the Falcon's TOS layer with it), and
+	; its ESC (amiga_escape_*: back to the title, EXIT on it).
 
 	ifd __ST__
 __PORT__ equ 1
@@ -10005,7 +10006,7 @@ L_00024DAA:
 	ble.s   L_00024D9E                              ; 00024DD8 6FC4
 
 L_00024DDA:
-	ifd __AMIGA__
+	ifd __CHUNKY__
 	jsr		amiga_escape_clear ; ESC before the title is not EXIT.
 	endif
 
@@ -10207,7 +10208,7 @@ L_00024F1A:
 	lea     12(A7),A7                               ; 00024F34 4FEF 000C
 
 L_00024F38:
-	ifd __AMIGA__
+	ifd __CHUNKY__
 	jsr		amiga_escape_pressed ; ESC on the title: EXIT.
 	beq.s	.no_escape
 
@@ -10314,7 +10315,7 @@ L_00024FC0:
 	bra.s   L_00024FEA                              ; 00024FE0 6008
 
 L_00024FE2:
-	ifd __AMIGA__
+	ifd __CHUNKY__
 	jsr		amiga_escape_pressed ; ESC on the title's high scores: EXIT.
 	beq.s	.no_escape
 
@@ -13700,7 +13701,7 @@ L_00026DD4:
 L_00026E1A:
 	jsr     READ_JOYSTICK_FOR_MENU                              ; 00026E1A 4EB9 0002 778A
 
-	ifd __AMIGA__
+	ifd __CHUNKY__
 	jsr		amiga_escape_menu ; ESC: START + SELECT, out of the game.
 	endif
 
@@ -13708,7 +13709,7 @@ L_00026E1A:
 	beq.w   L_00026EB4                              ; 00026E22 6700 0090
 
 	cmp.w   #$1,D5                                  ; 00026E26 BA7C 0001
-	ifd __AMIGA__
+	ifd __CHUNKY__
 	bne.w   L_00026EA8 ; (Out of reach with the ESC checks below.)
 	else
 	bne.s   L_00026EA8                              ; 00026E2A 667C
@@ -13727,7 +13728,7 @@ L_00026E1A:
 L_00026E4C:
 	jsr     READ_JOYSTICK_FOR_MENU                              ; 00026E4C 4EB9 0002 778A
 
-	ifd __AMIGA__
+	ifd __CHUNKY__
 	jsr		amiga_escape_pressed ; ESC while paused: out of the game.
 	bne		amiga_pause_escape
 	endif
@@ -13743,7 +13744,7 @@ L_00026E4C:
 L_00026E64:
 	jsr     READ_JOYSTICK_FOR_MENU                              ; 00026E64 4EB9 0002 778A
 
-	ifd __AMIGA__
+	ifd __CHUNKY__
 	jsr		amiga_escape_pressed ; ESC while paused: out of the game.
 	bne		amiga_pause_escape
 	endif
@@ -13759,7 +13760,7 @@ L_00026E64:
 L_00026E7C:
 	jsr     READ_JOYSTICK_FOR_MENU                              ; 00026E7C 4EB9 0002 778A
 
-	ifd __AMIGA__
+	ifd __CHUNKY__
 	jsr		amiga_escape_pressed ; ESC while paused: out of the game.
 	bne		amiga_pause_escape
 	endif
@@ -13777,7 +13778,7 @@ L_00026E7C:
 
 	lea     16(A7),A7                               ; 00026EA4 4FEF 0010
 
-	ifd __AMIGA__
+	ifd __CHUNKY__
 
 	bra.s	L_00026EA8
 
@@ -14050,7 +14051,7 @@ L_000270EE:
 	lea     12(A7),A7                               ; 0002710C 4FEF 000C
 
 L_00027110:
-	ifd __AMIGA__
+	ifd __CHUNKY__
 	jsr		amiga_escape_pressed ; ESC: no more waiting.
 	bne		L_0002713E
 	endif

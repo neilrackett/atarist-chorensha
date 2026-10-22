@@ -159,7 +159,8 @@ the exit report, with timings per stage.
 | Cursor keys or joystick | Move                                                                                   |
 | Z, CTRL or fire         | Shoot (held in a stage: auto fire)                                                     |
 | X or SHIFT              | Second button                                                                          |
-| P or ESC                | Pause                                                                                  |
+| P                       | Pause                                                                                  |
+| ESC                     | Back to the title (from a game, also paused or at game over); on the title: quit       |
 | EXIT (main menu)        | Quit                                                                                   |
 | F1                      | Lockstep on and off: every frame is shown and the game slows down to the drawing speed |
 | F2                      | Keeps the playfield window still instead of following the ship                         |
@@ -448,6 +449,7 @@ The port's changes are all `ifd __ST__`; `-D__ST__` also defines `__PORT__`,
 | Sprite tables                                    | Two, swapped at `XSP_OUT` instead of copied (`XOBJ_SET`'s room check reads `st_sprite_buffer_end`)                                                       |
 | Shot slot loop (`L_0002B410`)                    | Kept in registers, with the collision-grid routine and `XSP_SET_ST` inlined instruction for instruction (about 0.5 ms per frame)                         |
 | Stage hook                                       | Auto fire                                                                                                                                                |
+| ESC (`__CHUNKY__`, from the Amiga port)          | Back to the title from a game, EXIT on the title: the Amiga port's hooks, shared (`amiga_escape_*` in `input.s`)                                         |
 | Title menu                                       | CONFIG chosen with trigger B held (SHIFT, X, B on a pad) opens the hidden menu, KAKUSI mode; a held trigger B no longer stops trigger A choosing an item |
 | Other                                            | EXIT, `PRINTF`, the rotated screen (off), the menu credits                                                                                               |
 

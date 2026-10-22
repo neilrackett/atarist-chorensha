@@ -14,7 +14,11 @@
 ;   cursor keys          directions
 ;   Z, CTRL, fire        trigger A (shot)
 ;   X, SHIFT             trigger B (bomb)
-;   P, ESC               the X68000's ESC (START: pause)
+;   P                    the X68000's ESC (START: pause)
+;   ESC                  back to the title (a game, also paused or at game
+;                        over), EXIT on the title (amiga_escape_pressed, from
+;                        sz2.s, as the Amiga port); outside a stage also the
+;                        X68000's ESC (backs out of the configuration)
 ;   F1                   lockstep on / off (every frame shown, game slowed)
 ;   F2                   the playfield window stays still (display.s)
 ;
@@ -50,6 +54,9 @@
 	xdef input_frame_end
 	xdef st_stage_frame
 	xdef in_stage
+	xdef amiga_escape_pressed
+	xdef amiga_escape_menu
+	xdef amiga_escape_clear
 	xdef load_input_script
 
 	xref frame_count
@@ -79,6 +86,7 @@ SCRIPT_JOYSTICK=0
 XPAD_TRIGGER_A_BUTTONS=XPAD_SOUTH|XPAD_WEST|XPAD_TR|XPAD_TR2
 XPAD_TRIGGER_B_BUTTONS=XPAD_EAST|XPAD_NORTH|XPAD_TL|XPAD_TL2
 X68_ESC_GROUP_0_BIT=1 ; The X68000's ESC: scancode $01.
+IKBD_ESC=$01 ; The ST's ESC key.
 
 IKBD_RELATIVE_MOUSE=$08 ; (TOS's mode.)
 IKBD_MOUSE_OFF=$12
@@ -259,6 +267,32 @@ ikbd_joystick:
 process_key:
 	moveq	#$7f,d1
 	and.b	d0,d1
+
+	; ESC: back to the title (counted for amiga_escape_pressed); outside a
+	; stage also the X68000's ESC, in the key matrix until released. In a
+	; stage it does not pause (P does).
+
+	cmp.b	#IKBD_ESC,d1
+	bne		.not_escape
+
+	tst.b	d0
+	bmi		.escape_up
+
+	addq.l	#1,escape_presses
+	tst.b	in_stage
+	bne		.done
+
+	st		escape_in_matrix
+
+	bra		.not_escape
+
+.escape_up:
+	tst.b	escape_in_matrix
+	beq		.done
+
+	sf		escape_in_matrix
+
+.not_escape:
 	add		d1,d1
 	lea		key_map,a1
 	add		d1,a1
@@ -440,6 +474,44 @@ find_xpad:
 
 ; ------------------------------------------------------------------------------
 ;
+; ESC, "back to the title", for the game's loops (sz2.s, __CHUNKY__, as
+; the Amiga port): returns the Z flag clear once for each ESC press since
+; the last call (several at once count as one). Preserves all registers.
+
+amiga_escape_pressed:
+	move.l	d0,-(sp)
+
+	move.l	escape_presses,d0
+	cmp.l	escape_taken,d0
+	beq		.done
+
+	move.l	d0,escape_taken
+	moveq	#1,d0 ; Z clear.
+
+.done:
+	movem.l	(sp)+,d0 ; (Keeps the flags.)
+
+	rts
+
+; The game loop's READ_JOYSTICK_FOR_MENU result in d0: START + SELECT (3,
+; the game's own way out of a game) after an ESC press.
+
+amiga_escape_menu:
+	bsr		amiga_escape_pressed
+	beq		.done
+
+	moveq	#3,d0
+
+.done:
+	rts
+
+; The title menu appears: ESC presses before it are not "exit".
+
+amiga_escape_clear:
+	move.l	escape_presses,escape_taken
+
+	rts
+
 ; Every VBL: the STE's enhanced joystick port A (a Jaguar pad: button A is
 ; trigger A, B is trigger B), and the Xpad pads. Preserves all registers.
 
@@ -827,6 +899,11 @@ xpad_pad_count:
 xpad_pad_size:
 	ds.w	1
 
+escape_presses: ; ESC presses (the IKBD interrupt).
+	ds.l	1
+escape_taken: ; The last one seen by amiga_escape_pressed.
+	ds.l	1
+
 keyboard_matrix: ; Must be followed by matrix_key_counts, joystick_bit_counts.
 	ds.b	16
 matrix_key_counts: ; Per X68000 scancode: keys holding it.
@@ -843,6 +920,8 @@ pad_joystick_state:
 xpad_joystick_state: ; The Xpad pads', as X68000 joystick bits.
 	ds.b	1
 xpad_matrix_escape: ; Key matrix group 0 bits from the Xpad pads (START: ESC).
+	ds.b	1
+escape_in_matrix: ; ESC pressed outside a stage: in the key matrix until released.
 	ds.b	1
 latest_horizontal:
 	ds.b	1

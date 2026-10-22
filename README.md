@@ -72,7 +72,7 @@ that differ from the defaults. The game then takes the machine over (the
 first game start takes a few seconds, while the background is built) and
 gives it back to the desktop when it ends.
 
-To quit, choose EXIT in the game's menu.
+To quit, choose EXIT in the game's menu, or press ESC on the title screen.
 
 ## Controls
 
@@ -92,7 +92,8 @@ Keyboard:
 | cursor keys           | move                                                                                 |
 | CTRL or Z             | shot                                                                                 |
 | SHIFT or X            | second button                                                                        |
-| P or ESC              | pause (press again to continue)                                                      |
+| P                     | pause (press again to continue)                                                      |
+| ESC                   | back to the title (from a game, also paused or at game over); on the title: quit     |
 | F1                    | lockstep on / off: every frame is shown and the game slows down to the drawing speed |
 | F2                    | keeps the playfield window still instead of following the ship                       |
 | 1, TAB, RETURN, SPACE | as the same keys on the X68000                                                       |
