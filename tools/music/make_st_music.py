@@ -5,9 +5,9 @@ For each song NAME (NAME.log: the original driver's YM2151 writes with the
 loop times; NAME.fade.log: the same with _FADEOUT):
 
   NAME.vgm (in the work directory)   the writes as a standard VGM log:
-                the intro the song's first pass up to its loop command and
-                the loop its second pass, as the Amiga port's streams (a
-                song without loop: until 2 s after its last write); each
+                the intro, the song's first pass up to where its loop
+                starts, then the loop, its second pass (see one_pass); a
+                song without loop until 2 s after its last write. Each
                 write at least a VGM sample after the one before (see
                 write_vgm)
   MUSIC_DAT/NAME.STM   STDL's YM2149 register stream (stdlconv opm: the
@@ -53,9 +53,55 @@ def read_log(path):
     return writes, loops
 
 
-def write_vgm(writes, loops, path):
-    """VGM 1.71: the YM2151 at CLOCK, the loop from the first pass's end
-    to the second's.
+def one_pass(writes, loops):
+    """The song with its loop once: (writes, loop start or None, end).
+
+    The log has two passes: the first up to the song's loop command (the
+    first loop time), the second up to it again (the second), whose
+    length is the loop's. The intro is the first pass up to where the loop
+    starts (the first loop time less that length), the loop the second
+    pass, as the Amiga port's streams have it: it starts with the tails
+    the loop has on every repeat. At the join, the registers that differ
+    between the two points are written as they are at the second pass's
+    start, and the keys keyed as they are there: MCDRV does not write
+    again what it has written before, so the second pass may rely on
+    registers its first pass set.
+    """
+    if len(loops) < 2:
+        return writes, None, (loops[0] if loops else writes[-1][0]) + 2 * CLOCK
+    first, second = loops[0], loops[1]
+    length = second - first
+    start = first - length
+    if start < 0:
+        return [w for w in writes if w[0] < second], first, second
+
+    def state(until):
+        registers = {}
+        keys = [0] * 8
+        for t, register, value in writes:
+            if t >= until:
+                break
+            if register == 0x08:
+                keys[value & 7] = value & 0x78
+            else:
+                registers[register] = value
+        return registers, keys
+
+    intro_registers, intro_keys = state(start)
+    loop_registers, loop_keys = state(first)
+    join = [(start, register, value)
+            for register, value in sorted(loop_registers.items())
+            if intro_registers.get(register) != value]
+    join += [(start, 0x08, loop_keys[ch] | ch)
+             for ch in range(8) if loop_keys[ch] != intro_keys[ch]]
+    return ([w for w in writes if w[0] < start] + join
+            + [(t - length, register, value)
+               for t, register, value in writes if first <= t < second],
+            start, first)
+
+
+def write_vgm(writes, loop, end, path):
+    """VGM 1.71: the YM2151 at CLOCK, looping from loop (None: no loop).
 
     mcdrv_render logs all of a timer tick's writes at the tick's time. On
     the X68000 they are spread out: the YM2151 is busy for 64 of its
@@ -67,11 +113,6 @@ def write_vgm(writes, loops, path):
     Here each write goes at least a VGM sample (22.7 us) after the one
     before, so a player sees what the X68000's chip saw; the times stay
     the ticks' (a tick's writes take under a millisecond)."""
-    if len(loops) >= 2:
-        loop, end = loops[0], loops[1]
-    else:
-        loop, end = None, (loops[0] if loops else writes[-1][0]) + 2 * CLOCK
-
     def samples(clocks):
         return clocks * VGM_RATE // CLOCK
 
@@ -130,7 +171,7 @@ def main(work, output, stdlconv):
     for name in names:
         writes, loops = read_log(os.path.join(work, name + ".log"))
         vgm = os.path.join(work, name + ".vgm")
-        write_vgm(writes, loops, vgm)
+        write_vgm(*one_pass(writes, loops), vgm)
         subprocess.run([sys.executable, stdlconv, "opm", vgm,
                         os.path.join(output, name + ".STM")], check=True)
         fades.append((name, fade_unit(os.path.join(work, name + ".fade.log"))))

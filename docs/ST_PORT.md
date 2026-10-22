@@ -46,9 +46,9 @@ build, against the STE's 946 KB).
 - **Drawing sets the picture rate.** On an STE a picture takes about 45 ms:
   12-13 for the background, 25-28 for the sprites, 3-4 for the text. That
   is about one picture every 4 frames, or every 3 on a Mega STE.
-- **The music costs about 2%.** These figures were measured before the
-  music (as `music=false` plays). With it, the sprite cache is 59 KB
-  smaller, and the attract demo shows 12.4 pictures per second on an ST
+- **The music costs about 1%.** These figures were measured before the
+  music (as `music=false` plays). With it, the sprite cache is 30 KB
+  smaller, and the attract demo shows 12.5 pictures per second on an ST
   and an STE (12.6 and 12.7 without) and 17.2 on a Mega STE (the same);
   the game logic is unchanged.
 - **Full height costs about a fifth.** With both borders open (see Full
@@ -454,15 +454,20 @@ YM2149 instead, from register streams made in advance:
   `NAME.fade.log` with a `_FADEOUT`. (It goes on to make the Amiga's
   `MUSIC_DAT`, so stop it there, or put that folder back from git.)
 - `tools/music/make_st_music.py tools/music/deps/work binaries/st/MUSIC_DAT
-  [stdlconv.py]` writes each log as a VGM file (the intro the first pass
-  up to the loop command, the loop the second pass, as the Amiga's
-  streams), each write at least a VGM sample (23 us) after the one
-  before, and converts it with STDL's `stdlconv opm` into
+  [stdlconv.py]` writes each log as a VGM file, each write at least a VGM
+  sample (23 us) after the one before. The song's loop is in it once: the
+  intro is the first pass up to where the loop starts (the loop command's
+  time less the loop's length), the loop the second pass, which starts
+  with the tails it has on every repeat, as the Amiga's streams do. At
+  the join, the registers that differ between the two points are written
+  as they stand at the second pass's start (MCDRV does not write again
+  what it wrote before). It then converts the VGM with STDL's
+  `stdlconv opm` into
   `MUSIC_DAT\NAME.STM`: STDL's STM format, per 50 Hz frame the YM2149
   registers that change. It also writes `sources/st/music_fades.i`, each
   song's `_FADEOUT` length per unit of speed, measured as the Amiga's
-  script does (0.42 to 0.80 s). Twelve songs, 416 KB; the largest, the
-  fourth stage's, 59 KB.
+  script does (0.42 to 0.80 s). Twelve songs, 232 KB (with both passes
+  they were 416); the largest, the fourth stage's, 30 KB.
 - The spacing: `mcdrv_render` logs a timer tick's writes all at the
   tick's time, but on the X68000 the YM2151 is busy for a sample (16 us)
   after each write and MCDRV waits. When MCDRV keys a channel off and on
@@ -485,8 +490,8 @@ YM2149 instead, from register streams made in advance:
 `music.s`:
 
 - At start, with `music=true` and streams in `MUSIC_DAT`, a buffer the
-  size of the largest (59 KB, taken from the sprite cache; all twelve
-  would take 416 KB). The MCDRV probe in `sz2.s` then reports the driver,
+  size of the largest (30 KB, taken from the sprite cache; all twelve
+  would take 232 KB). The MCDRV probe in `sz2.s` then reports the driver,
   and the game loads its songs as on the X68000. The Amiga port's hooks,
   the probe and `amiga_music_loaded` after each song is loaded (which
   keeps the song's name), are now `ifd __CHUNKY__`, so the ST shares them.
@@ -573,9 +578,9 @@ clock is Timer D instead.
 | **Program**                                                                              | **1,919** (1,855 release)                                  |
 | Game heap (stack, sprite patterns, samples, tables)                                      | 1,024 (871 used); 640 on an ST, with no samples (510 used) |
 | Three screens (allocated for the layout chosen)                                          | 94; 129 at full height                                     |
-| Music buffer (the largest song; none with `music=false`)                                 | 59                                                         |
+| Music buffer (the largest song; none with `music=false`)                                 | 30                                                         |
 | Kept free for TOS                                                                        | 64                                                         |
-| **Sprite arena**                                                                         | **881** (946 release); 846 at full height; 59 less with the music |
+| **Sprite arena**                                                                         | **881** (946 release); 846 at full height; 30 less with the music |
 
 ## Measurements
 
