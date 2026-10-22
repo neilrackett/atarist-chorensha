@@ -99,6 +99,13 @@ SCREENSHOT_INTERVAL=500
 
 MAXIMUM_UNIMPLEMENTED_DOS=8
 
+; Human68k file handles (the Amiga port's).
+
+FIRST_FILE_HANDLE=5 ; 0-4 are the standard handles.
+NUMBER_OF_FILE_HANDLES=16
+HUMAN68K_ERROR_TOO_MANY_FILES=-4
+HUMAN68K_ERROR_BAD_HANDLE=-6
+
 ; ------------------------------------------------------------------------------
 	text
 ; ------------------------------------------------------------------------------
@@ -814,32 +821,67 @@ human68k_setblock:
 
 	rts
 
+; Files: the game gets Human68k handles (5 up), each for a GEMDOS one. Its C
+; library keeps a handle in a byte, and a GEMDOS handle need not fit one:
+; ACSI2STM's GemDrive gives $3200 and up (its first file would read as
+; handle 0, the keyboard).
+
 ; _OPEN(name.l, mode.w): GEMDOS Fopen (the same modes).
 
 human68k_open:
+	bsr		find_free_handle
+	bmi		file_opened
+
+	move.l	d0,d5
 	move	4(a5),-(sp)
 	move.l	(a5),-(sp)
 	move	#61,-(sp)
 	trap	#1
 	addq.l	#8,sp
 
-	rts
+	bra		file_opened
 
 ; _CREATE(name.l, attributes.w): GEMDOS Fcreate (normal file).
 
 human68k_create:
+	bsr		find_free_handle
+	bmi		file_opened
+
+	move.l	d0,d5
 	clr		-(sp)
 	move.l	(a5),-(sp)
 	move	#60,-(sp)
 	trap	#1
 	addq.l	#8,sp
 
+; d0.l = GEMDOS's handle (or an error), d5 = a free slot: returns d0.l = the
+; Human68k handle (or the error).
+
+file_opened:
+	tst.l	d0
+	bmi		.done
+
+	lea		file_handles,a0
+	add		d5,d5
+	move	d0,(a0,d5.w)
+
+	lsr		#1,d5
+	moveq	#FIRST_FILE_HANDLE,d0
+	add.l	d5,d0
+
+.done:
 	rts
 
 ; _CLOSE(handle.w)
 
 human68k_close:
-	move	(a5),-(sp)
+	move	(a5),d0
+	bsr		get_file_handle
+	beq		bad_handle
+
+	clr		(a0)
+
+	move	d0,-(sp)
 	move	#62,-(sp)
 	trap	#1
 	addq.l	#4,sp
@@ -849,11 +891,15 @@ human68k_close:
 ; _READ(handle.w, buffer.l, length.l)
 
 human68k_read:
+	move	(a5),d0
+	bsr		get_file_handle
+	beq		bad_handle
+
 	move.l	2(a5),-(sp)
-	move.l	6(a5),d0
-	and.l	#$7fffffff,d0
-	move.l	d0,-(sp)
-	move	(a5),-(sp)
+	move.l	6(a5),d1
+	and.l	#$7fffffff,d1 ; Human68k uses bit 31 as a flag.
+	move.l	d1,-(sp)
+	move	d0,-(sp)
 	move	#63,-(sp)
 	trap	#1
 	lea		12(sp),sp
@@ -863,9 +909,13 @@ human68k_read:
 ; _WRITE(handle.w, buffer.l, length.l)
 
 human68k_write:
+	move	(a5),d0
+	bsr		get_file_handle
+	beq		bad_handle
+
 	move.l	2(a5),-(sp)
 	move.l	6(a5),-(sp)
-	move	(a5),-(sp)
+	move	d0,-(sp)
 	move	#64,-(sp)
 	trap	#1
 	lea		12(sp),sp
@@ -875,12 +925,62 @@ human68k_write:
 ; _SEEK(handle.w, offset.l, mode.w): GEMDOS Fseek (the same modes).
 
 human68k_seek:
+	move	(a5),d0
+	bsr		get_file_handle
+	beq		bad_handle
+
 	move	6(a5),-(sp)
-	move	(a5),-(sp)
+	move	d0,-(sp)
 	move.l	2(a5),-(sp)
 	move	#66,-(sp)
 	trap	#1
 	lea		10(sp),sp
+
+	rts
+
+bad_handle:
+	moveq	#HUMAN68K_ERROR_BAD_HANDLE,d0
+
+	rts
+
+; Returns d0.l = a free slot, or a Human68k error (N set).
+
+find_free_handle:
+	lea		file_handles,a0
+	moveq	#0,d0
+
+.loop:
+	tst		(a0)+
+	beq		.found
+
+	addq.l	#1,d0
+	cmp.l	#NUMBER_OF_FILE_HANDLES,d0
+	bne		.loop
+
+	moveq	#HUMAN68K_ERROR_TOO_MANY_FILES,d0
+
+.found:
+	rts
+
+; d0.w = Human68k handle. Returns d0.w = GEMDOS's handle (Z set if none) and
+; a0 = its slot. (The standard handles, 0-4, have none.)
+
+get_file_handle:
+	sub		#FIRST_FILE_HANDLE,d0
+	bcs		.none
+
+	cmp		#NUMBER_OF_FILE_HANDLES,d0
+	bcc		.none
+
+	lea		file_handles,a0
+	add		d0,d0
+	add		d0,a0
+	move	(a0),d0
+
+	rts
+
+.none:
+	moveq	#0,d0
 
 	rts
 
@@ -1287,6 +1387,8 @@ last_sprite_count:
 	ds.w	1
 unimplemented_dos: ; Opcodes, 0 = free (then a 0: the report's end).
 	ds.w	MAXIMUM_UNIMPLEMENTED_DOS+1
+file_handles: ; GEMDOS's, for Human68k's from 5 (0 = free).
+	ds.w	NUMBER_OF_FILE_HANDLES
 unimplemented_iocs: ; Per function: non-zero if called.
 	ds.b	256
 

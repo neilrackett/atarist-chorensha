@@ -94,6 +94,45 @@ HEAP_SIZE_ST=HEAP_SIZE-$60000 ; An ST loads no samples (370 KB): 640 KB.
 
 start:
 	move.l	4(sp),a0 ; Basepage.
+
+	; The BSS cleared here, whatever the loader did: ACSI2STM's GemDrive
+	; (5.1) clears only its first 130,560 bytes (one DMA fill of 255
+	; sectors), and the rest keeps what was in memory before. From its end
+	; down: the bytes past a multiple of 64, then 64-byte blocks. (The
+	; stack is still TOS's, at the TPA's top.)
+
+	move.l	24(a0),a1 ; p_bbase
+	move.l	28(a0),d0 ; p_blen
+	add.l	d0,a1
+	moveq	#0,d1
+	moveq	#64-1,d2
+	and		d0,d2
+	bra		.next_byte
+
+.clear_byte:
+	move.b	d1,-(a1)
+
+.next_byte:
+	dbf		d2,.clear_byte
+
+	lsr.l	#6,d0
+	beq		.bss_cleared
+
+	moveq	#0,d2
+	moveq	#0,d3
+	moveq	#0,d4
+	moveq	#0,d5
+	moveq	#0,d6
+	moveq	#0,d7
+	move.l	d1,a3
+
+.clear_block:
+	movem.l	d1-d7/a3,-(a1)
+	movem.l	d1-d7/a3,-(a1)
+	subq.l	#1,d0
+	bne		.clear_block
+
+.bss_cleared:
 	lea		my_stack,sp ; In the BSS (the TPA's top is given back).
 
 	move.l	a0,basepage

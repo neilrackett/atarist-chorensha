@@ -150,11 +150,24 @@ On a Mega STE the program switches to 16 MHz with the cache on. It reads
 `$FFFF8E21` back and reports what it finds, and restores the register on
 exit.
 
+**Hard disks.** The game runs from any GEMDOS drive. Two things matter
+with ACSI2STM's GemDrive (5.1), which Hatari's drive never shows:
+- Its program loader clears only the first 130,560 bytes of a program's
+  BSS (one DMA fill of 255 sectors). The port's BSS is about 1.6 MB, so
+  the program clears its own first thing (`main.s` `start`).
+- Its file handles are `$3200` and up (`$32` plus the ACSI ID, then the
+  slot). The game's C library keeps a handle in a byte, which made the
+  first file it opened read as handle 0, the keyboard: GEMDOS then waited
+  for a key the port's own IKBD handler took, and the game hung at the
+  start. The game now gets Human68k handles (5 up) that the DOS layer
+  maps to GEMDOS's, as the Amiga port does.
+
 ## How it works
 
 The game core (`sources/sz2.s`, the X68000 program as 68000 source) runs
 on a port layer:
-- Human68k DOS through line-F and GEMDOS.
+- Human68k DOS through line-F and GEMDOS (Human68k file handles mapped to
+  GEMDOS's).
 - IOCS through trap #15.
 - The 50 Hz VBL as the game's frame tick.
 - Sound effects through DMA sound.
