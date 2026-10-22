@@ -92,8 +92,8 @@ AUTOFIRE_FRAMES=1<<AUTOFIRE_SHIFT ; Pressed for 2 frames, released for 2.
 	text
 ; ------------------------------------------------------------------------------
 
-; IKBD/MIDI interrupt (MFP, automatic end of interrupt): every byte the ACIA
-; holds goes to the current packet state.
+; IKBD/MIDI interrupt (MFP channel 6, software end of interrupt): every byte
+; the ACIA holds goes to the current packet state.
 
 ikbd_handler:
 	movem.l	d0-d4/a0-a2,-(sp)
@@ -123,6 +123,7 @@ ikbd_handler:
 	bra		.next_byte
 
 .done:
+	move.b	#%10111111,$fffffa11.w ; End of interrupt (ISRB bit 6).
 	movem.l	(sp)+,d0-d4/a0-a2
 
 	rte

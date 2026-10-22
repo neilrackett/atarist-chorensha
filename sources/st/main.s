@@ -42,6 +42,7 @@
 	xref restore_cpu_speed
 	xref force_8mhz
 	xref mega_ste_control
+	xref old_8e21
 	xref initialize_display
 	xref initialize_renderer
 	xref release_renderer
@@ -525,6 +526,15 @@ print_cpu_speed:
 	move.b	mega_ste_control,d0
 	moveq	#2,d1
 	jsr		print_hex
+	lea		cpu_was_text,a0
+	jsr		print_text
+	move.l	d0,-(sp)
+	moveq	#0,d0
+	move.b	old_8e21,d0
+	jsr		print_hex
+	move.l	(sp)+,d0
+	lea		cpu_was_end_text,a0
+	jsr		print_text
 
 	lea		cpu_8mhz_text,a0
 	btst	#1,d0
@@ -890,6 +900,10 @@ megaste8_file_name:
 	dc.b	'MEGASTE8.TXT',0
 cpu_text:
 	dc.b	'CPU ($FFFF8E21): $',0
+cpu_was_text:
+	dc.b	' (was $',0
+cpu_was_end_text:
+	dc.b	')',0
 cpu_16mhz_text:
 	dc.b	', 16 MHz',0
 cpu_8mhz_text:

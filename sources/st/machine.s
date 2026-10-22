@@ -14,6 +14,7 @@
 	xdef machine_has_ste_hardware
 	xdef set_cpu_speed
 	xdef restore_cpu_speed
+	xdef old_8e21
 	xdef force_8mhz
 	xdef machine_type
 	xdef mega_ste_control
@@ -42,6 +43,13 @@
 	xref st_palette
 
 	include "st.i"
+
+; $FFFF8E21, the Mega STE's speed and cache (bit 1: 16 MHz, bit 0: the
+; cache): written whole with the canonical values, as Atari's control panel
+; and MSTE_CC do (the upper bits set). It reads back with them clear on a
+; real Mega STE ($20 at TOS's 8 MHz, $23 at 16 MHz with the cache).
+MEGA_STE_16MHZ_CACHE=$ff
+MEGA_STE_8MHZ=$f4 ; Without the cache: TOS's after a cold boot.
 
 MACHINE_STE=$00010000
 MACHINE_MEGA_STE=$00010010
@@ -303,7 +311,12 @@ initialize_machine:
 	bset	#MEASURE_BIT,MEASURE_MASK.w
 	endif
 
-	bclr	#3,$fffffa17.w ; Automatic end of interrupt.
+	; The MFP stays in TOS's software end-of-interrupt mode (the port's
+	; handlers clear their in-service bits): while a handler runs, its
+	; channel and the ones below it wait, as TOS's own handlers (Timer C
+	; and the serial port's, kept for an Xpad provider) and the providers'
+	; code expect. In automatic mode TOS's Timer C could interrupt its own
+	; handler while COMpad, at mask 5 in it, drains the serial port.
 
 	jsr		ikbd_synchronise ; (The IKBD interrupt enabled: no edge missed.)
 
@@ -311,21 +324,20 @@ initialize_machine:
 
 ; ------------------------------------------------------------------------------
 ;
-; Mega STE: 16 MHz and the cache (bits 1 and 0 of $FFFF8E21), or 8 MHz
-; without the cache if force_8mhz is set (MEGASTE8.TXT, for comparisons).
-; The register is read back into mega_ste_control (the start-up text and
-; the exit report show it); release_machine puts the old value back.
+; Mega STE: 16 MHz and the cache ($FFFF8E21 = $FF), or 8 MHz without the
+; cache ($F4) if force_8mhz is set (MEGASTE8.TXT, for comparisons). The
+; register is read back into mega_ste_control (the start-up text and the
+; exit report show it); release_machine puts the old value back.
 ; A Mega STE only; supervisor mode, before the take-over.
 
 set_cpu_speed:
-	move.b	$ffff8e21.w,d0
-	move.b	d0,old_8e21
+	move.b	$ffff8e21.w,old_8e21
 
-	and.b	#$fc,d0
+	move.b	#MEGA_STE_16MHZ_CACHE,d0
 	tst.b	force_8mhz
-	bne		.write
+	beq		.write
 
-	or.b	#3,d0 ; 16 MHz, cache.
+	move.b	#MEGA_STE_8MHZ,d0
 
 .write:
 	move.b	d0,$ffff8e21.w
@@ -333,11 +345,17 @@ set_cpu_speed:
 
 	rts
 
-; A Mega STE back to the speed and cache it had before set_cpu_speed.
+; A Mega STE back to the speed and cache it had before set_cpu_speed: the
+; value read then, or TOS's cold-boot $F4 if it read without its upper
+; bits. Preserves all registers.
 
 restore_cpu_speed:
 	tst.b	machine_is_mega_ste ; (set_cpu_speed ran.)
 	beq		.done
+
+	move.b	#MEGA_STE_8MHZ,$ffff8e21.w
+	tst.b	old_8e21
+	bpl		.done ; (Upper bits clear: the cold-boot value stays.)
 
 	move.b	old_8e21,$ffff8e21.w
 
@@ -492,6 +510,7 @@ force_8mhz:
 	ds.b	1
 mega_ste_control: ; $FFFF8E21 as read back after set_cpu_speed.
 	ds.b	1
+
 
 old_fa07:
 	ds.b	1

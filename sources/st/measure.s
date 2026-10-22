@@ -65,6 +65,7 @@ BUCKET_UNITS=19 ; 0.495 ms.
 
 measure_timer_handler:
 	addq.l	#1,timer_overflows
+	move.b	#~(1<<MEASURE_BIT)&$ff,MEASURE_IN_SERVICE.w ; End of interrupt.
 
 	rte
 

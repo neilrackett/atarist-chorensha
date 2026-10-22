@@ -146,9 +146,17 @@ serial interrupts running: TOS's Timer C handler calls `etv_timer`, where
 providers update their pads (COMpad reads TOS's serial buffer there). That
 costs about 2% of the picture rate, and only with a provider installed.
 
-On a Mega STE the program switches to 16 MHz with the cache on. It reads
-`$FFFF8E21` back and reports what it finds, and restores the register on
-exit.
+On a Mega STE the program switches to 16 MHz with the cache on, writing
+`$FFFF8E21` whole with the canonical value `$FF` (`$F4` for 8 MHz without
+the cache with `MEGASTE8.TXT`), as Atari's control panel and MSTE_CC do.
+It reports what it reads back (a real Mega STE reads `$20` at TOS's
+8 MHz and `$23` after the switch: the upper bits read as clear), and
+restores the register on exit (TOS's cold-boot `$F4` if it read without
+its upper bits).
+
+The MFP stays in TOS's software end-of-interrupt mode: the port's own
+handlers clear their in-service bits, so TOS's Timer C and serial handlers
+(kept for an Xpad provider) are never interrupted by their own channel.
 
 **Hard disks.** The game runs from any GEMDOS drive. Two things matter
 with ACSI2STM's GemDrive (5.1), which Hatari's drive never shows:
