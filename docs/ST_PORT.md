@@ -51,11 +51,19 @@ needs the submodules (Xpad, and STDL for the full height): `git
 submodule update --init`.
 
 ```
-./build_st.sh                 binaries/st/SZ2_ST.TOS (measurements; and SZ2_DBG.TOS with symbols)
-RELEASE=1 ./build_st.sh       binaries/st/SZ2_REL.TOS: to play (no measurements)
-HEADLESS=1 ./build_st.sh      binaries/st/SZ2_HL.TOS: no rendering (game logic, checkpoints)
-STREAM=1 ./build_st.sh        an S added to the name: the text also on md-devops' debug stream
+make                          binaries/st/SZ2_ST.TOS (measurements; and SZ2_DBG.TOS with symbols)
+make release                  binaries/st/SZ2_REL.TOS: to play (no measurements)
+make headless                 binaries/st/SZ2_HL.TOS: no rendering (game logic, checkpoints)
+make stream                   binaries/st/SZ2_STS.TOS: the text also on md-devops' debug stream
+make dist                     dist/CHORENSH/: SZ2.TOS (the release), SZ2.CFG and the data, for an ST
+make test                     Hatari: checkpoints (ST, STE, Mega STE; crop and full height), pixel oracle
+make others                   the X68000, Falcon and Amiga builds (build_mac.sh, or build.sh)
+make clean                    removes the builds' and tests' files (keeps tmp/tos)
 ```
+
+The Makefile runs `build_st.sh`, which can also be run directly:
+`RELEASE=1`, `HEADLESS=1` and `STREAM=1` (an S added to the name, with any
+of the others) pick the build, `FLAGS` and `NAME` add defines and rename it.
 
 Every build has both screen layouts, crop and full height (see below):
 `SZ2.CFG` picks one when the program starts.
@@ -70,7 +78,8 @@ to those of the `amiga-port` revision; `CHECK=0` skips the check.
 `../atarist-rott/tmp/tos/` to `tmp/tos/`. To run the program elsewhere, put
 the folders `BGM_DAT`, `ETC_DAT` and `XSP_DAT` (from `binaries/amiga`) and
 `PCM_DAT` (from `binaries/atari`) next to it, with `SZ2_YM.BIN` (from
-`binaries/st/PCM_DAT`) added to `PCM_DAT`. Each machine loads only what
+`binaries/st/PCM_DAT`) added to `PCM_DAT`: `make dist` makes that folder,
+`dist/CHORENSH`, ready to copy to an ST. Each machine loads only what
 it plays: an ST the YM effects in `SZ2_YM.BIN` and none of the `.sam`
 samples, an STE or Mega STE the samples and not `SZ2_YM.BIN`; the run
 script stages only those. The program checks for its files at start and
