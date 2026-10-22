@@ -12,7 +12,7 @@ cp binaries/sz2.x binaries/x68000/CH68_101_B/SZ2.X
 #diff binaries/sz2.dif binaries/x68000/sz2.dif
 
 #
-# Atari
+# Atari Falcon
 #
 ./tools/vasmm68k_mot.exe sources/sz2.s -quiet -no-opt -Faout -m68030 -D__ATARI__ -o binaries/sz2_atari.o
 ./tools/vasmm68k_mot.exe sources/atari/main.s -quiet -Faout -m68030 -o binaries/main.o

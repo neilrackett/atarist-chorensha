@@ -12,7 +12,7 @@ diff binaries/sz2.hex binaries/x68000/sz2.hex > binaries/sz2.dif
 diff binaries/sz2.dif binaries/x68000/sz2.dif
 
 #
-# Atari
+# Atari Falcon
 #
 ./tools/vasmm68k_mot sources/sz2.s -quiet -no-opt -Faout -m68030 -D__ATARI__ -o binaries/sz2_atari.o
 ./tools/vasmm68k_mot sources/atari/main.s -quiet -Faout -m68030 -o binaries/main.o
