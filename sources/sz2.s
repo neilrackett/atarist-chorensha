@@ -10051,12 +10051,12 @@ L_00024DDC:
 
 	pea     menu_port_text1(pc)
 	pea     $1a.w
-	pea     $6.w
+	pea     $a.w ; (Centred: columns 10-22, as the version below.)
 	jsr     (a3)
 
 	pea     menu_port_text2(pc)
 	pea     $1b.w
-	pea     $7.w
+	pea     $9.w ; (Centred: columns 9-23.)
 	jsr     (a3)
 
 	else
