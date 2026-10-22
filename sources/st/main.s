@@ -870,7 +870,7 @@ welcome_text:
 	dc.b	'(c) 1995 Famibe No Yosshin (X68000).',13,10
 	dc.b	'Falcon port: Sascha Springer.',13,10
 	dc.b	'Amiga port: Adam Polkosnik.',13,10
-	dc.b	'Atari ST port: Neil Rackett.',13,10,13,10,0
+	dc.b	'ST port: Neil Rackett (neilrackett.com)',13,10,13,10,0
 st_text:
 	dc.b	'Machine: Atari ST, 8 MHz.',13,10
 	dc.b	'No DMA sound: YM sound effects.',13,10,0
