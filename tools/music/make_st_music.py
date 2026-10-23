@@ -10,7 +10,7 @@ loop times; NAME.fade.log: the same with _FADEOUT):
                 song without loop until 2 s after its last write. Each
                 write at least a VGM sample after the one before (see
                 write_vgm)
-  MUSIC_DAT/NAME.STM   STDL's YM2149 register stream (stdlconv opm: the
+  MUS_DAT/NAME.STM   STDL's YM2149 register stream (stdlconv opm: the
                 eight FM channels reduced to the YM2149's three voices and
                 noise), played by sources/st/music.s
 

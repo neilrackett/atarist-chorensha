@@ -3,7 +3,7 @@
 ; (trap #4). Each song is reduced beforehand (tools/music/make_st_music.py:
 ; the original driver's YM2151 writes, through STDL's stdlconv opm) to the
 ; YM2149's three voices and noise, a register stream in STDL's STM format
-; (lib/stdl/docs/format.md), MUSIC_DAT\NAME.STM:
+; (lib/stdl/docs/format.md), MUS_DAT\NAME.STM:
 ;
 ;   'STM1', tick rate.w (50), frames.w, loop frame.w, reserved.w, then per
 ;   frame a mask word (bit r: register r's byte follows) and the bytes of
@@ -11,7 +11,7 @@
 ;   and the loop's set registers 0-12.
 ;
 ; - At start (initialize_music, GEMDOS): with music=true (SZ2.CFG) and
-;   streams in MUSIC_DAT, a buffer the size of the largest. The MCDRV probe
+;   streams in MUS_DAT, a buffer the size of the largest. The MCDRV probe
 ;   (sz2.s) then reports the driver, and the game loads the songs named in
 ;   SZ2_BGM.CNF as on the X68000: amiga_music_loaded keeps each song's base
 ;   name and its fade unit (music_fades.i).
@@ -90,7 +90,7 @@ DTA_SIZE=44
 ; ------------------------------------------------------------------------------
 
 ; At start (GEMDOS, before the sprite arena takes the rest of the memory):
-; with music=true, a buffer the size of the largest stream in MUSIC_DAT.
+; with music=true, a buffer the size of the largest stream in MUS_DAT.
 ; music_available is set if there is one. Preserves all registers.
 
 initialize_music:
@@ -439,7 +439,7 @@ load_song:
 	move	#-1,loaded_song
 	move	d2,music_playing_song
 
-	; "MUSIC_DAT\" + the base name + ".STM"
+	; "MUS_DAT\" + the base name + ".STM"
 
 	lea		music_path,a0
 	lea		music_directory,a1
@@ -777,9 +777,9 @@ write_registers:
 ; ------------------------------------------------------------------------------
 
 music_pattern:
-	dc.b	'MUSIC_DAT\*.STM',0
+	dc.b	'MUS_DAT\*.STM',0
 music_directory:
-	dc.b	'MUSIC_DAT\',0
+	dc.b	'MUS_DAT\',0
 music_extension:
 	dc.b	'.STM',0
 

@@ -27,7 +27,7 @@
 # port's BGM_DAT, ETC_DAT (its attract demo replay, which the ST's
 # checkpoint reference was recorded with) and XSP_DAT, and of the Falcon's
 # PCM_DAT (its .sam samples), with the ST's own SZ2_YM.BIN added, and the
-# ST's own MUSIC_DAT (tools/music/make_st_music.py).
+# ST's own MUS_DAT (tools/music/make_st_music.py).
 
 ST = binaries/st
 DIST = dist/CHORENSH
@@ -65,7 +65,7 @@ release: $(ST)/SZ2.TOS
 	cp $(ST)/SZ2.TOS $(DIST)/
 	@# The settings' template, but never over settings in use.
 	@test -f $(DIST)/SZ2.CFG || cp $(ST)/SZ2.CFG $(DIST)/SZ2.CFG
-	for data in BGM_DAT ETC_DAT MUSIC_DAT PCM_DAT XSP_DAT; do \
+	for data in BGM_DAT ETC_DAT MUS_DAT PCM_DAT XSP_DAT; do \
 		rm -rf $(DIST)/$$data; cp -R $(ST)/$$data $(DIST)/; \
 	done
 	find $(DIST) -name .DS_Store -delete

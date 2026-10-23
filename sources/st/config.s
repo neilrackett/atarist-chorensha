@@ -15,7 +15,7 @@
 ;                        band: in a band of its own (faster)
 ;   megaste_speedup=true a Mega STE at 16 MHz with the cache; false: at
 ;                        8 MHz without it (for comparisons)
-;   music=true           the songs on the YM2149 (MUSIC_DAT); false: none
+;   music=true           the songs on the YM2149 (MUS_DAT); false: none
 ;   lockstep=false       true: every frame shown from the start (as F1)
 ;   frames=0             a frame limit: the game exits after that many
 ;                        frames (test runs); 0: none

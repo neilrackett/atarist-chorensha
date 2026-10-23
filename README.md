@@ -143,7 +143,7 @@ CHORENSH/
   SZ2.CFG                its settings (see Configuration)
   BGM_DAT/               the original MCDRV song data (loaded, not played)
   ETC_DAT/               demo replays, tables, high scores
-  MUSIC_DAT/             the songs as YM2149 register streams
+  MUS_DAT/               the songs as YM2149 register streams
   PCM_DAT/               the sound effects: the samples, and SZ2_YM.BIN,
                          their YM2149 versions for an ST
   XSP_DAT/               the sprites
@@ -153,7 +153,7 @@ CHORENSH/
 `make debug` builds the measurement version, `make test` runs the tests in
 Hatari, and `make clean` removes what the builds and tests made. The other
 make targets, running the game in Hatari and on a real ST, how the songs in
-`MUSIC_DAT` are made, and how the port works:
+`MUS_DAT` are made, and how the port works:
 [docs/ST_PORT.md](docs/ST_PORT.md).
 
 ## Credits

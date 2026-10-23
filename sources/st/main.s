@@ -932,7 +932,7 @@ mega_ste_text:
 music_text:
 	dc.b	'Music: the songs on the YM2149.',13,10,0
 no_music_text:
-	dc.b	'Music: none (no MUSIC_DAT).',13,10,0
+	dc.b	'Music: none (no MUS_DAT).',13,10,0
 music_off_text:
 	dc.b	'Music: off.',13,10,0
 cpu_text:

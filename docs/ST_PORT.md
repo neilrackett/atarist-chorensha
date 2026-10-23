@@ -107,7 +107,7 @@ there, as the Amiga's and the Falcon's do from their folders: copies of
 the Amiga port's `BGM_DAT`, `ETC_DAT` (its attract demo replay, which the
 checkpoint reference was recorded with) and `XSP_DAT`, and of the Falcon
 port's `PCM_DAT` (its `.sam` samples) with the ST's `SZ2_YM.BIN` added,
-and the ST's own `MUSIC_DAT` (see Music below). `make check-data` (and
+and the ST's own `MUS_DAT` (see Music below). `make check-data` (and
 `make test`) checks that the copies still match those.
 `make release` also copies the release, `SZ2.CFG` and the data into
 `dist/CHORENSH`, a clean folder to copy to an ST (an `SZ2.CFG` already
@@ -482,7 +482,7 @@ The attract demo on an ST, with no samples at all, plays 754 effects in
 a half less often (6 times against 10). A Hatari recording of an ST has sound in 276 of its 500
 tenths of a second, and an STE's 275.
 
-### Music (`music.s`, `tools/music/make_st_music.py`, `MUSIC_DAT`)
+### Music (`music.s`, `tools/music/make_st_music.py`, `MUS_DAT`)
 
 The game plays its songs (`BGM_DAT\*.MDC`, for the X68000's YM2151 FM
 chip) through the MCDRV driver, trap #4. The port plays them on the
@@ -493,7 +493,7 @@ YM2149 instead, from register streams made in advance:
   `tools/music/deps/work/NAME.log`, the song's first two passes, and
   `NAME.fade.log` with a `_FADEOUT`. (It goes on to make the Amiga's
   `MUSIC_DAT`, so stop it there, or put that folder back from git.)
-- `tools/music/make_st_music.py tools/music/deps/work binaries/st/MUSIC_DAT
+- `tools/music/make_st_music.py tools/music/deps/work binaries/st/MUS_DAT
   [stdlconv.py]` writes each log as a VGM file, each write at least a VGM
   sample (23 us) after the one before. The song's loop is in it once: the
   intro is the first pass up to where the loop starts (the loop command's
@@ -503,8 +503,10 @@ YM2149 instead, from register streams made in advance:
   as they stand at the second pass's start (MCDRV does not write again
   what it wrote before). It then converts the VGM with STDL's
   `stdlconv opm` into
-  `MUSIC_DAT\NAME.STM`: STDL's STM format, per 50 Hz frame the YM2149
-  registers that change. It also writes `sources/st/music_fades.i`, each
+  `MUS_DAT\NAME.STM`: STDL's STM format, per 50 Hz frame the YM2149
+  registers that change. (TOS's names are 8.3: the Amiga's `MUSIC_DAT`
+  is not one, and on a real ST's disk TOS does not find it; Hatari's
+  GEMDOS drive matches it anyway.) It also writes `sources/st/music_fades.i`, each
   song's `_FADEOUT` length per unit of speed, measured as the Amiga's
   script does (0.42 to 0.80 s). Twelve songs, 232 KB (with both passes
   they were 416); the largest, the fourth stage's, 30 KB.
@@ -529,7 +531,7 @@ YM2149 instead, from register streams made in advance:
 
 `music.s`:
 
-- At start, with `music=true` and streams in `MUSIC_DAT`, a buffer the
+- At start, with `music=true` and streams in `MUS_DAT`, a buffer the
   size of the largest (30 KB, taken from the sprite cache; all twelve
   would take 232 KB). The MCDRV probe in `sz2.s` then reports the driver,
   and the game loads its songs as on the X68000. The Amiga port's hooks,
