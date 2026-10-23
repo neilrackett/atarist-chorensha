@@ -131,7 +131,7 @@ line is read instead (test runs).
 
 | Setting           | Default |                                                                                                          |
 | ----------------- | ------- | -------------------------------------------------------------------------------------------------------- |
-| `preset`          | none    | `performance`, `default` or `authentic`: the four settings below it as the preset has them (see below)   |
+| `preset`          | `default` | `default`: the settings as set; `performance` or `authentic`: the four below it as the preset has them |
 | `screen`          | `crop`  | `crop`: the 200-line screen, the window following the ship; `full`: both borders open, the whole picture |
 | `hud`             | `over`  | `over`: the score over the playfield; `band`: in a band of its own (see Display)                         |
 | `megaste_speedup` | `true`  | `false`: a Mega STE stays at 8 MHz without the cache (for comparisons)                                   |
@@ -139,16 +139,17 @@ line is read instead (test runs).
 | `lockstep`        | `false` | `true`: every frame drawn from the start (F1 switches)                                                   |
 | `frames`          | `0`     | A frame limit: the game exits after that many frames, with its report (measurements); 0: none            |
 
-A preset is applied once the whole file is read, so it wins over the
-four settings it sets wherever they are; `lockstep` and `frames` (for
-tests) are left as the file has them. The start-up screen names it.
+`performance` or `authentic` is applied once the whole file is read, so
+it wins over the four settings it sets wherever they are; `lockstep` and
+`frames` (for tests) are left as the file has them. The start-up screen
+names it. `default` leaves every setting to the file.
 In the attract demo (pictures per second):
 
-| Preset        | ST   | STE  | Mega STE |
-| ------------- | ---- | ---- | -------- |
-| `performance` | 12.6 | 12.7 | 17.3     |
-| `default`     | 11.6 | 11.7 | 16.6     |
-| `authentic`   | 9.7  | 9.4  | 14.2     |
+| Preset                       | ST   | STE  | Mega STE |
+| ---------------------------- | ---- | ---- | -------- |
+| `performance`                | 12.6 | 12.7 | 17.3     |
+| `default` (nothing else set) | 11.6 | 11.7 | 16.6     |
+| `authentic`                  | 9.7  | 9.4  | 14.2     |
 
 ```
 # Playing, in a window (MACHINE=megaste for the Mega STE).

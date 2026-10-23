@@ -5,9 +5,10 @@
 ; read, is reported at start and ignored. binaries/st/SZ2.CFG lists them,
 ; commented out, each set to the opposite of its default:
 ;
-;   preset=              none; or performance, default or authentic: screen,
-;                        hud, megaste_speedup and music set as the preset
-;                        has them, whatever the file says (presets)
+;   preset=default       the settings as the file has them; performance or
+;                        authentic: screen, hud, megaste_speedup and music
+;                        set as the preset has them, whatever the file says
+;                        (presets)
 ;   screen=crop          crop (200 lines, the window follows the ship) or
 ;                        full (both borders open: the whole picture)
 ;   hud=over             the score over the playfield (as on the X68000), or
@@ -37,7 +38,7 @@ CONFIG_SIZE=4096 ; At most (the rest is ignored), read into the game's
                  ; process area (main.s clears it afterwards).
 WORD_SIZE=32 ; A name or value, at most 31 characters (the rest ignored).
 
-; The presets (preset=, 1-3; 0: none): name, then screen=full, hud=band,
+; The presets (preset=, 1-2; 0: default, none): name, then screen=full, hud=band,
 ; megaste_speedup, music.
 
 PRESET_NAME=0
@@ -46,7 +47,7 @@ PRESET_HUD_BAND=5
 PRESET_MEGASTE_SPEEDUP=6
 PRESET_MUSIC=7
 PRESET_SIZE=8
-PRESET_COUNT=3
+PRESET_COUNT=2
 
 ; ------------------------------------------------------------------------------
 	text
@@ -361,6 +362,15 @@ apply_preset:
 
 set_preset:
 	moveq	#0,d1
+	lea		default_word,a4
+	bsr		same_word
+	bne		.not_default
+
+	clr.b	preset ; The file's settings.
+
+	rts
+
+.not_default:
 	lea		presets,a2
 	moveq	#1,d2
 
@@ -540,11 +550,9 @@ settings: ; Name, handler.
 	dc.l	frames_name,set_frames
 	dc.l	0
 
-presets: ; The most pictures per second; the defaults; the X68000's look.
+presets: ; The most pictures per second; the X68000's look.
 	dc.l	performance_word
 	dc.b	0,-1,-1,0 ; Crop, the HUD band, 16 MHz, no music.
-	dc.l	default_word
-	dc.b	0,0,-1,-1 ; Crop, the score over the playfield, music.
 	dc.l	authentic_word
 	dc.b	-1,0,-1,-1 ; Full height, the score over the playfield, music.
 
@@ -634,7 +642,7 @@ full_height: ; screen=full: both borders open (until they fail to).
 	ds.b	1
 hud_band: ; hud=band: the score in a band of its own, not over the playfield.
 	ds.b	1
-preset: ; preset= (1-3), applied after the file: 0 none.
+preset: ; preset= (1-2), applied after the file: 0 default (none).
 	ds.b	1
 megaste_speedup: ; A Mega STE at 16 MHz with the cache.
 	ds.b	1
