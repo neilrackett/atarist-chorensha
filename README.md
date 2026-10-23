@@ -97,6 +97,7 @@ value it cannot read, is named on the start-up screen and ignored.
 
 | Setting           | Default | Meaning                                                                                                                                                 |
 | ----------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `preset`          | none    | Sets `screen`, `hud`, `megaste_speedup` and `music` together, whatever the file says: `performance` (crop, `hud=band`, no music: the most pictures per second), `default` (the defaults), `authentic` (full height, the score over the playfield, music: as close to the X68000 as it gets) |
 | `screen`          | `crop`  | `crop`: the 200-line screen, 200 of the playfield's 256 lines in a window that follows the ship. `full`: both borders open, 273 lines and the whole picture |
 | `hud`             | `over`  | `over`: the score over the top of the playfield, as on the X68000. `band`: in a black band of its own, 8 lines fewer of playfield, about 6% more pictures per second |
 | `megaste_speedup` | `true`  | `false`: a Mega STE stays at 8MHz without its cache (for testing)                                                                                       |

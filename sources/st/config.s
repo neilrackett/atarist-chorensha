@@ -5,6 +5,9 @@
 ; read, is reported at start and ignored. binaries/st/SZ2.CFG lists them,
 ; commented out, each set to the opposite of its default:
 ;
+;   preset=              none; or performance, default or authentic: screen,
+;                        hud, megaste_speedup and music set as the preset
+;                        has them, whatever the file says (presets)
 ;   screen=crop          crop (200 lines, the window follows the ship) or
 ;                        full (both borders open: the whole picture)
 ;   hud=over             the score over the playfield (as on the X68000), or
@@ -33,6 +36,17 @@
 CONFIG_SIZE=4096 ; At most (the rest is ignored), read into the game's
                  ; process area (main.s clears it afterwards).
 WORD_SIZE=32 ; A name or value, at most 31 characters (the rest ignored).
+
+; The presets (preset=, 1-3; 0: none): name, then screen=full, hud=band,
+; megaste_speedup, music.
+
+PRESET_NAME=0
+PRESET_FULL_HEIGHT=4
+PRESET_HUD_BAND=5
+PRESET_MEGASTE_SPEEDUP=6
+PRESET_MUSIC=7
+PRESET_SIZE=8
+PRESET_COUNT=3
 
 ; ------------------------------------------------------------------------------
 	text
@@ -127,6 +141,8 @@ read_config:
 	jsr		print_text
 
 .report:
+	bsr		apply_preset
+
 	tst.b	full_height
 	beq		.no_full_height
 
@@ -313,8 +329,57 @@ same_word:
 
 	rts
 
+; A preset: its settings over the file's (and reported). Uses d0/a0.
+
+apply_preset:
+	moveq	#0,d0
+	move.b	preset,d0
+	beq		.done
+
+	lea		presets-PRESET_SIZE,a0
+	mulu	#PRESET_SIZE,d0
+	add.l	d0,a0
+	move.b	PRESET_FULL_HEIGHT(a0),full_height
+	move.b	PRESET_HUD_BAND(a0),hud_band
+	move.b	PRESET_MEGASTE_SPEEDUP(a0),megaste_speedup
+	move.b	PRESET_MUSIC(a0),music_enabled
+
+	move.l	a0,-(sp)
+	lea		preset_text,a0
+	jsr		print_text
+	move.l	(sp)+,a0
+	move.l	PRESET_NAME(a0),a0
+	jsr		print_text
+	lea		preset_end_text,a0
+	jsr		print_text
+
+.done:
+	rts
+
 ; The settings: a1 = the value word. Return d1.l = 0, or non-zero (Z
 ; clear; the setting unchanged) if the value cannot be read. Preserve a0.
+
+set_preset:
+	moveq	#0,d1
+	lea		presets,a2
+	moveq	#1,d2
+
+.find:
+	move.l	PRESET_NAME(a2),a4
+	bsr		same_word
+	beq		.found
+
+	lea		PRESET_SIZE(a2),a2
+	addq	#1,d2
+	cmp		#PRESET_COUNT+1,d2
+	bne		.find
+
+	bra		bad_value
+
+.found:
+	move.b	d2,preset
+
+	rts
 
 set_screen:
 	moveq	#0,d1
@@ -466,6 +531,7 @@ parse_number:
 ; ------------------------------------------------------------------------------
 
 settings: ; Name, handler.
+	dc.l	preset_name,set_preset
 	dc.l	screen_name,set_screen
 	dc.l	hud_name,set_hud
 	dc.l	megaste_speedup_name,set_megaste_speedup
@@ -473,6 +539,14 @@ settings: ; Name, handler.
 	dc.l	lockstep_name,set_lockstep
 	dc.l	frames_name,set_frames
 	dc.l	0
+
+presets: ; The most pictures per second; the defaults; the X68000's look.
+	dc.l	performance_word
+	dc.b	0,-1,-1,0 ; Crop, the HUD band, 16 MHz, no music.
+	dc.l	default_word
+	dc.b	0,0,-1,-1 ; Crop, the score over the playfield, music.
+	dc.l	authentic_word
+	dc.b	-1,0,-1,-1 ; Full height, the score over the playfield, music.
 
 bool_words:
 	dc.l	true_word,false_word,one_word,zero_word
@@ -491,6 +565,18 @@ lockstep_name:
 	dc.b	'lockstep',0
 frames_name:
 	dc.b	'frames',0
+preset_name:
+	dc.b	'preset',0
+performance_word:
+	dc.b	'performance',0
+default_word:
+	dc.b	'default',0
+authentic_word:
+	dc.b	'authentic',0
+preset_text:
+	dc.b	'Preset: ',0
+preset_end_text:
+	dc.b	' (its settings, not the file',39,'s).',13,10,0
 hud_name:
 	dc.b	'hud',0
 over_word:
@@ -547,6 +633,8 @@ value_word:
 full_height: ; screen=full: both borders open (until they fail to).
 	ds.b	1
 hud_band: ; hud=band: the score in a band of its own, not over the playfield.
+	ds.b	1
+preset: ; preset= (1-3), applied after the file: 0 none.
 	ds.b	1
 megaste_speedup: ; A Mega STE at 16 MHz with the cache.
 	ds.b	1
