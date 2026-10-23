@@ -15,7 +15,7 @@
 #   make check-data  that binaries/st's data is the other ports' (see below)
 #   make test        check-data, then in Hatari: the attract demo's
 #                    checkpoints and its song on an ST, an STE and a Mega
-#                    STE, ESC out of the menus, the checkpoints at full
+#                    STE, Return and ESC in the menus, the checkpoints at full
 #                    height, and the pixel oracle
 #   make others      the X68000, Falcon and Amiga builds (build_mac.sh on
 #                    macOS, build.sh elsewhere)
@@ -92,11 +92,11 @@ test: check-data $(ST)/SZ2_ST.TOS
 	done; \
 	exit $$failed
 	@failed=0; \
-	for menu in config kakusi; do \
-		MACHINE=ste FRAMES=2000 INPUT=tests/st/input/esc_$$menu.txt \
-			tests/st/run_hatari.sh esc_$$menu > /dev/null 2>&1; \
-		result="$$(grep -a 'Exit:' tmp/out/esc_$$menu.log | tr -d '\r') $$(grep -a -o 'Frames: [0-9]*' tmp/out/esc_$$menu.log)"; \
-		echo "ESC out of $$menu, then quit: $$result"; \
+	for script in esc_config esc_kakusi return_config; do \
+		MACHINE=ste FRAMES=2000 INPUT=tests/st/input/$$script.txt \
+			tests/st/run_hatari.sh $$script > /dev/null 2>&1; \
+		result="$$(grep -a 'Exit:' tmp/out/$$script.log | tr -d '\r') $$(grep -a -o 'Frames: [0-9]*' tmp/out/$$script.log)"; \
+		echo "$$script (menu, ESC out, quit): $$result"; \
 		[ "$$result" = "Exit: game. Frames: 1100" ] || failed=1; \
 	done; \
 	exit $$failed

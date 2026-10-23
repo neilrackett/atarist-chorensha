@@ -13,6 +13,7 @@
 ;
 ;   cursor keys          directions
 ;   Z, CTRL, fire        trigger A (shot)
+;   RETURN, ENTER        trigger A too: chooses in the menus
 ;   X, SHIFT             trigger B (bomb)
 ;   P                    the X68000's ESC (START: pause)
 ;   ESC                  back to the title (a game, also paused or at game
@@ -924,7 +925,7 @@ key_map:
 	dcb.b	($19-$10)*2,NO_KEY
 	dc.b	$01,NO_BIT ; $19 P: the X68000's ESC (START: pause)
 	dcb.b	($1c-$1a)*2,NO_KEY
-	dc.b	$1d,NO_BIT ; $1c RETURN
+	dc.b	$1d,X68_TRIGGER_A ; $1c RETURN
 	dc.b	$71,X68_TRIGGER_A ; $1d CTRL
 	dcb.b	($2a-$1e)*2,NO_KEY
 	dc.b	$70,X68_TRIGGER_B ; $2a left SHIFT
@@ -947,7 +948,7 @@ key_map:
 	dcb.b	($50-$4e)*2,NO_KEY
 	dc.b	$3e,X68_DOWN ; $50 cursor down
 	dcb.b	($72-$51)*2,NO_KEY
-	dc.b	$1d,NO_BIT ; $72 keypad ENTER
+	dc.b	$1d,X68_TRIGGER_A ; $72 keypad ENTER
 	dcb.b	($80-$73)*2,NO_KEY
 
 ; ------------------------------------------------------------------------------

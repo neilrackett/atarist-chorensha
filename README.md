@@ -62,12 +62,13 @@ but gain 20% more screen.
 | --------------------- | ---------- | ------------------------------- | -------------------------------------------------------------------------------- |
 | Arrow keys            | Directions | D-pad / left stick              | move                                                                             |
 | Ctrl / Z              | Fire       | A, X, right shoulder or trigger | shoot                                                                            |
+| Return / Enter        |            |                                 | choose in the menus (as fire, which it is in a game too)                         |
 | Shift / X             |            | B, Y, left shoulder or trigger  | second button                                                                    |
 | P                     |            | Start                           | pause (press again to continue)                                                  |
 | Esc                   |            |                                 | back to the title (from a game, also paused or at game over, and from CONFIG or the hidden menu); on the title: quit |
 | F1                    |            |                                 | lockstep on / off: every frame is shown, the game slowed to the drawing speed    |
 | F2                    |            |                                 | keep the playfield window still instead of following the ship                    |
-| 1, Tab, Return, Space |            |                                 | as the same keys on the X68000                                                   |
+| 1, Tab, Space         |            |                                 | as the same keys on the X68000                                                   |
 
 A joystick works in either port. On an STE, a Jaguar pad in the enhanced
 joystick port A works too: A shoots and B is the second button.

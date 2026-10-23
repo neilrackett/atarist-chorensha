@@ -76,7 +76,7 @@ make debug                    binaries/st/SZ2_ST.TOS (measurements; and SZ2_DBG.
 make headless                 binaries/st/SZ2_HL.TOS: no rendering (game logic, checkpoints)
 make devops                   binaries/st/SZ2_DEV.TOS: the text also on md-devops' debug stream
 make check-data               that binaries/st's data is the Amiga's and the Falcon's (see below)
-make test                     Hatari: checkpoints and the song (ST, STE, Mega STE; crop and full height), ESC out of the menus, pixel oracle
+make test                     Hatari: checkpoints and the song (ST, STE, Mega STE; crop and full height), Return and ESC in the menus, pixel oracle
 make others                   the X68000, Falcon and Amiga builds (build_mac.sh, or build.sh)
 make clean                    removes the builds' and tests' files (keeps tmp/tos)
 ```
@@ -195,6 +195,7 @@ the exit report, with timings per stage.
 | ----------------------- | -------------------------------------------------------------------------------------- |
 | Cursor keys or joystick | Move                                                                                   |
 | Z, CTRL or fire         | Shoot (held in a stage: auto fire)                                                     |
+| RETURN or ENTER         | As fire (chooses in the menus); also the X68000's RETURN                                |
 | X or SHIFT              | Second button                                                                          |
 | P                       | Pause                                                                                  |
 | ESC                     | Back to the title (from a game, also paused or at game over, and from CONFIG or the hidden menu); on the title: quit |
@@ -780,10 +781,10 @@ The X68000's own sprite library code is already tight.
   `SCORES=tests/st/data/SCORE_LOW.DAT`, a table any score gets into) plays
   a game to its end: the grab at frame 2500 shows the entry, in crop its
   ten scores and keyboard.
-- **ESC.** `make test` runs `tests/st/input/esc_config.txt` and
-  `esc_kakusi.txt`: each opens its menu, leaves it with ESC and quits
-  from the title with another, so the run ends at frame 1100 ("Exit:
-  game"), before its frame limit. An input script's key records (the
+- **ESC and Return.** `make test` runs `tests/st/input/esc_config.txt`,
+  `esc_kakusi.txt` and `return_config.txt`: each opens its menu (the last
+  with Return), leaves it with ESC and quits from the title with another,
+  so the run ends at frame 1100 ("Exit: game"), before its frame limit. An input script's key records (the
   Amiga's raw codes) reach the ST's keyboard handler as its scancodes.
 - **Other targets.** `build_st.sh` checks that the other objects of `sz2.s`
   are unchanged.
