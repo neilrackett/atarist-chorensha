@@ -2,7 +2,7 @@
 
 <img src="./docs/screenshots/st/hero.png" alt="Cho Ren Sha 68k on the Atari ST" width="832" />
 
-[Cho Ren Sha 68k](https://yosshin4004.github.io/x68k/crs68k/official/index.html),
+Famibe No Yosshin's [Cho Ren Sha 68k](https://yosshin4004.github.io/x68k/crs68k/official/index.html),
 ported to the Atari ST by [Neil Rackett](https://neilrackett.com/atarist).
 
 ## Introduction
@@ -11,7 +11,7 @@ ported to the Atari ST by [Neil Rackett](https://neilrackett.com/atarist).
 is a vertical shoot 'em up for the Sharp X68000, (c) 1995 by Famibe No
 Yosshin.
 
-The Atari ST version builds on Sascha Springer's Atari Falcon build and Adam
+The Atari ST version builds on Sascha Springer's Atari Falcon port and Adam
 Polkosnik's [Amiga port](https://github.com/apolkosnik/chorensha), with the
 X68000 program running on the ST's own 68000, drawing the X68000's sprites,
 background and text in ST low resolution using 16 colours.
