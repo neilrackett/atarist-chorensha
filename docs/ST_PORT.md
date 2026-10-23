@@ -503,7 +503,7 @@ YM2149 instead, from register streams made in advance:
   the join, the registers that differ between the two points are written
   as they stand at the second pass's start (MCDRV does not write again
   what it wrote before). It then converts the VGM with STDL's
-  `stdlconv opm` into
+  `stdlconv opm` (from STDL v1.16.0; `lib/stdl`'s by default) into
   `MUS_DAT\NAME.STM`: STDL's STM format, per 50 Hz frame the YM2149
   registers that change. (TOS's names are 8.3: the Amiga's `MUSIC_DAT`
   is not one, and on a real ST's disk TOS does not find it; Hatari's
