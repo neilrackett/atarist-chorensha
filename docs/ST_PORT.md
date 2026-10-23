@@ -46,6 +46,11 @@ build, against the STE's 946 KB).
 - **Drawing sets the picture rate.** On an STE a picture takes about 45 ms:
   12-13 for the background, 25-28 for the sprites, 3-4 for the text. That
   is about one picture every 4 frames, or every 3 on a Mega STE.
+- **The score over the playfield costs about 6%** (4% on a Mega STE).
+  These figures were measured with the score in its band, as `hud=band`
+  draws it; over the playfield, as on the X68000 and the default since,
+  the attract demo shows 11.6, 11.7 and 16.5 pictures per second on an
+  ST, an STE and a Mega STE (see Display).
 - **The music costs about 1%.** These figures were measured before the
   music (as `music=false` plays). With it, the sprite cache is 30 KB
   smaller, and the attract demo shows 12.5 pictures per second on an ST
@@ -257,15 +262,28 @@ What is new is the picture.
 ST low resolution, triple-buffered, drawn in bitplanes. In crop (the
 default; full height is below):
 
-- **Lines 0-7, the HUD band:** the X68000 text layer's row 0 (score, high
-  score), drawn into all three screens when the game writes it.
-- **Lines 8-199, the playfield:** 192 of the X68000's 256 lines at their
-  real size, 32 pixels from the left.
+- **Lines 0-199, the playfield:** 200 of the X68000's 256 lines at their
+  real size, 32 pixels from the left, with the X68000 text layer's row 0
+  (score, high score) over its top, as on the X68000.
   - In a stage the window follows the ship, which sits two thirds of the
     way down; it moves at most 2 lines per frame.
-  - Elsewhere, or after F2, the window shows lines 32-223, and lines
-    48-239 while the game's hidden menu is open (its title to its EXIT).
-  - The lives and bombs (text rows 1-3) stay at the top of the playfield.
+  - Elsewhere, or after F2, the window shows lines 24-223, and lines
+    40-239 while the game's hidden menu is open (its title to its EXIT).
+  - The score, lives and bombs (text rows 0-3) stay at the top of the
+    screen, drawn over each picture.
+- **With `hud=band`:** lines 0-7 are the HUD band instead, the score drawn
+  into all three screens when the game writes it (opaque, on colour 0),
+  and the playfield is lines 8-199, 192 lines. A picture then draws 8
+  lines of background fewer and the score not at all: on an STE the score
+  costs 2.4 ms a picture over the playfield (about 20 characters, masked),
+  the background 0.5 and the sprites over it 1.5. In the attract demo:
+
+  | Pictures per second        | ST   | STE  | Mega STE |
+  | -------------------------- | ---- | ---- | -------- |
+  | Crop, score over (default) | 11.6 | 11.7 | 16.5     |
+  | Crop, `hud=band`           | 12.4 | 12.5 | 17.2     |
+  | Full height, score over    | 9.6  | 9.4  | 14.2     |
+  | Full height, `hud=band`    | 10.2 | 9.9  | 14.8     |
 
 The screen address is written at a VBL. The colours follow one VBL later,
 when the new picture appears. A presented picture is therefore on screen
@@ -277,9 +295,9 @@ on screen, which by then it nearly always is, and drawing never waits.
 ### Full height (`screen=full`)
 
 With the top and bottom borders open the screen shows 273 lines, enough
-for the X68000's whole picture: the HUD band and the playfield's 248 lines
-(the X68000's lines 8-255; its lines 0-7 are under the HUD), so there is
-no window. The 256 lines are centred, the 17 others black.
+for the X68000's whole picture, its 256 lines with the score over the top
+(with `hud=band`, the HUD band and the playfield's 248 lines below it), so
+there is no window. The 256 lines are centred, the 17 others black.
 
 Both layouts are in every build, chosen when the program starts: the
 playfield's height and the screens' page size and origin are variables
@@ -361,7 +379,7 @@ bitplanes, which replaces GVRAM:
 
 For playfield line g, a = (g + Y0) & 255 and s = ((g + Y1) − a) & 31. Since
 s is the same all the way down, a picture's background is one block of the
-table, wrapping at most once (192 lines x 128 bytes):
+table, wrapping at most once (200 lines x 128 bytes, 192 with `hud=band`):
 
 - **An STE** copies it with the BLiTTER, in HOG mode 8 lines at a time
   (each about 0.5 ms with the interrupts held, well inside an IKBD byte):
@@ -522,10 +540,12 @@ The game's characters go into a 32 x 32 map instead of the X68000's 512 KB
 of text planes:
 
 - `DRAW_CHARACTER` jumps to `st_draw_character`.
-- Row 0 is drawn straight into the HUD band of all three screens.
-- The other rows are drawn over each picture, masked, with `movep`. Only
-  the characters that have pixels are drawn: each row keeps a mask of
-  them.
+- The rows are drawn over each picture, masked, with `movep`; the top four
+  (score, lives and bombs) at the top of the screen, the others through
+  the window. Only the characters that have pixels are drawn: each row
+  keeps a mask of them.
+- With `hud=band` row 0 is drawn straight into the HUD band of all three
+  screens instead, once, when the game writes it.
 
 ### The game code (`sz2.s`)
 
@@ -755,8 +775,9 @@ The X68000's own sprite library code is already tight.
 
 ## Open items and next steps
 
-- **HUD colours.** The score uses the shared sprite/text colours. A Timer B
-  palette change at line 8 would give the HUD band its own exact colours.
+- **HUD colours.** The score uses the shared sprite/text colours. With
+  `hud=band`, a Timer B palette change at line 8 would give the HUD band
+  its own exact colours.
 - **More speed.**
   - The sprite cache switches halves about every 650-700 frames in the
     full game on an STE (470 on a Mega STE, which draws more pictures;

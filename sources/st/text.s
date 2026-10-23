@@ -5,11 +5,14 @@
 ; port keeps the characters in a 32 x 32 map instead of the X68000's 512 KB
 ; of text planes:
 ;
-; - Row 0 is the HUD (score, high score): it is drawn at once into the top 8
-;   lines of all three screens, the HUD band, which the playfield never touches,
-;   so it costs nothing per picture.
+; - Rows 0-3 are the HUD (score, high score; lives and bombs): drawn over
+;   every picture at the top of the screen (the X68000's screen, which the
+;   playfield window shows part of), masked (colour 0 transparent). With
+;   hud=band row 0 is drawn instead, when the game writes it, into the top 8
+;   lines of all three screens, the HUD band, which the playfield never
+;   touches: it costs nothing per picture.
 ; - The other rows ("STAGE n", pause, game over, menus) are drawn over every
-;   picture, through the playfield window, masked (colour 0 transparent).
+;   picture, through the playfield window, masked.
 ;
 ; Characters are converted on first use into ST bitplane bytes (through the
 ; colour map, palette_map.i): per line a long of four plane bytes and a mask
@@ -27,7 +30,9 @@
 	xref TEXT_GRAPHICS_ADDRESS
 	xref sprite_colour_map
 	xref screen_buffers
+	xref playfield_top
 	xref playfield_bottom
+	xref hud_band
 
 	include "st.i"
 
@@ -35,7 +40,8 @@ COLUMNS=32
 ROWS=32
 CHARACTERS=128
 SPACE=$20
-HUD_ROWS=4 ; Rows 0-3: score (the band), lives and bombs (pinned).
+HUD_ROWS=4 ; Rows 0-3: score, lives and bombs (pinned).
+BAND_ROWS=1 ; With hud=band: row 0 in the band.
 
 ; ------------------------------------------------------------------------------
 	text
@@ -99,7 +105,10 @@ st_draw_character:
 	tst		d1
 	bne		.done
 
-	; The HUD: the band of every screen, opaque on colour 0.
+	tst.b	hud_band
+	beq		.done ; Row 0 over the playfield, with the others.
+
+	; The HUD band of every screen, opaque on colour 0.
 
 	lea		column_offsets,a1
 	add		d0,d0
@@ -262,7 +271,7 @@ amiga_text_cleared:
 
 ; ------------------------------------------------------------------------------
 ;
-; CLEAR_TEXT_PLANE: an empty map and HUD band. Preserves all registers.
+; CLEAR_TEXT_PLANE: an empty map (and HUD band). Preserves all registers.
 
 amiga_clear_text_planes:
 	movem.l	d0-d7/a0-a2,-(sp)
@@ -293,6 +302,9 @@ amiga_clear_text_planes:
 
 	suba.l	a1,a1
 
+	tst.b	hud_band
+	beq		.cleared
+
 	lea		screen_buffers,a2
 
 .screen_loop:
@@ -301,6 +313,7 @@ amiga_clear_text_planes:
 	cmp.l	#screen_buffers+SCREENS*4,a2
 	bne		.screen_loop
 
+.cleared:
 	movem.l	(sp)+,d0-d7/a0-a2
 
 	rts
@@ -339,8 +352,8 @@ compile_characters:
 ; ------------------------------------------------------------------------------
 ;
 ; a1 = the screen, d0.w = the window offset (playfield ST line = X68000
-; line - offset): rows 1-31 of the map, masked, the lines in the playfield.
-; Uses d0-d7/a0-a4/a6.
+; line - offset): the map's rows (but for the HUD band's), masked, the
+; lines in the playfield. Uses d0-d7/a0-a4/a6.
 
 ; Character line \1 (0-7) at line \1 of a1: planes and mask from (a0)+.
 
@@ -355,14 +368,18 @@ TEXT_LINE macro
 draw_text_rows:
 	move	d0,d6 ; Window offset.
 	move.l	a1,a3
-	lea		character_map+COLUMNS,a2 ; Row 1.
+	lea		character_map,a2
 	lea		column_offsets,a6
-	moveq	#1,d5 ; Row.
+	moveq	#0,d5 ; Row.
+	tst.b	hud_band
+	beq		.row_loop
+
+	lea		BAND_ROWS*COLUMNS(a2),a2
+	moveq	#BAND_ROWS,d5
 
 .row_loop:
-	; ST lines of the row: row * 8 - offset ... + 7; rows 1-3 (the HUD's
-	; lives and bombs) stay at the top of the playfield, as they overlay
-	; the X68000's screen.
+	; ST lines of the row: row * 8 - offset ... + 7; rows 0-3 (the HUD)
+	; stay at the top of the screen, as they overlay the X68000's.
 
 	move	d5,d7
 	lsl		#3,d7
@@ -376,7 +393,7 @@ draw_text_rows:
 .pinned:
 	move	d7,d0
 	addq	#7,d0
-	cmp		#PLAYFIELD_TOP,d0
+	cmp		playfield_top,d0
 	blt		.next_row ; Above it.
 
 	move	d5,d0
@@ -390,12 +407,12 @@ draw_text_rows:
 
 	moveq	#0,d3
 	move	d7,d0
-	cmp		#PLAYFIELD_TOP,d0
+	cmp		playfield_top,d0
 	bge		.top_ok
 
-	move	#PLAYFIELD_TOP,d3
+	move	playfield_top,d3
 	sub		d0,d3
-	move	#PLAYFIELD_TOP,d0
+	move	playfield_top,d0
 
 .top_ok:
 	moveq	#8-1,d4

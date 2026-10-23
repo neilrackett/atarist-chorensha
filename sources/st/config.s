@@ -7,6 +7,8 @@
 ;
 ;   screen=crop          crop (200 lines, the window follows the ship) or
 ;                        full (both borders open: the whole picture)
+;   hud=over             the score over the playfield (as on the X68000), or
+;                        band: in a band of its own (faster)
 ;   megaste_speedup=true a Mega STE at 16 MHz with the cache; false: at
 ;                        8 MHz without it (for comparisons)
 ;   music=true           the songs on the YM2149 (MUSIC_DAT); false: none
@@ -16,6 +18,7 @@
 
 	xdef read_config
 	xdef full_height
+	xdef hud_band
 	xdef megaste_speedup
 
 	xref basepage
@@ -131,6 +134,13 @@ read_config:
 	jsr		print_text
 
 .no_full_height:
+	tst.b	hud_band
+	beq		.no_hud_band
+
+	lea		hud_band_text,a0
+	jsr		print_text
+
+.no_hud_band:
 	move.l	frame_limit,d0
 	beq		.no_frame_limit
 
@@ -325,6 +335,25 @@ set_screen:
 
 	rts
 
+set_hud:
+	moveq	#0,d1
+	lea		over_word,a4
+	bsr		same_word
+	bne		.not_over
+
+	sf		hud_band
+
+	rts
+
+.not_over:
+	lea		band_word,a4
+	bsr		same_word
+	bne		bad_value
+
+	st		hud_band
+
+	rts
+
 set_megaste_speedup:
 	bsr		parse_bool
 	bne		.done
@@ -438,6 +467,7 @@ parse_number:
 
 settings: ; Name, handler.
 	dc.l	screen_name,set_screen
+	dc.l	hud_name,set_hud
 	dc.l	megaste_speedup_name,set_megaste_speedup
 	dc.l	music_name,set_music
 	dc.l	lockstep_name,set_lockstep
@@ -461,6 +491,12 @@ lockstep_name:
 	dc.b	'lockstep',0
 frames_name:
 	dc.b	'frames',0
+hud_name:
+	dc.b	'hud',0
+over_word:
+	dc.b	'over',0
+band_word:
+	dc.b	'band',0
 crop_word:
 	dc.b	'crop',0
 full_word:
@@ -487,6 +523,8 @@ unknown_text:
 	dc.b	'Settings: not known, ignored: ',0
 bad_value_text:
 	dc.b	'Settings: a value not understood, ignored: ',0
+hud_band_text:
+	dc.b	'Score: in a band of its own.',13,10,0
 full_height_text:
 	dc.b	'Screen: full height.',13,10,0
 frame_limit_text:
@@ -507,6 +545,8 @@ name_word:
 value_word:
 	ds.b	WORD_SIZE
 full_height: ; screen=full: both borders open (until they fail to).
+	ds.b	1
+hud_band: ; hud=band: the score in a band of its own, not over the playfield.
 	ds.b	1
 megaste_speedup: ; A Mega STE at 16 MHz with the cache.
 	ds.b	1

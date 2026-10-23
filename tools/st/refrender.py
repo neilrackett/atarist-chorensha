@@ -95,7 +95,7 @@ def font_pixel(font, code, row, x):
 
 
 def render(dump, page0, page1, patterns, font, sprite_map, representatives):
-    (magic, window, visible, _, y0, y1, r1, count) = struct.unpack(">4sHBBhhHH", dump[:16])
+    (magic, window, visible, band, y0, y1, r1, count) = struct.unpack(">4sHBBhhHH", dump[:16])
     if magic != b"CRSF":
         raise SystemExit("not a CRSF frame dump")
     vc = struct.unpack(">512H", dump[16:16 + 0x400])
@@ -105,17 +105,21 @@ def render(dump, page0, page1, patterns, font, sprite_map, representatives):
 
     screen = [[0] * 320 for _ in range(200)]
 
-    # HUD band: text row 0, opaque.
-    for column in range(32):
-        code = characters[column]
-        for r in range(8):
-            for x in range(8):
-                c = font_pixel(font, code, r, x)
-                screen[r][32 + column * 8 + x] = sprite_map[c] if c else 0
+    # The playfield's first line: 0, the score (text row 0) drawn over it as
+    # the other rows, or with hud=band 8, below the HUD band: text row 0,
+    # opaque.
+    top = 8 if band else 0
+    if band:
+        for column in range(32):
+            code = characters[column]
+            for r in range(8):
+                for x in range(8):
+                    c = font_pixel(font, code, r, x)
+                    screen[r][32 + column * 8 + x] = sprite_map[c] if c else 0
 
     # Playfield background.
     if visible:
-        for y in range(8, 200):
+        for y in range(top, 200):
             g = y + window
             a = (g + y0) & 255
             b = (g + y1) & 31
@@ -139,7 +143,7 @@ def render(dump, page0, page1, patterns, font, sprite_map, representatives):
                 data = patterns[pattern * 128:pattern * 128 + 128]
                 for py in range(16):
                     sy = y - 16 - window + py
-                    if sy < 8 or sy > 199:
+                    if sy < top or sy > 199:
                         continue
                     row = 15 - py if info & 0x8000 else py
                     for px in range(16):
@@ -149,15 +153,15 @@ def render(dump, page0, page1, patterns, font, sprite_map, representatives):
                             screen[sy][x + 16 + px] = sprite_map[palette * 16 + nibble]
 
     def draw_text():
-        for row in range(1, 32):
+        for row in range(1 if band else 0, 32):
             for column in range(32):
                 code = characters[row * 32 + column]
                 if code == SPACE:
                     continue
                 for r in range(8):
-                    # Rows 1-3 (lives, bombs) stay at the playfield's top.
+                    # Rows 0-3 (score, lives, bombs) stay at the top.
                     sy = row * 8 + r - (window if row >= 4 else 0)
-                    if sy < 8 or sy > 199:
+                    if sy < top or sy > 199:
                         continue
                     for x in range(8):
                         c = font_pixel(font, code, r, x)
@@ -172,7 +176,7 @@ def render(dump, page0, page1, patterns, font, sprite_map, representatives):
         draw_sprites()
 
     # Borders of the playfield lines.
-    for y in range(8, 200):
+    for y in range(top, 200):
         for x in list(range(32)) + list(range(288, 320)):
             screen[y][x] = 0
 

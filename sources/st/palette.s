@@ -9,7 +9,7 @@
 ; Colour 0 is the backdrop (X68000 sprite/text entry 0). While the background
 ; shows it is black: on the X68000 the opaque background covers the backdrop
 ; then (its bomb-flash writes to it stay invisible), and on the ST colour 0
-; is also the border and the HUD band's background.
+; is also the border and (with hud=band) the HUD band's background.
 
 	xdef make_hardware_palette
 	xdef graphics_dither

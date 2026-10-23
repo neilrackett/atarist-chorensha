@@ -43,8 +43,10 @@ You can always download the latest build from the
 - An Xpad provider if you'd like to play with a gamepad (see Controls).
 
 Speed: the game itself always runs at full speed (50fps); how many of those
-frames are rendered depends on the machine. An ST or STE shows about 13 per
-second and a Mega STE up to 25 (switched to 16MHz with cache automatically).
+frames are rendered depends on the machine. An ST or STE shows about 12 per
+second and a Mega STE up to 25 (switched to 16MHz with cache automatically);
+with the score in a band of its own (`hud=band`, see Configuration) about 6%
+more.
 At full height (see Configuration) you lose about 20% of the framerate,
 but gain 20% more screen.
 
@@ -95,7 +97,8 @@ value it cannot read, is named on the start-up screen and ignored.
 
 | Setting           | Default | Meaning                                                                                                                                                 |
 | ----------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `screen`          | `crop`  | `crop`: the 200-line screen, 192 of the playfield's lines in a window that follows the ship. `full`: both borders open, 273 lines and the whole picture |
+| `screen`          | `crop`  | `crop`: the 200-line screen, 200 of the playfield's 256 lines in a window that follows the ship. `full`: both borders open, 273 lines and the whole picture |
+| `hud`             | `over`  | `over`: the score over the top of the playfield, as on the X68000. `band`: in a black band of its own, 8 lines fewer of playfield, about 6% more pictures per second |
 | `megaste_speedup` | `true`  | `false`: a Mega STE stays at 8MHz without its cache (for testing)                                                                                       |
 | `music`           | `true`  | `false`: no music                                                                                                                                       |
 | `lockstep`        | `false` | `true`: every frame drawn from the start (F1 switches it)                                                                                               |

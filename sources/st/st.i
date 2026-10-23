@@ -13,24 +13,25 @@ SCREENS=3
 
 CROP_SCREEN_LINES=200
 CROP_PAGE_SIZE=CROP_SCREEN_LINES*SCREEN_LINE ; (256-aligned.)
-CROP_PLAYFIELD_LINES=192
 
 ; Full height: both borders open (STDL's code, stdl_glue.c), pages of
-; FULL_ROWS lines, row 0 hidden, rows 1-273 shown. The picture, the HUD
-; band and the X68000's whole playfield (lines 8-255), is drawn
-; FULL_SCREEN_TOP lines in, centred; the lines around it stay black.
+; FULL_ROWS lines, row 0 hidden, rows 1-273 shown. The picture, the
+; X68000's 256 lines, is drawn FULL_SCREEN_TOP lines in, centred; the lines
+; around it stay black.
 
 FULL_ROWS=274
 FULL_SCREEN_TOP=9
 FULL_PAGE_SIZE=(FULL_ROWS*SCREEN_LINE+255)&~255
-FULL_PLAYFIELD_LINES=248
+FULL_SCREEN_LINES=256
 
-; The picture: the X68000's 256 pixels, 32 pixels into the line; lines 0-7
-; the HUD band, then the playfield (a window of the X68000's lines 8-255,
-; or all of them at full height: playfield_lines, playfield_bottom).
+; The picture: the X68000's 256 pixels, 32 pixels into the line; its line
+; s shows the X68000's line s + the window offset (0 at full height). The
+; score (the text layer's row 0) is drawn over the playfield, as on the
+; X68000, or with hud=band (SZ2.CFG) into a band of its own, lines 0-7,
+; the playfield below it (playfield_top, playfield_lines, playfield_bottom).
 
 PICTURE_X_BYTES=16
-PLAYFIELD_TOP=8
+HUD_BAND_LINES=8
 
 ; The measurement clock (measure.s; not in release builds): MFP Timer A,
 ; or Timer D at full height, whose border code needs Timer A (machine.s

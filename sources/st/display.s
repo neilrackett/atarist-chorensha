@@ -2,15 +2,19 @@
 ; Atari ST display: low resolution (320 x 200, 16 colours, or 273 lines
 ; at full height), triple-buffered, drawn in bitplanes:
 ;
-;   lines 0-7     the HUD band: the X68000 text layer's row 0 (score, high
-;                 score), drawn into all three screens by text.s when the game
-;                 writes it, never touched here;
-;   lines 8-199   the playfield: 192 of the X68000's 256 lines, 1:1, 32
-;                 pixels from the left edge. The window follows the ship in
-;                 a stage (the ship two thirds down; at most 2 lines per
-;                 frame), elsewhere it shows lines 32-223; F2 keeps it there.
-;                 At full height (SZ2.CFG's screen=full: both borders open,
-;                 STDL's code) all 248, lines 8-255, and no window.
+;   lines 0-199   the playfield: 200 of the X68000's 256 lines, 1:1, 32
+;                 pixels from the left edge, with the text layer's score
+;                 (row 0) over its top, as on the X68000. The window follows
+;                 the ship in a stage (the ship two thirds down; at most 2
+;                 lines per frame), elsewhere it shows lines 24-223; F2
+;                 keeps it there. At full height (SZ2.CFG's screen=full:
+;                 both borders open, STDL's code) all 256, and no window.
+;
+; With hud=band the score has lines 0-7 to itself instead, the HUD band,
+; drawn into all three screens by text.s when the game writes it, never
+; touched here: the playfield is lines 8-199 (X68000 lines 8 + the window
+; offset on), or 8-255 at full height. A picture then draws 8 lines less,
+; and the score only when it changes.
 ;
 ; A picture: the background (background.s: a copy from the composed table)
 ; or colour 0 while the game hides it; sprites and the text layer's other
@@ -26,6 +30,7 @@
 	xdef use_crop_layout
 	xdef show_display_page
 	xdef screen_top_offset
+	xdef playfield_top
 	xdef playfield_lines
 	xdef playfield_bottom
 	xdef render_frame
@@ -56,6 +61,7 @@
 	xref start_render_parts
 	xref mark_render_part
 	xref full_height
+	xref hud_band
 
 	xref _stdl_ovsc_bhi ; (stdl_glue.c, lib/stdl/src/overscan.c)
 	xref _stdl_ovsc_bmid
@@ -72,10 +78,10 @@
 
 	include "st.i"
 
-MAXIMUM_WINDOW=256-8-CROP_PLAYFIELD_LINES ; 56: the window shows X68000 lines 8+w..199+w.
-DEFAULT_WINDOW=24 ; Lines 32-223.
-HIDDEN_MENU_WINDOW=40 ; Lines 48-239: the hidden menu's rows 6-29.
-SHIP_LINE=130 ; The ship's line in the playfield window.
+MAXIMUM_WINDOW=256-CROP_SCREEN_LINES ; 56: the window shows X68000 lines w..199+w.
+DEFAULT_WINDOW=24 ; Lines 24-223.
+HIDDEN_MENU_WINDOW=40 ; Lines 40-239: the hidden menu's rows 6-29.
+SHIP_LINE=138 ; The ship's line on the screen.
 WINDOW_STEP=2 ; Lines per frame.
 PI1_SIZE=CROP_SCREEN_LINES*SCREEN_LINE ; A screenshot's picture: 200 lines,
 FULL_PI1_SIZE=256*SCREEN_LINE ; or the whole 256 at full height (a longer
@@ -155,7 +161,7 @@ set_layout:
 
 	clr.l	screen_top_offset
 	move.l	#CROP_PAGE_SIZE,d1
-	move	#CROP_PLAYFIELD_LINES,playfield_lines
+	move	#CROP_SCREEN_LINES,d0
 	move	#DEFAULT_WINDOW,window_offset
 
 	bra		.values_set
@@ -163,13 +169,23 @@ set_layout:
 .full_height:
 	move.l	#FULL_SCREEN_TOP*SCREEN_LINE,screen_top_offset
 	move.l	#FULL_PAGE_SIZE,d1
-	move	#FULL_PLAYFIELD_LINES,playfield_lines
+	move	#FULL_SCREEN_LINES,d0
 	clr		window_offset
 
 .values_set:
-	move	playfield_lines,d0
-	add		#PLAYFIELD_TOP-1,d0
+	; d0 = the picture's lines: the playfield's, but for the HUD band's.
+
+	clr		playfield_top
+	tst.b	hud_band
+	beq		.top_set
+
+	move	#HUD_BAND_LINES,playfield_top
+
+.top_set:
 	move	d0,playfield_bottom
+	subq	#1,playfield_bottom
+	sub		playfield_top,d0
+	move	d0,playfield_lines
 
 	move.l	screen_memory,d0
 	add.l	#255,d0
@@ -287,9 +303,11 @@ render_frame:
 	tst.b	background_visible
 	beq		.no_background
 
-	lea		PLAYFIELD_TOP*SCREEN_LINE+PICTURE_X_BYTES(a1),a1
+	move	playfield_top,d0
+	mulu	#SCREEN_LINE,d0
+	lea		PICTURE_X_BYTES(a1,d0.l),a1
 	move	window_offset,d0
-	addq	#PLAYFIELD_TOP,d0 ; The playfield's first X68000 line.
+	add		playfield_top,d0 ; The playfield's first X68000 line.
 	jsr		copy_background
 
 	bra		.layers
@@ -375,7 +393,7 @@ update_window:
 
 	move	WORD_00098864+2,d0 ; Ship y, 1/64 pixel, sprite coordinates.
 	asr		#6,d0
-	sub		#16+PLAYFIELD_TOP+SHIP_LINE,d0
+	sub		#16+SHIP_LINE,d0
 	bpl		.not_above
 
 	moveq	#0,d0
@@ -427,7 +445,7 @@ update_window:
 
 clear_playfield:
 	move	playfield_lines,d7
-	moveq	#PLAYFIELD_TOP,d0
+	move	playfield_top,d0
 	add		d7,d0
 	mulu	#SCREEN_LINE,d0
 	move.l	work_screen_address,a0
@@ -571,7 +589,8 @@ write_screenshot:
 
 ; Oracle builds (lockstep runs): with each screenshot, Fnnnnnnn.BIN, what
 ; the picture was drawn from, for tools/st/refrender.py: 'CRSF', the
-; window offset (word), background shown (byte), padding (byte), the pages'
+; window offset (word), background shown (byte), the HUD band (byte: 1 with
+; hud=band, else the score is over the playfield), the pages'
 ; scroll Y0, Y1 and R1 (words), the sprites (word), the video controller
 ; shadow ($400 bytes), the text layer's character map (32 x 32 bytes), the
 ; sprite list (8 bytes each).
@@ -587,7 +606,8 @@ write_frame_dump:
 	move.l	#'CRSF',(a1)+
 	move	window_offset,(a1)+
 	move.b	background_visible,(a1)+
-	clr.b	(a1)+
+	move.b	hud_band,(a1)
+	and.b	#1,(a1)+
 	move	L_00E80000+CRTC_PAGE0_Y,(a1)+
 	move	L_00E80000+CRTC_PAGE1_Y,(a1)+
 	move	L_00E82000+VC_PRIORITY,(a1)+
@@ -650,7 +670,7 @@ work_screen_address: ; Hidden: the next picture is drawn here.
 	ds.l	1
 spare_screen_address: ; Shown before the last presentation; drawn into next.
 	ds.l	1
-screen_buffers: ; The three screens (the HUD band is drawn into all of them).
+screen_buffers: ; The three screens (a HUD band is drawn into all of them).
 	ds.l	SCREENS
 window_frame:
 	ds.l	1
@@ -670,9 +690,11 @@ screen_memory: ; The screens' allocation.
 	ds.l	1
 screen_top_offset: ; Bytes from a page's start to its screen's origin.
 	ds.l	1
-playfield_lines: ; Shown: 192 in crop, 248 at full height.
+playfield_top: ; The playfield's first line: 0, or below a HUD band.
 	ds.w	1
-playfield_bottom: ; Its last line.
+playfield_lines: ; Shown: 200 in crop, 256 at full height (8 fewer below a
+	ds.w	1         ; HUD band).
+playfield_bottom: ; Its last line: 199, or 255.
 	ds.w	1
 
 flip_pending: ; 2: a new picture to show at the next VBL, 1: its colours next.

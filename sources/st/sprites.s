@@ -50,6 +50,7 @@
 	xdef render_sprite_count
 
 	xref SPRITE_DATA_TABLE
+	xref playfield_top
 	xref playfield_bottom
 	xref CURRENT_SPRITE_DATA_ENTRY
 	xref SPRITE_DATA_ADDRESS
@@ -435,7 +436,11 @@ draw_sprites:
 	move	d0,window_offset
 	move	playfield_bottom,margin_top
 	addq	#1,margin_top
-	move	#PLAYFIELD_TOP-1,margin_bottom
+	move	playfield_top,d0
+	subq	#1,d0
+	move	d0,margin_bottom
+	sub		#15-1,d0
+	move	d0,highest_row_0 ; (A sprite's row 0 above it: none in it.)
 
 	tst.l	arena
 	beq		.done
@@ -493,7 +498,7 @@ draw_one_sprite:
 	cmp		playfield_bottom,d1
 	bgt		.nothing
 
-	cmp		#PLAYFIELD_TOP-15,d1
+	cmp		highest_row_0,d1
 	blt		.nothing
 
 	; Its variant's record, through the pattern's table of 32 (palette,
@@ -545,16 +550,16 @@ draw_one_sprite:
 	add		d2,d1 ; Line of data row 0.
 	move	#SCREEN_LINE,a2
 
-	cmp		#PLAYFIELD_TOP,d1
+	cmp		playfield_top,d1
 	bge		.top_ok
 
-	move	#PLAYFIELD_TOP,d2
+	move	playfield_top,d2
 	sub		d1,d2 ; Rows above the playfield.
 	sub		d2,d5
 	ble		.nothing
 
 	bsr		.skip_rows
-	move	#PLAYFIELD_TOP,d1
+	move	playfield_top,d1
 
 .top_ok:
 	move	d1,d2
@@ -587,7 +592,8 @@ draw_one_sprite:
 .bottom_ok:
 	move	d1,d2
 	sub		d5,d2
-	sub		#PLAYFIELD_TOP-1,d2 ; Lines above the highest, in it.
+	sub		playfield_top,d2
+	addq	#1,d2 ; Lines above the highest, in it.
 	bge		.lines_ok
 
 	add		d2,d5 ; (d2 negative: rows above it)
@@ -1250,6 +1256,8 @@ frame_sprite_count:
 render_sprite_count:
 	ds.w	1
 window_offset:
+	ds.w	1
+highest_row_0: ; The playfield's top - 15.
 	ds.w	1
 margin_top:
 	ds.w	1
