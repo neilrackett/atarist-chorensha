@@ -71,7 +71,7 @@ make debug                    binaries/st/SZ2_ST.TOS (measurements; and SZ2_DBG.
 make headless                 binaries/st/SZ2_HL.TOS: no rendering (game logic, checkpoints)
 make devops                   binaries/st/SZ2_DEV.TOS: the text also on md-devops' debug stream
 make check-data               that binaries/st's data is the Amiga's and the Falcon's (see below)
-make test                     Hatari: checkpoints and the song (ST, STE, Mega STE; crop and full height), pixel oracle
+make test                     Hatari: checkpoints and the song (ST, STE, Mega STE; crop and full height), ESC out of the menus, pixel oracle
 make others                   the X68000, Falcon and Amiga builds (build_mac.sh, or build.sh)
 make clean                    removes the builds' and tests' files (keeps tmp/tos)
 ```
@@ -177,7 +177,7 @@ the exit report, with timings per stage.
 | Z, CTRL or fire         | Shoot (held in a stage: auto fire)                                                     |
 | X or SHIFT              | Second button                                                                          |
 | P                       | Pause                                                                                  |
-| ESC                     | Back to the title (from a game, also paused or at game over); on the title: quit       |
+| ESC                     | Back to the title (from a game, also paused or at game over, and from CONFIG or the hidden menu); on the title: quit |
 | EXIT (main menu)        | Quit                                                                                   |
 | F1                      | Lockstep on and off: every frame is shown and the game slows down to the drawing speed |
 | F2                      | Keeps the playfield window still instead of following the ship                         |
@@ -541,6 +541,7 @@ The port's changes are all `ifd __ST__`; `-D__ST__` also defines `__PORT__`,
 | Shot slot loop (`L_0002B410`)                    | Kept in registers, with the collision-grid routine and `XSP_SET_ST` inlined instruction for instruction (about 0.5 ms per frame)                         |
 | Stage hook                                       | Auto fire                                                                                                                                                |
 | ESC (`__CHUNKY__`, from the Amiga port)          | Back to the title from a game, EXIT on the title: the Amiga port's hooks, shared (`amiga_escape_*` in `input.s`)                                         |
+| ESC in CONFIG and the hidden menu                | Their EXIT, back to the title (without it ESC was only the X68000's START, which these menus read as trigger A on the item under the cursor)             |
 | Title menu                                       | CONFIG chosen with trigger B held (SHIFT, X, B on a pad) opens the hidden menu, KAKUSI mode; a held trigger B no longer stops trigger A choosing an item |
 | Other                                            | EXIT, `PRINTF`, the rotated screen (off), the menu credits                                                                                               |
 
@@ -731,6 +732,11 @@ The X68000's own sprite library code is already tight.
   `INPUT=` and `FRAMES=1100`) opens it from CONFIG with trigger B held:
   its grabs show the whole menu in crop, then the title again after its
   EXIT.
+- **ESC.** `make test` runs `tests/st/input/esc_config.txt` and
+  `esc_kakusi.txt`: each opens its menu, leaves it with ESC and quits
+  from the title with another, so the run ends at frame 1100 ("Exit:
+  game"), before its frame limit. An input script's key records (the
+  Amiga's raw codes) reach the ST's keyboard handler as its scancodes.
 - **Other targets.** `build_st.sh` checks that the other objects of `sz2.s`
   are unchanged.
 - **Real hardware.** `tests/st/hw/run_on_st.sh` runs a build on a real ST

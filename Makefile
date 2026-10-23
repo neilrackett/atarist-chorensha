@@ -14,8 +14,9 @@
 #                    debug stream (tests/st/hw/run_on_st.sh)
 #   make check-data  that binaries/st's data is the other ports' (see below)
 #   make test        check-data, then in Hatari: the attract demo's
-#                    checkpoints and its song on an ST, an STE and a Mega STE, in crop and
-#                    at full height, and the pixel oracle
+#                    checkpoints and its song on an ST, an STE and a Mega
+#                    STE, ESC out of the menus, the checkpoints at full
+#                    height, and the pixel oracle
 #   make others      the X68000, Falcon and Amiga builds (build_mac.sh on
 #                    macOS, build.sh elsewhere)
 #   make clean       removes what the builds and tests make (tmp/tos, the TOS
@@ -88,6 +89,15 @@ test: check-data $(ST)/SZ2_ST.TOS
 		songs=$$(grep -a 'Songs played' tmp/out/test_$$machine.log); \
 		echo "$$machine, music: $${songs:-no song played}"; \
 		case "$$songs" in "Songs played: 0"*|*"not loaded: "[1-9]*|"") failed=1;; esac; \
+	done; \
+	exit $$failed
+	@failed=0; \
+	for menu in config kakusi; do \
+		MACHINE=ste FRAMES=2000 INPUT=tests/st/input/esc_$$menu.txt \
+			tests/st/run_hatari.sh esc_$$menu > /dev/null 2>&1; \
+		result="$$(grep -a 'Exit:' tmp/out/esc_$$menu.log | tr -d '\r') $$(grep -a -o 'Frames: [0-9]*' tmp/out/esc_$$menu.log)"; \
+		echo "ESC out of $$menu, then quit: $$result"; \
+		[ "$$result" = "Exit: game. Frames: 1100" ] || failed=1; \
 	done; \
 	exit $$failed
 	tests/st/overscan_test.sh

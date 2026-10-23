@@ -16,9 +16,10 @@
 ;   X, SHIFT             trigger B (bomb)
 ;   P                    the X68000's ESC (START: pause)
 ;   ESC                  back to the title (a game, also paused or at game
-;                        over), EXIT on the title (amiga_escape_pressed, from
-;                        sz2.s, as the Amiga port); outside a stage also the
-;                        X68000's ESC (backs out of the configuration)
+;                        over), EXIT on the title, CONFIG and the hidden
+;                        menu (amiga_escape_pressed, from sz2.s, as the Amiga
+;                        port); outside a stage also the X68000's ESC (START,
+;                        which the menus read as trigger A)
 ;   F1                   lockstep on / off (every frame shown, game slowed)
 ;   F2                   the playfield window stays still (display.s)
 ;
@@ -31,9 +32,10 @@
 ;   B, Y, LB, LT         trigger B (bomb; east, north, left shoulders)
 ;   START                the X68000's ESC (pause)
 ;
-; INPUT.BIN (optional, next to the program; tests): joystick states from
-; given frames on, in the Amiga port's input script format (made by
-; tests/amiga/make_input_script.py; only its joystick records are used).
+; INPUT.BIN (optional, next to the program; tests): joystick states and key
+; presses at given frames, in the Amiga port's input script format (made by
+; tests/amiga/make_input_script.py; its joystick records, and its key
+; records for the keys the ST reads: the Amiga's raw codes, translated).
 ;
 ; Auto fire (as in the Amiga port; the original game fires once per press):
 ; in a stage (the game ran its ship control this frame), a held trigger A
@@ -82,6 +84,7 @@ SPECIAL_CROP=$81
 
 MAXIMUM_SCRIPT_RECORDS=1024
 SCRIPT_JOYSTICK=0
+SCRIPT_KEY=1
 
 XPAD_TRIGGER_A_BUTTONS=XPAD_SOUTH|XPAD_WEST|XPAD_TR|XPAD_TR2
 XPAD_TRIGGER_B_BUTTONS=XPAD_EAST|XPAD_NORTH|XPAD_TL|XPAD_TL2
@@ -704,6 +707,14 @@ input_frame_end:
 	cmp.l	(a0),d0
 	bcs		.script_done
 
+	cmp.b	#SCRIPT_KEY,4(a0)
+	bne		.not_key
+
+	bsr		script_key
+
+	bra		.script_next_record
+
+.not_key:
 	cmp.b	#SCRIPT_JOYSTICK,4(a0)
 	bne		.script_next_record
 
@@ -735,6 +746,42 @@ input_frame_end:
 .no_autofire:
 	clr.l	autofire_frames
 	sf		autofire_released
+
+	rts
+
+; a0 = a key record: the key, as if from the keyboard (an Amiga raw code,
+; bit 7 a release, as the ST's scancode). Preserves all registers.
+
+script_key:
+	movem.l	d0-d2/a0-a2,-(sp)
+
+	move.b	5(a0),d2
+	moveq	#$7f,d1
+	and.b	d2,d1
+	lea		script_key_codes,a1
+
+.find:
+	cmp.b	#$ff,(a1)
+	beq		.done ; Not a key the ST reads.
+
+	cmp.b	(a1),d1
+	beq		.found
+
+	addq.l	#2,a1
+
+	bra		.find
+
+.found:
+	move.b	1(a1),d0
+	and.b	#$80,d2
+	or.b	d2,d0
+	move	sr,-(sp)
+	or		#$0700,sr ; (Its counts are the keyboard interrupt's too.)
+	bsr		process_key
+	move	(sp)+,sr
+
+.done:
+	movem.l	(sp)+,d0-d2/a0-a2
 
 	rts
 
@@ -832,6 +879,27 @@ reset_input:
 
 input_file_name:
 	dc.b	'INPUT.BIN',0
+
+; The input script's keys (tests/amiga/make_input_script.py's): the Amiga's
+; raw code, then the ST's scancode; $ff ends.
+
+script_key_codes:
+	dc.b	$01,$02 ; 1
+	dc.b	$31,$2c ; Z
+	dc.b	$32,$2d ; X
+	dc.b	$40,$39 ; Space
+	dc.b	$42,$0f ; Tab
+	dc.b	$44,$1c ; Return
+	dc.b	$45,$01 ; Esc
+	dc.b	$4c,$48 ; Up
+	dc.b	$4d,$50 ; Down
+	dc.b	$4e,$4d ; Right
+	dc.b	$4f,$4b ; Left
+	dc.b	$19,$19 ; P
+	dc.b	$60,$2a ; Left shift
+	dc.b	$61,$36 ; Right shift
+	dc.b	$63,$1d ; Control
+	dc.b	$ff
 
 	even
 

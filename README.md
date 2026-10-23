@@ -2,7 +2,7 @@
 
 <img src="./docs/screenshots/st/hero.png" alt="Cho Ren Sha 68k on the Atari ST" width="832" />
 
-Famibe No Yosshin's [Cho Ren Sha 68k](https://yosshin4004.github.io/x68k/crs68k/official/index.html),
+Famibe No Yosshin's [Cho Ren Sha 68k (超連射 68k)](https://yosshin4004.github.io/x68k/crs68k/official/index.html),
 ported to the Atari ST by [Neil Rackett](https://neilrackett.com/atarist).
 
 ## Introduction
@@ -62,7 +62,7 @@ but gain 20% more screen.
 | Ctrl / Z              | Fire       | A, X, right shoulder or trigger | shoot                                                                            |
 | Shift / X             |            | B, Y, left shoulder or trigger  | second button                                                                    |
 | P                     |            | Start                           | pause (press again to continue)                                                  |
-| Esc                   |            |                                 | back to the title (from a game, also paused or at game over); on the title: quit |
+| Esc                   |            |                                 | back to the title (from a game, also paused or at game over, and from CONFIG or the hidden menu); on the title: quit |
 | F1                    |            |                                 | lockstep on / off: every frame is shown, the game slowed to the drawing speed    |
 | F2                    |            |                                 | keep the playfield window still instead of following the ship                    |
 | 1, Tab, Return, Space |            |                                 | as the same keys on the X68000                                                   |
@@ -80,8 +80,8 @@ shot once per press).
 **Hidden menu:** hold Shift (or X, or B on a pad) and choose CONFIG with
 fire for the original game's hidden menu, KAKUSI mode. MUTEKI makes the
 ship invincible (left or right switches it on and off), STAGE picks the
-stage to start at, BOSS_ONLY plays the bosses alone, and EXIT goes back to
-the title. Its settings last until the program ends. The original's own
+stage to start at, BOSS_ONLY plays the bosses alone, and EXIT (or Esc) goes
+back to the title. Its settings last until the program ends. The original's own
 way works too: up, down and right at once (an X68000 pad's SELECT and
 right) as CONFIG is chosen.
 
@@ -96,8 +96,8 @@ value it cannot read, is named on the start-up screen and ignored.
 | Setting           | Default | Meaning                                                                                                                                                 |
 | ----------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `screen`          | `crop`  | `crop`: the 200-line screen, 192 of the playfield's lines in a window that follows the ship. `full`: both borders open, 273 lines and the whole picture |
-| `megaste_speedup` | `true`  | `false`: a Mega STE stays at 8MHz without its cache (for comparisons)                                                                                   |
-| `music`           | `true`  | `false`: no music (on an ST the effects get the whole YM2149 back)                                                                                      |
+| `megaste_speedup` | `true`  | `false`: a Mega STE stays at 8MHz without its cache (for testing)                                                                                       |
+| `music`           | `true`  | `false`: no music                                                                                                                                       |
 | `lockstep`        | `false` | `true`: every frame drawn from the start (F1 switches it)                                                                                               |
 | `frames`          | `0`     | For testing: the attract demo runs for that many frames, then the program reports the pictures it drew and exits. 0: never                              |
 
@@ -119,13 +119,6 @@ Please include as much information as possible, including:
 - Your `SZ2.CFG` settings
 - The exact steps to reproduce the issue
 - The text the program shows at start-up and exit
-
-### To-do
-
-- Music: the songs are reduced from the X68000's eight FM channels to the
-  YM2149's three voices automatically, so a chord keeps one note and each
-  song's balance is the converter's guess. Songs tuned by ear would be
-  better.
 
 ## Building
 
@@ -162,7 +155,7 @@ make targets, running the game in Hatari and on a real ST, how the songs in
 ## Credits
 
 - [Original game](https://yosshin4004.github.io/x68k/crs68k/official/index.html):
-  (c) 1995 Famibe No Yosshin (X68000), with sound by Loser Kashiwagi.
+  (c) 1995 Famibe No Yosshin (X68000), sound (c) 1995, 1998 by Loser Kashiwagi.
 - Atari Falcon port and the disassembly this port builds on: Sascha
   Springer.
 - [Amiga port](https://github.com/apolkosnik/chorensha): Adam Polkosnik.

@@ -1,0 +1,16 @@
+# ESC backs out of CONFIG to the title, and quits from the title. Main
+# menu: START, CONTINUE, CONFIG, EXIT; down twice, trigger A. Run with
+# FRAMES=2000: the screenshot at frame 500 shows CONFIG and the one at
+# 1000 the title (its high scores by then); the ESC at 1100 quits ("Exit:
+# game", before the frame limit). (A script cannot move through the high
+# scores: the title waits there, without frames, until all is released.)
+300 down
+310 -
+320 down
+330 -
+340 a
+350 -
+600 key esc press
+610 key esc release
+1100 key esc press
+1110 key esc release

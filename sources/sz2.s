@@ -10708,6 +10708,14 @@ L_000253A8:
 	move.w  D3,-2(A6)                               ; 000253C4 3D43 FFFE
 	clr.w   D3                                      ; 000253C8 4243
 	addq.w  #$4,A7                                  ; 000253CA 584F
+
+	ifd __ST__
+	; ESC: back to the title, as EXIT. (After the frame's input: an ESC
+	; read there as START, the X68000's, has already been counted.)
+
+	jsr		amiga_escape_pressed
+	bne.w	ST_CONFIG_EXIT
+	endif
 	tst.w   D4                                      ; 000253CC 4A44
 	bne.w   L_00025458                              ; 000253CE 6600 0088
 
@@ -11062,6 +11070,10 @@ L_000256CE:
 	cmp.w   #$1,D3                                  ; 000256CE B67C 0001
 	bne.w   CONFIG_MODE_LOOP                              ; 000256D2 6600 FB2C
 
+	ifd __ST__
+ST_CONFIG_EXIT:
+	endif
+
 	pea     $40.w                                   ; 000256D6 4878 0040
 	jsr     PLAY_PCM_SAMPLE                              ; 000256DA 4EB9 0002 64F4
 
@@ -11382,6 +11394,13 @@ L_00025A1A:
 	move.w  D3,-2(A6)                               ; 00025A36 3D43 FFFE
 	clr.w   D3                                      ; 00025A3A 4243
 	addq.w  #$4,A7                                  ; 00025A3C 584F
+
+	ifd __ST__
+	; ESC: back to the title, as EXIT (see CONFIG's).
+
+	jsr		amiga_escape_pressed
+	bne.w	ST_KAKUSI_EXIT
+	endif
 	tst.w   D4                                      ; 00025A3E 4A44
 	bne.w   L_00025ACA                              ; 00025A40 6600 0088
 
@@ -11668,6 +11687,10 @@ L_00025C72:
 L_00025C8A:
 	cmp.w   #$1,D3                                  ; 00025C8A B67C 0001
 	bne.w   KAKUSI_MODE_LOOP                              ; 00025C8E 6600 FC06
+
+	ifd __ST__
+ST_KAKUSI_EXIT:
+	endif
 
 	pea     $40.w                                   ; 00025C92 4878 0040
 	jsr     PLAY_PCM_SAMPLE                              ; 00025C96 4EB9 0002 64F4
