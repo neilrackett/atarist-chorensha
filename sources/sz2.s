@@ -8092,6 +8092,10 @@ L_00023C24:
 
 	jsr     CLEAR_TEXT_PLANE                              ; 00023C3E 4EB9 0002 25E2
 
+	ifd __ST__
+	jsr		st_name_entry_window ; (Its rows 6-30 in crop's window, display.s.)
+	endif
+
 	jsr     XSP_OUT                              ; 00023C44 4EB9 0002 04C2
 
 	pea     $0.w                                    ; 00023C4A 4878 0000
@@ -10261,6 +10265,10 @@ L_00024F62:
 
 	clr.w   D5                                      ; 00024F6E 4245
 	jsr     CLEAR_TEXT_PLANE                              ; 00024F70 4EB9 0002 25E2
+
+	ifd __ST__
+	jsr		st_scores_window ; (All its rows in crop's window, display.s.)
+	endif
 
 	pea     $A.w                                    ; 00024F76 4878 000A
 	pea     $0.w                                    ; 00024F7A 4878 0000

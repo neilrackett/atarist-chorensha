@@ -42,6 +42,10 @@
 	xdef write_screenshot
 	xdef crop_mode
 	xdef st_hidden_menu
+	xdef st_name_entry_window
+	xdef st_scores_window
+	xdef text_window
+	xdef text_unpinned
 
 	xref L_00E82000
 	xref WORD_00098864
@@ -81,6 +85,8 @@
 MAXIMUM_WINDOW=256-CROP_SCREEN_LINES ; 56: the window shows X68000 lines w..199+w.
 DEFAULT_WINDOW=24 ; Lines 24-223.
 HIDDEN_MENU_WINDOW=40 ; Lines 40-239: the hidden menu's rows 6-29.
+NAME_ENTRY_WINDOW=48 ; Lines 48-247: the name entry's rows 6-30.
+SCORES_WINDOW=40 ; Lines 40-239: the title's high score table, rows 5-28.
 SHIP_LINE=138 ; The ship's line on the screen.
 WINDOW_STEP=2 ; Lines per frame.
 PI1_SIZE=CROP_SCREEN_LINES*SCREEN_LINE ; A screenshot's picture: 200 lines,
@@ -217,6 +223,26 @@ set_layout:
 	bpl		.clear
 
 	movem.l	(sp)+,d0-d1/a0
+
+	rts
+
+; ------------------------------------------------------------------------------
+;
+; Screens of the game whose text does not fit crop's default window (sz2.s,
+; ifd __ST__, after their CLEAR_TEXT_PLANE; the next one ends it, text.s).
+; The name entry: its table's ten scores and keyboard, rows 6-30, its title
+; and heading (rows 1 and 4) left out, and its rows 1-3 not pinned to the
+; top as the HUD's are (they are its title's). The title's high score
+; table: rows 5-28, all of it. Preserve all registers.
+
+st_name_entry_window:
+	move	#NAME_ENTRY_WINDOW,text_window
+	st		text_unpinned
+
+	rts
+
+st_scores_window:
+	move	#SCORES_WINDOW,text_window
 
 	rts
 
@@ -370,7 +396,8 @@ render_frame:
 
 ; The window: in a stage, toward the ship (two thirds down the playfield),
 ; else (or with F2) the default, or lower for the game's hidden menu (its
-; title to its EXIT). At full height none: the whole playfield.
+; title to its EXIT) and the screens that ask for a window of their own
+; (text_window). At full height none: the whole playfield.
 
 update_window:
 	tst.b	full_height
@@ -385,11 +412,19 @@ update_window:
 	bra		.target
 
 .not_hidden_menu:
+	tst.b	in_stage
+	bne		.stage
+
+	move	text_window,d1
+	bmi		.target
+
+	move	d1,d0
+
+	bra		.target
+
+.stage:
 	tst.b	crop_mode
 	bne		.target
-
-	tst.b	in_stage
-	beq		.target
 
 	move	WORD_00098864+2,d0 ; Ship y, 1/64 pixel, sprite coordinates.
 	asr		#6,d0
@@ -660,6 +695,9 @@ flip_palette: ; The presented picture's colours.
 st_palette: ; At the take-over: all black.
 	dcb.w	16,0
 
+text_window: ; A screen's own window (st_name_entry_window), or -1: none.
+	dc.w	-1
+
 ; ------------------------------------------------------------------------------
 	bss
 ; ------------------------------------------------------------------------------
@@ -702,6 +740,8 @@ flip_pending: ; 2: a new picture to show at the next VBL, 1: its colours next.
 crop_mode: ; F2: the window does not follow the ship.
 	ds.b	1
 st_hidden_menu: ; The game's hidden menu is open (sz2.s).
+	ds.b	1
+text_unpinned: ; The text's rows 1-3 follow the window (st_name_entry_window).
 	ds.b	1
 
 	even

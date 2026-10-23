@@ -284,6 +284,13 @@ default; full height is below):
     way down; it moves at most 2 lines per frame.
   - Elsewhere, or after F2, the window shows lines 24-223, and lines
     40-239 while the game's hidden menu is open (its title to its EXIT).
+  - Two screens of text ask for a window of their own (sz2.s, after their
+    `CLEAR_TEXT_PLANE`; the next one ends it): the title's high score
+    table, lines 40-239 (all of it, where the default left out its tenth
+    score), and the name entry, lines 48-247: its ten scores and its
+    keyboard, down to ED. The name entry's title and heading do not fit
+    (its rows run from 1 to 30); its rows 1-3 then follow the window
+    instead of being pinned, as they are its title's, not the HUD's.
   - The score, lives and bombs (text rows 0-3) stay at the top of the
     screen, drawn over each picture.
 - **With `hud=band`:** lines 0-7 are the HUD band instead, the score drawn
@@ -767,6 +774,10 @@ The X68000's own sprite library code is already tight.
   `INPUT=` and `FRAMES=1100`) opens it from CONFIG with trigger B held:
   its grabs show the whole menu in crop, then the title again after its
   EXIT.
+- **Name entry.** `tests/st/input/name_entry.txt` (with `FRAMES=3000` and
+  `SCORES=tests/st/data/SCORE_LOW.DAT`, a table any score gets into) plays
+  a game to its end: the grab at frame 2500 shows the entry, in crop its
+  ten scores and keyboard.
 - **ESC.** `make test` runs `tests/st/input/esc_config.txt` and
   `esc_kakusi.txt`: each opens its menu, leaves it with ESC and quits
   from the title with another, so the run ends at frame 1100 ("Exit:

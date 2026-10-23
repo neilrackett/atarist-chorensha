@@ -33,6 +33,8 @@
 	xref playfield_top
 	xref playfield_bottom
 	xref hud_band
+	xref text_window
+	xref text_unpinned
 
 	include "st.i"
 
@@ -271,10 +273,15 @@ amiga_text_cleared:
 
 ; ------------------------------------------------------------------------------
 ;
-; CLEAR_TEXT_PLANE: an empty map (and HUD band). Preserves all registers.
+; CLEAR_TEXT_PLANE: an empty map (and HUD band); the window and pinned rows
+; a screen asked for (display.s, st_name_entry_window) end with its text.
+; Preserves all registers.
 
 amiga_clear_text_planes:
 	movem.l	d0-d7/a0-a2,-(sp)
+
+	move	#-1,text_window
+	sf		text_unpinned
 
 	lea		character_map,a0
 	move.l	#SPACE<<24|SPACE<<16|SPACE<<8|SPACE,d0
@@ -379,13 +386,18 @@ draw_text_rows:
 
 .row_loop:
 	; ST lines of the row: row * 8 - offset ... + 7; rows 0-3 (the HUD)
-	; stay at the top of the screen, as they overlay the X68000's.
+	; stay at the top of the screen, as they overlay the X68000's (but
+	; for a screen whose rows 1-3 are not the HUD's: text_unpinned).
 
 	move	d5,d7
 	lsl		#3,d7
 	cmp		#HUD_ROWS,d5
-	bcs		.pinned
+	bcc		.not_pinned
 
+	tst.b	text_unpinned
+	beq		.pinned
+
+.not_pinned:
 	sub		d6,d7
 	cmp		playfield_bottom,d7
 	bgt		.done ; Below the playfield (the rows below are too).

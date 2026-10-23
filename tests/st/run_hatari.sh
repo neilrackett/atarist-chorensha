@@ -35,6 +35,9 @@
 #             (These and FRAMES go into the staged SZ2.CFG.)
 #   REPLAY    a replay from binaries/atari/ETC_DAT (e.g. DEMO3.REP) used as
 #             the attract demo (ETC_DAT/DEMO.REP)
+#   SCORES    a high score table (ETC_DAT/SCORE.DAT's format) staged instead
+#             of the game's (tests/st/data/SCORE_LOW.DAT: any score makes the
+#             name entry)
 #   INPUT     an input script (text, as tests/amiga/input/*.txt; only its
 #             joystick lines are used), staged as INPUT.BIN
 #   AUTO      programs to run at boot from C:\AUTO (e.g. an Xpad provider)
@@ -114,6 +117,9 @@ else
 fi
 if [ -n "${REPLAY:-}" ]; then
 	cp "binaries/atari/ETC_DAT/$REPLAY" "$STAGE/ETC_DAT/DEMO.REP" || exit 2
+fi
+if [ -n "${SCORES:-}" ]; then
+	cp "$SCORES" "$STAGE/ETC_DAT/SCORE.DAT" || exit 2
 fi
 {
 	echo "screen=${SCREEN:-crop}"
